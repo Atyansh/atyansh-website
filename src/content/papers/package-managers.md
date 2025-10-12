@@ -1,8 +1,8 @@
 ---
 title: 'SPAM: Secure PAckage Manager'
 description: 'A federated Byzantine fault tolerant framework for secure package management with strong guarantees against malicious actors.'
-authors: ['Atyansh Jaiswal']
-pubDate: 2017-06-01
+authors: ['Fraser Brown', 'Ariana Mirian', 'Atyansh Jaiswal', 'Andres Nötzli', 'Deian Stefan']
+pubDate: 2017-04-01
 featured: true
 tags: ['package managers', 'security', 'software supply chain', 'Byzantine fault tolerance']
 links:

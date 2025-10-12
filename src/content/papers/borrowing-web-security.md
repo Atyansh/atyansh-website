@@ -1,7 +1,7 @@
 ---
 title: 'Saber: Delegating Web Security to Browser'
 description: 'A prototype Fetch API that delegates web requests to Google Chrome, providing secure TLS connections without requiring security expertise.'
-authors: ['Atyansh Jaiswal']
+authors: ['Atyansh Jaiswal', 'Jonathan Luck', 'Joshua Chao']
 pubDate: 2017-06-01
 featured: true
 tags: ['web security', 'TLS', 'browser security', 'Fetch API']

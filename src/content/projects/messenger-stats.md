@@ -3,7 +3,7 @@ title: 'Messenger Stats'
 description: 'Python script to analyze Facebook Messenger conversations, generating detailed statistics and word clouds from your chat history.'
 technologies: ['Python', 'Data Analysis', 'WordCloud', 'JSON Processing']
 featured: false
-startDate: 2017-06-01
+startDate: 2019-06-01
 links:
   github: 'https://github.com/atyansh/messenger-stats'
 ---

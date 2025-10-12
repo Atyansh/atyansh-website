@@ -1,8 +1,8 @@
 ---
 title: 'A DSL for Garbled Circuits'
 description: 'A domain-specific language designed for working with garbled circuits in secure computation.'
-authors: ['Atyansh Jaiswal']
-pubDate: 2024-01-01
+authors: ['Matthew Chan', 'Rohit Jha', 'Atyansh Jaiswal']
+pubDate: 2016-12-15
 featured: true
 tags: ['cryptography', 'garbled circuits', 'DSL', 'secure computation']
 links:

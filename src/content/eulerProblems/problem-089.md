@@ -1,0 +1,38 @@
+---
+problemNumber: 89
+title: 'Roman Numerals'
+difficulty: 20
+solved: true
+solutionLanguage: 'Java'
+githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler89.java'
+---
+
+## Problem Statement
+
+For a number written in Roman numerals to be considered valid there are basic rules which must be followed. Even though the rules allow some numbers to be expressed in more than one way there is always a "best" way of writing a particular number.
+
+For example, it would appear that there are at least six ways of writing the number sixteen:
+
+IIIIIIIIIIIIIIII
+VIIIIIIIIIII
+VVIIIIII
+XIIIIII
+VVVI
+XVI
+
+However, according to the rules only XIIIIII and XVI are valid, and the last example is considered to be the most efficient, as it uses the least number of numerals.
+
+The 11K text file, roman.txt, contains one thousand numbers written in valid, but not necessarily minimal, Roman numerals; see About... Roman Numerals for the definitive rules for this problem.
+
+Find the number of characters saved by writing each of these in their minimal form.
+
+Note: You can assume that all the Roman numerals in the file contain no more than four consecutive identical units.
+
+## Approach
+
+The solution involves:
+1. Reading Roman numerals from the file
+2. Converting each Roman numeral to its decimal value
+3. Converting the decimal value back to minimal Roman numeral form
+4. Comparing the lengths of original and minimal forms
+5. Summing the character savings across all 1000 numbers

@@ -1,0 +1,239 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import MediaCard from '../components/MediaCard';
+import MusicCarousel from '../components/MusicCarousel';
+import { getSpotifyData, getBestImage } from '../utils/spotify';
+
+// Fetch Spotify data
+const spotifyData = await getSpotifyData();
+
+// Calculate top genres from Spotify artists (last month)
+const topGenres = spotifyData
+  ? Array.from(
+      new Set(
+        spotifyData.topArtists.short
+          .flatMap(artist => artist.genres)
+          .slice(0, 10)
+      )
+    ).slice(0, 5)
+  : [];
+
+// Separate music and podcast items from recently played
+const recentMusic = spotifyData?.recentlyPlayed.filter(item => item.track) || [];
+const recentPodcasts = spotifyData?.recentlyPlayed.filter(item => item.episode) || [];
+
+// Aggregate podcast shows from recent episodes
+const podcastShows = recentPodcasts.length > 0
+  ? Array.from(
+      new Map(
+        recentPodcasts
+          .map(item => item.episode!)
+          .map(episode => [episode.show.id, episode.show])
+      ).values()
+    )
+  : [];
+---
+
+<BaseLayout
+  title="Music - Atyansh Jaiswal"
+  description="Music and podcasts I'm listening to"
+>
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-bold mb-4" style="color: var(--text-primary);">
+        Music & Podcasts
+      </h1>
+    </div>
+
+    <!-- Music Section -->
+    {spotifyData && (
+      <section class="mb-20">
+        <h2 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">
+          Music
+          <span class="text-lg font-normal ml-3" style="color: var(--text-secondary);">Last Month</span>
+        </h2>
+
+        {/* Featured Playlists */}
+        {spotifyData.featuredPlaylists?.map((playlist) => (
+          <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <MusicCarousel
+              client:load
+              tracks={playlist.allTracks || []}
+              title={playlist.name}
+              playlistUrl={playlist.external_urls.spotify}
+            />
+          </div>
+        ))}
+
+        {/* Top Tracks */}
+        {spotifyData.topTracks.short.length > 0 && (
+          <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Top Tracks</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {spotifyData.topTracks.short.slice(0, 10).map((track, index) => (
+                <a
+                  href={track.external_urls.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="group"
+                >
+                  <MediaCard
+                    client:load
+                    title={track.name}
+                    subtitle={track.artists.map(a => a.name).join(', ')}
+                    image={getBestImage(track.album.images)}
+                    delay={index * 0.05}
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Top Artists */}
+        {spotifyData.topArtists.short.length > 0 && (
+          <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Top Artists</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {spotifyData.topArtists.short.slice(0, 10).map((artist, index) => (
+                <a
+                  href={artist.external_urls.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="group"
+                >
+                  <MediaCard
+                    client:load
+                    title={artist.name}
+                    subtitle={artist.genres.slice(0, 2).join(', ') || 'Artist'}
+                    image={getBestImage(artist.images)}
+                    tags={artist.genres.slice(0, 2)}
+                    delay={index * 0.05}
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recently Played Music */}
+        {recentMusic.length > 0 && (
+          <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Recently Played</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {recentMusic.slice(0, 10).map((item, index) => (
+                <a
+                  href={item.track!.external_urls.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="group"
+                >
+                  <MediaCard
+                    client:load
+                    title={item.track!.name}
+                    subtitle={item.track!.artists.map(a => a.name).join(', ')}
+                    image={getBestImage(item.track!.album.images)}
+                    delay={index * 0.05}
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Saved Albums */}
+        {spotifyData.savedAlbums.length > 0 && (
+          <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Saved Albums</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+              {spotifyData.savedAlbums.slice(0, 12).map((album, index) => (
+                <a
+                  href={album.external_urls.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="group"
+                >
+                  <MediaCard
+                    client:load
+                    title={album.name}
+                    subtitle={album.artists.map(a => a.name).join(', ')}
+                    image={getBestImage(album.images)}
+                    delay={index * 0.05}
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Genre breakdown */}
+        {topGenres.length > 0 && (
+          <div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <h3 class="text-lg font-semibold mb-4" style="color: var(--text-primary);">
+              Top Genres
+            </h3>
+            <div class="flex flex-wrap gap-3">
+              {topGenres.map((genre) => (
+                <span class="px-4 py-2 rounded-full font-medium" style="background-color: var(--accent); color: white;">
+                  {genre}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+    )}
+
+    <!-- Podcasts Section -->
+    {recentPodcasts.length > 0 && (
+      <section class="mb-20">
+        <h2 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">
+          Podcasts
+        </h2>
+
+        {/* Recent Podcast Episodes */}
+        <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+          <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Recent Episodes</h3>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            {recentPodcasts.slice(0, 10).map((item, index) => (
+              <a
+                href={item.episode!.external_urls.spotify}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="group"
+              >
+                <MediaCard
+                  client:load
+                  title={item.episode!.name}
+                  subtitle={item.episode!.show.name}
+                  image={getBestImage(item.episode!.images)}
+                  tags={['Podcast']}
+                  delay={index * 0.05}
+                />
+              </a>
+            ))}
+          </div>
+        </div>
+
+        {/* Podcast Shows */}
+        {podcastShows.length > 0 && (
+          <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Shows</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {podcastShows.map((show, index) => (
+                <div class="group">
+                  <MediaCard
+                    client:load
+                    title={show.name}
+                    subtitle={show.publisher}
+                    delay={index * 0.05}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+    )}
+  </div>
+</BaseLayout>

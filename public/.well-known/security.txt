@@ -1,0 +1,36 @@
+Contact: mailto:atyansh.jaiswal@gmail.com
+Expires: 2026-12-31T23:59:59.000Z
+Preferred-Languages: en
+Canonical: https://atyansh.com/.well-known/security.txt
+
+# Security Policy
+
+Thank you for helping keep this website and its users safe!
+
+## Reporting a Vulnerability
+
+If you discover a security vulnerability, please report it via email to:
+atyansh.jaiswal@gmail.com
+
+Please include:
+- Description of the vulnerability
+- Steps to reproduce
+- Potential impact
+- Any suggested fixes
+
+## Response Time
+
+I will acknowledge receipt of your vulnerability report within 48 hours
+and will send a more detailed response within 7 days indicating the
+next steps in handling your submission.
+
+## Safe Harbor
+
+I support safe harbor for security researchers who:
+- Make a good faith effort to avoid privacy violations, data
+  destruction, and interruption or degradation of services
+- Only interact with accounts you own or with explicit permission
+- Do not exploit a security issue beyond what is necessary to
+  demonstrate the vulnerability
+
+Thank you for your responsible disclosure!

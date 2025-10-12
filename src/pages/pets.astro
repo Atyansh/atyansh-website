@@ -1,0 +1,118 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+import AnimatedCard from '../components/AnimatedCard';
+import ImageGallery from '../components/ImageGallery';
+
+const pets = await getCollection('pets');
+---
+
+<BaseLayout
+  title="Pets - Atyansh Jaiswal"
+  description="Meet my furry friends"
+>
+  <div class="max-w-6xl mx-auto">
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-bold mb-4" style="color: var(--text-primary);">
+        My Pets
+      </h1>
+    </div>
+
+    {pets.length === 0 && (
+      <div class="text-center py-16">
+        <p class="text-xl" style="color: var(--text-secondary);">
+          No pets yet, but hopefully soon!
+        </p>
+      </div>
+    )}
+
+    <div class="space-y-16">
+      {pets.map((pet, index) => {
+        const age = pet.data.birthday
+          ? Math.floor((new Date().getTime() - pet.data.birthday.getTime()) / (1000 * 60 * 60 * 24 * 365))
+          : null;
+
+        const galleryImages = pet.data.images.map((src, idx) => ({
+          src,
+          alt: `${pet.data.name} photo ${idx + 1}`,
+          title: pet.data.name
+        }));
+
+        return (
+          <section>
+            <AnimatedCard client:load delay={index * 0.1}>
+              <div class="grid md:grid-cols-2 gap-8">
+                <div>
+                  <div class="flex items-start justify-between mb-4">
+                    <div>
+                      <h2 class="text-4xl font-bold mb-2" style="color: var(--text-primary);">
+                        {pet.data.name}
+                      </h2>
+                      <p class="text-xl" style="color: var(--text-secondary);">
+                        {pet.data.breed || pet.data.species}
+                      </p>
+                    </div>
+                    {age !== null && (
+                      <div class="text-right">
+                        <div class="text-3xl font-bold" style="color: var(--accent);">
+                          {age}
+                        </div>
+                        <div class="text-sm" style="color: var(--text-secondary);">
+                          {age === 1 ? 'year old' : 'years old'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {pet.data.story && (
+                    <div class="prose dark:prose-invert mb-6">
+                      <p class="leading-relaxed" style="color: var(--text-secondary);">
+                        {pet.data.story}
+                      </p>
+                    </div>
+                  )}
+
+                  {pet.data.favoriteThings && pet.data.favoriteThings.length > 0 && (
+                    <div>
+                      <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
+                        Favorite Things
+                      </h3>
+                      <ul class="space-y-2">
+                        {pet.data.favoriteThings.map((thing) => (
+                          <li class="flex items-center gap-2" style="color: var(--text-secondary);">
+                            <svg class="w-5 h-5 flex-shrink-0" style="color: var(--accent);" fill="currentColor" viewBox="0 0 20 20">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                            </svg>
+                            {thing}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  {pet.data.images.length === 1 && (
+                    <img
+                      src={pet.data.images[0]}
+                      alt={pet.data.name}
+                      class="w-full h-auto rounded-lg shadow-lg"
+                    />
+                  )}
+
+                  {pet.data.images.length > 1 && (
+                    <ImageGallery
+                      client:load
+                      images={galleryImages}
+                    />
+                  )}
+                </div>
+              </div>
+
+            </AnimatedCard>
+          </section>
+        );
+      })}
+    </div>
+  </div>
+</BaseLayout>

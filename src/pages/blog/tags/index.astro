@@ -1,0 +1,67 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import AnimatedCard from '../../../components/AnimatedCard';
+import { getCollection } from 'astro:content';
+
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const tagCounts = new Map<string, number>();
+
+allPosts.forEach(post => {
+  post.data.tags?.forEach(tag => {
+    tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+  });
+});
+
+const sortedTags = Array.from(tagCounts.entries())
+  .sort((a, b) => b[1] - a[1]);
+---
+
+<BaseLayout
+  title="All Tags - Blog"
+  description="Browse all blog post tags"
+>
+  <div class="max-w-4xl mx-auto">
+    <header class="mb-12">
+      <a
+        href="/blog"
+        class="inline-flex items-center gap-2 mb-4 hover:underline"
+        style="color: var(--accent);"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        Back to all posts
+      </a>
+
+      <h1 class="text-4xl font-bold mb-4" style="color: var(--text-primary);">
+        All Tags
+      </h1>
+      <p class="text-lg" style="color: var(--text-secondary);">
+        Browse blog posts by topic
+      </p>
+    </header>
+
+    <AnimatedCard client:load delay={0}>
+      <div class="flex flex-wrap gap-3">
+        {sortedTags.map(([tag, count], index) => (
+          <a
+            href={`/blog/tags/${tag}`}
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors hover:shadow-md"
+            style="background-color: var(--bg-secondary); color: var(--text-primary);"
+          >
+            <span class="font-medium">{tag}</span>
+            <span class="text-sm px-2 py-0.5 rounded-full" style="background-color: var(--accent); color: white;">
+              {count}
+            </span>
+          </a>
+        ))}
+      </div>
+
+      {sortedTags.length === 0 && (
+        <p style="color: var(--text-secondary);">
+          No tags found. Start writing posts with tags!
+        </p>
+      )}
+    </AnimatedCard>
+  </div>
+</BaseLayout>

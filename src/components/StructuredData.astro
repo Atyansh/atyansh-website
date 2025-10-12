@@ -1,0 +1,79 @@
+---
+interface Props {
+  type?: 'person' | 'article' | 'website' | 'blog';
+  data?: Record<string, any>;
+}
+
+const { type = 'website', data = {} } = Astro.props;
+
+const baseStructuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: 'Atyansh Jaiswal',
+  url: 'https://atyansh.com',
+  image: 'https://www.gravatar.com/avatar/7e16fc57778ed552f69eb809ce567b38?s=400',
+  jobTitle: 'Software Engineer',
+  worksFor: {
+    '@type': 'Organization',
+    name: 'Anthropic',
+  },
+  sameAs: [
+    'https://github.com/atyansh',
+    'https://linkedin.com/in/atyansh',
+    'https://x.com/AtyanshJ',
+  ],
+  alumniOf: {
+    '@type': 'EducationalOrganization',
+    name: 'UC San Diego',
+  },
+};
+
+const websiteData = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Atyansh Jaiswal',
+  url: 'https://atyansh.com',
+  description: 'Security & Privacy Engineer | Personal Website',
+  author: {
+    '@type': 'Person',
+    name: 'Atyansh Jaiswal',
+  },
+};
+
+const getStructuredData = () => {
+  switch (type) {
+    case 'person':
+      return baseStructuredData;
+    case 'website':
+      return websiteData;
+    case 'article':
+      return {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        ...data,
+        author: {
+          '@type': 'Person',
+          name: 'Atyansh Jaiswal',
+          url: 'https://atyansh.com',
+        },
+      };
+    case 'blog':
+      return {
+        '@context': 'https://schema.org',
+        '@type': 'Blog',
+        ...data,
+        author: {
+          '@type': 'Person',
+          name: 'Atyansh Jaiswal',
+          url: 'https://atyansh.com',
+        },
+      };
+    default:
+      return websiteData;
+  }
+};
+
+const structuredData = getStructuredData();
+---
+
+<script type="application/ld+json" set:html={JSON.stringify(structuredData)} />

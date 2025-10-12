@@ -1,0 +1,96 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import MoviesFilter from '../components/MoviesFilter';
+import { getLetterboxdData } from '../utils/letterboxd';
+
+// Fetch Letterboxd data at build time
+const letterboxdData = await getLetterboxdData();
+
+// Use Letterboxd data if available
+let movies = [];
+if (letterboxdData && letterboxdData.movies.length > 0) {
+  // Map Letterboxd movies to the format expected by the UI
+  movies = letterboxdData.movies.map(movie => ({
+    data: {
+      title: movie.title,
+      year: movie.year,
+      releaseDate: movie.releaseDate,
+      director: movie.director,
+      posterImage: movie.posterImage,
+      rating: movie.rating,
+      watchedDate: movie.watchedDate,
+      reviewText: movie.reviewText,
+      link: movie.link,
+      rewatch: movie.rewatch,
+    }
+  }));
+}
+---
+
+<BaseLayout
+  title="Movies - Atyansh Jaiswal"
+  description="Movies I've watched"
+>
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-bold mb-4" style="color: var(--text-primary);">
+        Movies
+      </h1>
+    </div>
+
+    {movies.length > 0 && (
+      <section class="mb-20">
+        <div class="flex items-center justify-between mb-8">
+          <h2 class="text-3xl font-bold" style="color: var(--text-primary);">
+            My Film Diary
+          </h2>
+          <span class="text-sm" style="color: var(--text-secondary);">
+            {movies.length} {movies.length === 1 ? 'film' : 'films'}
+          </span>
+        </div>
+
+        <MoviesFilter client:load movies={movies} />
+
+        <div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+          <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
+            Viewing Stats
+          </h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {movies.length}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Total Films</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {movies.filter(m => m.data.rating && m.data.rating > 0).length}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Rated</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {movies.filter(m => m.data.rating === 5).length}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">5-Star Films</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {movies.filter(m => m.data.rewatch).length}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Rewatches</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )}
+
+    {movies.length === 0 && (
+      <div class="text-center py-12">
+        <p class="text-lg" style="color: var(--text-secondary);">
+          No movies found. Configure your Letterboxd username in the environment variables.
+        </p>
+      </div>
+    )}
+  </div>
+</BaseLayout>

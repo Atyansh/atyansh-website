@@ -1,0 +1,157 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AnimatedCard from '../../components/AnimatedCard';
+import EulerFilter from '../../components/EulerFilter';
+import { getCollection } from 'astro:content';
+
+const problems = await getCollection('eulerProblems');
+const sortedProblems = problems.sort((a, b) => a.data.problemNumber - b.data.problemNumber);
+
+// Prepare data for React component
+const problemsData = problems.map(p => ({
+  problemNumber: p.data.problemNumber,
+  title: p.data.title,
+  difficulty: p.data.difficulty,
+  solved: p.data.solved,
+  solutionLanguage: p.data.solutionLanguage,
+}));
+
+// Calculate statistics
+const totalSolved = problems.filter(p => p.data.solved).length;
+const languages = [...new Set(problems.map(p => p.data.solutionLanguage).filter(Boolean))];
+const languageCounts = languages.map(lang => ({
+  language: lang,
+  count: problems.filter(p => p.data.solutionLanguage === lang).length
+})).sort((a, b) => b.count - a.count);
+
+// Difficulty statistics
+const difficultiesWithValue = problems.filter(p => p.data.difficulty);
+const avgDifficulty = difficultiesWithValue.length > 0
+  ? (difficultiesWithValue.reduce((sum, p) => sum + (p.data.difficulty || 0), 0) / difficultiesWithValue.length).toFixed(1)
+  : 0;
+---
+
+<BaseLayout
+  title="Project Euler Solutions - Atyansh Jaiswal"
+  description={`${totalSolved} Project Euler problems solved across multiple programming languages`}
+  structuredDataType="website"
+>
+  <div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <header class="mb-12 text-center">
+      <h1 class="text-4xl md:text-5xl font-bold mb-4" style="color: var(--text-primary);">
+        Project Euler Solutions
+      </h1>
+      <p class="text-xl" style="color: var(--text-secondary);">
+        Mathematical and computational problem solving
+      </p>
+    </header>
+
+    <!-- Statistics Dashboard -->
+    <section class="mb-12">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Total Solved -->
+        <AnimatedCard client:load delay={0}>
+          <div class="text-center">
+            <div class="text-4xl font-bold mb-2" style="color: var(--accent);">
+              {totalSolved}
+            </div>
+            <div class="text-sm font-medium" style="color: var(--text-secondary);">
+              Problems Solved
+            </div>
+          </div>
+        </AnimatedCard>
+
+        <!-- Languages Used -->
+        <AnimatedCard client:load delay={0.1}>
+          <div class="text-center">
+            <div class="text-4xl font-bold mb-2" style="color: var(--accent);">
+              {languages.length}
+            </div>
+            <div class="text-sm font-medium" style="color: var(--text-secondary);">
+              Languages Used
+            </div>
+          </div>
+        </AnimatedCard>
+
+        <!-- Average Difficulty -->
+        <AnimatedCard client:load delay={0.2}>
+          <div class="text-center">
+            <div class="text-4xl font-bold mb-2" style="color: var(--accent);">
+              {avgDifficulty}%
+            </div>
+            <div class="text-sm font-medium" style="color: var(--text-secondary);">
+              Avg Difficulty
+            </div>
+          </div>
+        </AnimatedCard>
+
+        <!-- Completion Rate -->
+        <AnimatedCard client:load delay={0.3}>
+          <div class="text-center">
+            <div class="text-4xl font-bold mb-2" style="color: var(--accent);">
+              {Math.round((totalSolved / problems.length) * 100)}%
+            </div>
+            <div class="text-sm font-medium" style="color: var(--text-secondary);">
+              Completion Rate
+            </div>
+          </div>
+        </AnimatedCard>
+      </div>
+    </section>
+
+    <!-- Language Breakdown -->
+    {languageCounts.length > 0 && (
+      <section class="mb-12">
+        <AnimatedCard client:load delay={0.4}>
+          <h2 class="text-2xl font-bold mb-6" style="color: var(--text-primary);">
+            Solutions by Language
+          </h2>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {languageCounts.map(({ language, count }) => (
+              <div class="flex items-center justify-between p-3 rounded-lg" style="background-color: var(--bg-secondary);">
+                <span class="font-medium" style="color: var(--text-primary);">{language}</span>
+                <span class="problem-badge text-sm font-bold px-2 py-1 rounded" style="background-color: var(--accent); color: white;">
+                  {count}
+                </span>
+              </div>
+            ))}
+          </div>
+        </AnimatedCard>
+      </section>
+    )}
+
+    <!-- Problems List with Filter -->
+    <section>
+      <h2 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">
+        All Problems
+      </h2>
+      <EulerFilter client:load problems={problemsData} />
+    </section>
+
+    <!-- Call to Action -->
+    <section class="mt-16 text-center">
+      <AnimatedCard client:load delay={0}>
+        <div class="py-8">
+          <h3 class="text-2xl font-bold mb-4" style="color: var(--text-primary);">
+            Want to solve these problems yourself?
+          </h3>
+          <p class="mb-6" style="color: var(--text-secondary);">
+            Project Euler offers hundreds of challenging mathematical/computer programming problems.
+          </p>
+          <a
+            href="https://projecteuler.net"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="action-button-primary inline-flex items-center gap-2 px-6 py-3 text-white rounded-lg transition-colors font-medium"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+            Visit Project Euler
+          </a>
+        </div>
+      </AnimatedCard>
+    </section>
+  </div>
+</BaseLayout>

@@ -1,0 +1,66 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+import { calculateReadingTime, formatReadingTime } from '../../utils/readingTime';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+  return posts.map((post) => ({
+    params: { slug: post.slug },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await post.render();
+const readingTime = calculateReadingTime(post.body);
+---
+
+<BaseLayout title={`${post.data.title} - Blog`} description={post.data.description} type="article">
+  <article class="max-w-3xl mx-auto">
+    <header class="mb-8">
+      <h1 class="text-4xl font-bold mb-4" style="color: var(--text-primary);">
+        {post.data.title}
+      </h1>
+
+      <div class="text-sm mb-4" style="color: var(--text-secondary);">
+        <time datetime={post.data.pubDate.toISOString()}>
+          Published: {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+        </time>
+        <span class="mx-2">•</span>
+        <span>{formatReadingTime(readingTime)}</span>
+        {post.data.updatedDate && (
+          <span class="ml-4">
+            Last updated: <time datetime={post.data.updatedDate.toISOString()}>
+              {post.data.updatedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </time>
+          </span>
+        )}
+      </div>
+
+      {post.data.tags && post.data.tags.length > 0 && (
+        <div class="flex flex-wrap gap-2 mb-6">
+          {post.data.tags.map((tag) => (
+            <span class="text-sm px-3 py-1 rounded" style="background-color: var(--bg-secondary); color: var(--accent);">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </header>
+
+    <div class="prose dark:prose-invert max-w-none">
+      <Content />
+    </div>
+
+    <footer class="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+      <a
+        href="/blog"
+        class="hover:underline"
+        style="color: var(--accent);"
+      >
+        ← Back to all posts
+      </a>
+    </footer>
+  </article>
+</BaseLayout>

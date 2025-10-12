@@ -1,0 +1,110 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+import AnimatedCard from '../components/AnimatedCard';
+
+const projects = (await getCollection('projects'))
+  .sort((a, b) => b.data.startDate.valueOf() - a.data.startDate.valueOf());
+
+const papers = (await getCollection('papers'))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+
+<BaseLayout
+  title="Work - Atyansh Jaiswal"
+  description="Professional projects and research papers"
+>
+  <div class="max-w-6xl mx-auto">
+    <!-- Projects Section -->
+    <section class="mb-20">
+      <h2 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">
+        Projects
+      </h2>
+      <div class="grid md:grid-cols-2 gap-6">
+        {projects.map((project, index) => (
+          <AnimatedCard
+            client:load
+            href={`/projects/${project.slug}`}
+            delay={index * 0.05}
+          >
+            <div class="flex justify-between items-start mb-3">
+              <h3 class="text-2xl font-semibold" style="color: var(--text-primary);">
+                {project.data.title}
+              </h3>
+              {project.data.featured && (
+                <span class="text-xs px-2 py-1 rounded-full font-medium" style="background-color: var(--accent); color: white;">
+                  Featured
+                </span>
+              )}
+            </div>
+
+            <p class="mb-4" style="color: var(--text-secondary);">
+              {project.data.description}
+            </p>
+
+            {project.data.technologies && project.data.technologies.length > 0 && (
+              <div class="flex flex-wrap gap-2">
+                {project.data.technologies.map((tech) => (
+                  <span class="text-xs px-3 py-1 rounded-full font-medium" style="background-color: var(--bg-secondary); color: var(--accent);">
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            )}
+          </AnimatedCard>
+        ))}
+      </div>
+    </section>
+
+    <!-- Research Papers Section -->
+    <section class="mb-20">
+      <h2 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">
+        Research & Publications
+      </h2>
+      <div class="space-y-6">
+        {papers.map((paper, index) => (
+          <AnimatedCard
+            client:load
+            href={`/papers/${paper.slug}`}
+            delay={index * 0.05 + 0.2}
+          >
+            <div class="flex justify-between items-start mb-3">
+              <h3 class="text-xl font-semibold pr-4" style="color: var(--text-primary);">
+                {paper.data.title}
+              </h3>
+              {paper.data.featured && (
+                <span class="text-xs px-2 py-1 rounded-full font-medium flex-shrink-0" style="background-color: var(--accent); color: white;">
+                  Featured
+                </span>
+              )}
+            </div>
+
+            <p class="text-sm mb-3" style="color: var(--text-secondary);">
+              {paper.data.authors.join(', ')}
+            </p>
+
+            <p class="mb-3" style="color: var(--text-secondary);">
+              {paper.data.description}
+            </p>
+
+            {paper.data.publishedIn && (
+              <p class="text-sm italic mb-3" style="color: var(--text-secondary);">
+                Published in: {paper.data.publishedIn}
+              </p>
+            )}
+
+            {paper.data.tags && paper.data.tags.length > 0 && (
+              <div class="flex flex-wrap gap-2">
+                {paper.data.tags.map((tag) => (
+                  <span class="text-xs px-3 py-1 rounded-full font-medium" style="background-color: var(--bg-secondary); color: var(--accent);">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </AnimatedCard>
+        ))}
+      </div>
+    </section>
+  </div>
+</BaseLayout>

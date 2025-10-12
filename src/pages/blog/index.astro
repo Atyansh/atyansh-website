@@ -1,0 +1,70 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+import { calculateReadingTime, formatReadingTime } from '../../utils/readingTime';
+
+const posts = (await getCollection('blog'))
+  .filter(post => !post.data.draft)
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+
+<BaseLayout title="Blog - Atyansh Jaiswal" description="Technical writings and musings on security and privacy">
+  <div class="max-w-4xl mx-auto">
+    <div class="flex justify-between items-center mb-8">
+      <h1 class="text-4xl font-bold" style="color: var(--text-primary);">Blog</h1>
+      <a
+        href="/blog/tags"
+        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+        style="background-color: var(--bg-secondary); color: var(--accent);"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+        </svg>
+        Browse Tags
+      </a>
+    </div>
+
+    <div class="space-y-6">
+      {posts.map((post) => (
+        <a
+          href={`/blog/${post.slug}`}
+          class="block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700"
+        >
+          <h2 class="text-2xl font-semibold mb-2" style="color: var(--text-primary);">
+            {post.data.title}
+          </h2>
+          <div class="text-sm mb-3" style="color: var(--text-secondary);">
+            <time datetime={post.data.pubDate.toISOString()}>
+              {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </time>
+            <span class="mx-2">•</span>
+            <span>{formatReadingTime(calculateReadingTime(post.body))}</span>
+            {post.data.updatedDate && (
+              <span class="ml-2">
+                (Updated: {post.data.updatedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })})
+              </span>
+            )}
+          </div>
+          <p class="mb-3" style="color: var(--text-secondary);">
+            {post.data.description}
+          </p>
+
+          {post.data.tags && post.data.tags.length > 0 && (
+            <div class="flex flex-wrap gap-2">
+              {post.data.tags.map((tag) => (
+                <a
+                  href={`/blog/tags/${tag}`}
+                  class="text-xs px-2 py-1 rounded hover:opacity-80 transition-opacity"
+                  style="background-color: var(--bg-secondary); color: var(--accent);"
+                  onclick="event.stopPropagation();"
+                >
+                  {tag}
+                </a>
+              ))}
+            </div>
+          )}
+        </a>
+      ))}
+    </div>
+  </div>
+</BaseLayout>

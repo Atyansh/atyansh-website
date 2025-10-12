@@ -1,0 +1,197 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import GameCarousel from '../components/GameCarousel';
+import { getSteamStats } from '../utils/steam';
+import { getPSNStats } from '../utils/psn';
+import { getNintendoStats } from '../utils/nintendo';
+import { getAllGames } from '../utils/unified-games';
+
+// Fetch gaming stats at build time
+const steamStats = await getSteamStats();
+const psnStats = await getPSNStats();
+const nintendoStats = await getNintendoStats();
+
+// Fetch all games from all platforms
+const allGames = await getAllGames();
+---
+
+<BaseLayout
+  title="Games - Atyansh Jaiswal"
+  description="Games I'm playing across Steam, PlayStation, and Nintendo Switch"
+>
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-bold mb-4" style="color: var(--text-primary);">
+        Games
+      </h1>
+    </div>
+
+    {allGames.length > 0 && (
+      <section class="mb-20">
+        {/* Steam Status Banner */}
+        {steamStats && steamStats.playerSummary.gameextrainfo && (
+          <div class="mb-8 p-6 rounded-lg border-2" style="background-color: var(--bg-secondary); border-color: var(--accent);">
+            <div class="flex items-center gap-3">
+              <div class="w-3 h-3 rounded-full animate-pulse" style="background-color: var(--accent);"></div>
+              <div>
+                <div class="text-sm font-medium" style="color: var(--text-secondary);">Currently Playing on Steam</div>
+                <div class="text-xl font-bold" style="color: var(--text-primary);">{steamStats.playerSummary.gameextrainfo}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Steam Games */}
+        {steamStats && allGames.filter(g => g.platform === 'steam').length > 0 && (
+          <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <div class="flex flex-col lg:flex-row gap-8">
+              {/* Steam Stats Box */}
+              <div class="lg:w-64 flex-shrink-0">
+                <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">Steam</h3>
+                <div class="space-y-4">
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {steamStats.totalGames}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Total Games</div>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {steamStats.totalHoursPlayed.toLocaleString()}h
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Hours Played</div>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {steamStats.gamesPlayedCount}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Games Played</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Steam Carousel */}
+              <div class="flex-1 min-w-0">
+                <GameCarousel
+                  client:load
+                  games={allGames.filter(g => g.platform === 'steam')}
+                  title="Recent Games"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PlayStation Games */}
+        {psnStats && allGames.filter(g => g.platform === 'psn').length > 0 && (
+          <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <div class="flex flex-col lg:flex-row gap-8">
+              {/* PSN Stats Box */}
+              <div class="lg:w-64 flex-shrink-0">
+                <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">PlayStation</h3>
+                <div class="space-y-4">
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {psnStats.totalGames}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Total Games</div>
+                  </div>
+                  {psnStats.trophyLevel && (
+                    <div>
+                      <div class="text-3xl font-bold" style="color: var(--accent);">
+                        {psnStats.trophyLevel}
+                      </div>
+                      <div class="text-sm" style="color: var(--text-secondary);">Trophy Level</div>
+                    </div>
+                  )}
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {psnStats.totalTrophies.total.toLocaleString()}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Total Trophies</div>
+                  </div>
+
+                  {/* Trophy Breakdown */}
+                  {psnStats.totalTrophies.total > 0 && (
+                    <div class="pt-4 border-t" style="border-color: var(--bg-primary);">
+                      <div class="space-y-2 text-sm" style="color: var(--text-primary);">
+                        {psnStats.totalTrophies.platinum > 0 && (
+                          <div class="flex items-center justify-between">
+                            <span>🏆 Platinum</span>
+                            <span class="font-bold">{psnStats.totalTrophies.platinum}</span>
+                          </div>
+                        )}
+                        {psnStats.totalTrophies.gold > 0 && (
+                          <div class="flex items-center justify-between">
+                            <span>🥇 Gold</span>
+                            <span class="font-bold">{psnStats.totalTrophies.gold}</span>
+                          </div>
+                        )}
+                        {psnStats.totalTrophies.silver > 0 && (
+                          <div class="flex items-center justify-between">
+                            <span>🥈 Silver</span>
+                            <span class="font-bold">{psnStats.totalTrophies.silver}</span>
+                          </div>
+                        )}
+                        {psnStats.totalTrophies.bronze > 0 && (
+                          <div class="flex items-center justify-between">
+                            <span>🥉 Bronze</span>
+                            <span class="font-bold">{psnStats.totalTrophies.bronze}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* PSN Carousel */}
+              <div class="flex-1 min-w-0">
+                <GameCarousel
+                  client:load
+                  games={allGames.filter(g => g.platform === 'psn')}
+                  title="Recent Games"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Nintendo Games */}
+        {nintendoStats && allGames.filter(g => g.platform === 'nintendo').length > 0 && (
+          <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            <div class="flex flex-col lg:flex-row gap-8">
+              {/* Nintendo Stats Box */}
+              <div class="lg:w-64 flex-shrink-0">
+                <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">Nintendo Switch</h3>
+                <div class="space-y-4">
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {nintendoStats.totalGames}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Total Games</div>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {nintendoStats.totalHoursPlayed.toLocaleString()}h
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Hours Played</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Nintendo Carousel */}
+              <div class="flex-1 min-w-0">
+                <GameCarousel
+                  client:load
+                  games={allGames.filter(g => g.platform === 'nintendo')}
+                  title="Recent Games"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    )}
+  </div>
+</BaseLayout>

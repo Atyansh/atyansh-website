@@ -1,0 +1,105 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AnimeFilter from '../components/AnimeFilter';
+import { getMALData } from '../utils/myanimelist';
+
+// Fetch MyAnimeList data at build time
+const malData = await getMALData();
+
+// Use MAL data if available
+let anime = [];
+if (malData && malData.anime.length > 0) {
+  // Map MAL anime to the format expected by the UI
+  anime = malData.anime
+    .map(a => ({
+      data: {
+        title: a.title,
+        englishTitle: a.englishTitle,
+        imageUrl: a.imageUrl,
+        score: a.score,
+        status: a.status,
+        episodes: a.episodes,
+        episodesWatched: a.episodesWatched,
+        type: a.type,
+        year: a.year,
+        startDate: a.startDate,
+        endDate: a.endDate,
+        malUrl: a.malUrl,
+      }
+    }));
+}
+
+// Calculate stats
+const watchingCount = anime.filter(a => a.data.status === 'watching').length;
+const completedCount = anime.filter(a => a.data.status === 'completed').length;
+const scoredCount = anime.filter(a => a.data.score && a.data.score > 0).length;
+const top10Count = anime.filter(a => a.data.score === 10).length;
+---
+
+<BaseLayout
+  title="Anime - Atyansh Jaiswal"
+  description="Anime I've watched"
+>
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-bold mb-4" style="color: var(--text-primary);">
+        Anime
+      </h1>
+    </div>
+
+    {anime.length > 0 && (
+      <section class="mb-20">
+        <div class="flex items-center justify-between mb-8">
+          <h2 class="text-3xl font-bold" style="color: var(--text-primary);">
+            My Anime List
+          </h2>
+          <span class="text-sm" style="color: var(--text-secondary);">
+            {anime.length} {anime.length === 1 ? 'anime' : 'anime'}
+          </span>
+        </div>
+
+        <AnimeFilter client:load anime={anime} />
+
+        <div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+          <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
+            Viewing Stats
+          </h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {completedCount}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Completed</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {watchingCount}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Watching</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {scoredCount}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Scored</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {top10Count}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Perfect 10s</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )}
+
+    {anime.length === 0 && (
+      <div class="text-center py-12">
+        <p class="text-lg" style="color: var(--text-secondary);">
+          No anime found. Configure your MyAnimeList username in the environment variables.
+        </p>
+      </div>
+    )}
+  </div>
+</BaseLayout>

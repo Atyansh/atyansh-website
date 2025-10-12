@@ -1,0 +1,195 @@
+---
+// Theme switcher component
+---
+
+<div class="theme-switcher">
+  <button id="theme-button" class="theme-button">
+    <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+    </svg>
+    <span id="current-theme-name" class="hidden lg:inline">Theme</span>
+  </button>
+  <div id="theme-dropdown" class="theme-dropdown hidden">
+    <button class="theme-option" data-theme="minimal-technical">
+      <span class="theme-name">Minimal Technical</span>
+      <span class="theme-desc">Clean monospace design</span>
+    </button>
+    <button class="theme-option" data-theme="modern-glass">
+      <span class="theme-name">Modern Glass</span>
+      <span class="theme-desc">Glassmorphism with gradients</span>
+    </button>
+    <button class="theme-option" data-theme="brutalist">
+      <span class="theme-name">Brutalist</span>
+      <span class="theme-desc">Bold and raw design</span>
+    </button>
+    <button class="theme-option" data-theme="dark-terminal">
+      <span class="theme-name">Dark Terminal</span>
+      <span class="theme-desc">Hacker aesthetic</span>
+    </button>
+    <button class="theme-option" data-theme="academic-minimal">
+      <span class="theme-name">Academic Minimal</span>
+      <span class="theme-desc">Clean scholarly look</span>
+    </button>
+  </div>
+</div>
+
+<style>
+  .theme-switcher {
+    position: relative;
+  }
+
+  .theme-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+  }
+
+  .theme-button:hover {
+    background: var(--bg-secondary);
+  }
+
+  .theme-dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    min-width: 16rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 12px var(--shadow);
+    z-index: 9999;
+    overflow: hidden;
+    pointer-events: auto;
+  }
+
+  .theme-dropdown.hidden {
+    display: none;
+    pointer-events: none;
+  }
+
+  .theme-option {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s ease;
+    border-bottom: 1px solid var(--border);
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  .theme-option:last-child {
+    border-bottom: none;
+  }
+
+  .theme-option:hover {
+    background: var(--bg-secondary);
+  }
+
+  .theme-option.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  .theme-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+
+  .theme-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.125rem;
+  }
+
+  .theme-option.active .theme-desc {
+    color: rgba(255, 255, 255, 0.8);
+  }
+</style>
+
+<script>
+  const themes = {
+    'minimal-technical': 'Minimal Technical',
+    'modern-glass': 'Modern Glass',
+    'brutalist': 'Brutalist',
+    'dark-terminal': 'Dark Terminal',
+    'academic-minimal': 'Academic Minimal'
+  };
+
+  function initThemeSwitcher() {
+    const themeButton = document.getElementById('theme-button');
+    const themeDropdown = document.getElementById('theme-dropdown');
+    const themeOptions = document.querySelectorAll('.theme-option');
+    const currentThemeName = document.getElementById('current-theme-name');
+
+    if (!themeButton || !themeDropdown || !currentThemeName) return;
+
+    // Load saved theme or default
+    const savedTheme = localStorage.getItem('theme') || 'minimal-technical';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    currentThemeName.textContent = themes[savedTheme];
+
+    // Update active state
+    function updateActiveState(theme) {
+      themeOptions.forEach(option => {
+        if (option.dataset.theme === theme) {
+          option.classList.add('active');
+        } else {
+          option.classList.remove('active');
+        }
+      });
+    }
+
+    updateActiveState(savedTheme);
+
+    // Toggle dropdown
+    themeButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      themeDropdown.classList.toggle('hidden');
+    });
+
+    // Close dropdown when clicking outside
+    const closeDropdown = (e) => {
+      if (!themeDropdown.contains(e.target) && !themeButton.contains(e.target)) {
+        themeDropdown.classList.add('hidden');
+      }
+    };
+    document.addEventListener('click', closeDropdown);
+
+    // Theme selection
+    themeOptions.forEach(option => {
+      option.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const theme = option.dataset.theme;
+        if (theme) {
+          document.documentElement.setAttribute('data-theme', theme);
+          localStorage.setItem('theme', theme);
+          currentThemeName.textContent = themes[theme];
+          updateActiveState(theme);
+          themeDropdown.classList.add('hidden');
+        }
+      });
+    });
+  }
+
+  // Initialize on page load
+  initThemeSwitcher();
+
+  // Re-initialize after View Transitions
+  document.addEventListener('astro:after-swap', initThemeSwitcher);
+</script>

@@ -1,0 +1,70 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+const papers = (await getCollection('papers'))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+---
+
+<BaseLayout title="Research Papers - Your Name" description="My published research on security and privacy">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-4xl font-bold mb-8 text-gray-900 dark:text-white">Research Papers</h1>
+
+    <div class="space-y-6">
+      {papers.map((paper) => (
+        <a
+          href={`/papers/${paper.slug}`}
+          class="block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700"
+        >
+          <h2 class="text-2xl font-semibold mb-2 text-gray-900 dark:text-white">
+            {paper.data.title}
+          </h2>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            {paper.data.authors.join(', ')}
+          </p>
+          <p class="text-gray-600 dark:text-gray-300 mb-3">
+            {paper.data.description}
+          </p>
+
+          <div class="flex flex-wrap items-center gap-4 text-sm">
+            {paper.data.publishedIn && (
+              <span class="text-gray-500 dark:text-gray-400 italic">
+                {paper.data.publishedIn}
+              </span>
+            )}
+            <span class="text-gray-500 dark:text-gray-400">
+              {paper.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+            </span>
+          </div>
+
+          {paper.data.links && (
+            <div class="flex gap-3 text-sm mt-3">
+              {paper.data.links.pdf && (
+                <span class="text-blue-600 dark:text-blue-400">PDF →</span>
+              )}
+              {paper.data.links.arxiv && (
+                <span class="text-blue-600 dark:text-blue-400">arXiv →</span>
+              )}
+              {paper.data.links.doi && (
+                <span class="text-blue-600 dark:text-blue-400">DOI →</span>
+              )}
+              {paper.data.links.github && (
+                <span class="text-blue-600 dark:text-blue-400">Code →</span>
+              )}
+            </div>
+          )}
+
+          {paper.data.tags && paper.data.tags.length > 0 && (
+            <div class="flex flex-wrap gap-2 mt-3">
+              {paper.data.tags.map((tag) => (
+                <span class="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </a>
+      ))}
+    </div>
+  </div>
+</BaseLayout>

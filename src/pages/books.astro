@@ -1,0 +1,89 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+import BooksFilter from '../components/BooksFilter';
+import { getGoodreadsData } from '../utils/goodreads';
+
+// Fetch Goodreads data at build time
+const goodreadsData = await getGoodreadsData();
+
+// Use Goodreads data if available, otherwise fall back to content collection
+let books;
+if (goodreadsData && goodreadsData.books.length > 0) {
+  // Map Goodreads books to the format expected by the UI
+  books = goodreadsData.books.map(book => ({
+    data: {
+      title: book.title,
+      author: book.author,
+      coverImage: book.coverImage,
+      rating: book.rating,
+      status: book.status,
+      dateRead: book.dateRead,
+      publishedDate: book.publishedDate,
+    }
+  }));
+} else {
+  // Fallback to content collection
+  books = await getCollection('books');
+}
+---
+
+<BaseLayout
+  title="Books - Atyansh Jaiswal"
+  description="Books I'm reading and have read"
+>
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-bold mb-4" style="color: var(--text-primary);">
+        Books
+      </h1>
+    </div>
+
+    {books.length > 0 && (
+      <section class="mb-20">
+        <div class="flex items-center justify-between mb-8">
+          <h2 class="text-3xl font-bold" style="color: var(--text-primary);">
+            My Library
+          </h2>
+          <span class="text-sm" style="color: var(--text-secondary);">
+            {books.length} {books.length === 1 ? 'book' : 'books'}
+          </span>
+        </div>
+
+        <BooksFilter client:load books={books} />
+
+        <div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+          <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
+            Reading Stats
+          </h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {books.filter(b => b.data.status === 'finished').length}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Finished</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {books.filter(b => b.data.status === 'reading').length}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Currently Reading</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {books.filter(b => b.data.status === 'want-to-read').length}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Want to Read</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {books.filter(b => b.data.rating === 5).length}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">5-Star Reads</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )}
+  </div>
+</BaseLayout>

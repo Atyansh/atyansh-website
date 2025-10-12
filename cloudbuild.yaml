@@ -1,10 +1,18 @@
 steps:
-  # Install Chrome dependencies for Puppeteer
+  # Install dependencies
+  - name: 'node:22'
+    entrypoint: npm
+    args: ['ci']
+    id: 'install-dependencies'
+
+  # Build the site with environment variables from Secret Manager
+  # Install Chrome deps in the same container before building
   - name: 'node:22'
     entrypoint: bash
     args:
       - '-c'
       - |
+        # Install Chrome dependencies for Puppeteer
         apt-get update && apt-get install -y \
           ca-certificates \
           fonts-liberation \
@@ -42,21 +50,13 @@ steps:
           lsb-release \
           wget \
           xdg-utils \
-          --no-install-recommends && \
+          --no-install-recommends
+
+        # Clean up apt cache
         rm -rf /var/lib/apt/lists/*
-    id: 'install-chrome-deps'
 
-  # Install dependencies
-  - name: 'node:22'
-    entrypoint: npm
-    args: ['ci']
-    id: 'install-dependencies'
-    waitFor: ['install-chrome-deps']
-
-  # Build the site with environment variables from Secret Manager
-  - name: 'node:22'
-    entrypoint: npm
-    args: ['run', 'build']
+        # Run the build
+        npm run build
     id: 'build-site'
     env:
       - 'NODE_ENV=production'

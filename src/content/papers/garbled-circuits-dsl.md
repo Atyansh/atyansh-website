@@ -6,7 +6,7 @@ pubDate: 2024-01-01
 featured: true
 tags: ['cryptography', 'garbled circuits', 'DSL', 'secure computation']
 links:
-  pdf: 'https://atyansh.com/gc.pdf'
+  pdf: '/papers/gc.pdf'
 ---
 
 # Abstract
@@ -19,4 +19,4 @@ This paper presents a domain-specific language (DSL) for expressing and working 
 - Improved ergonomics for secure computation programming
 - Performance optimizations
 
-For the full paper, please see the [PDF link](https://atyansh.com/gc.pdf).
+For the full paper, please see the [PDF link](/papers/gc.pdf).

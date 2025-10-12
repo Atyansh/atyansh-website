@@ -1,0 +1,243 @@
+import { useState } from 'react';
+
+interface Video {
+  title: string;
+  url: string;
+  description?: string;
+}
+
+interface VideoShowcaseProps {
+  videos: Video[];
+}
+
+export default function VideoShowcase({ videos }: VideoShowcaseProps) {
+  const [activeVideo, setActiveVideo] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const getYouTubeId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return match && match[2].length === 11 ? match[2] : null;
+  };
+
+  const handleVideoChange = (index: number) => {
+    if (index === activeVideo) return;
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setActiveVideo(index);
+      setIsTransitioning(false);
+    }, 150);
+  };
+
+  const currentVideoId = getYouTubeId(videos[activeVideo].url);
+
+  return (
+    <div className="video-showcase my-12">
+      {/* Video Counter */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ backgroundColor: 'rgba(var(--accent-rgb), 0.1)', border: '1px solid rgba(var(--accent-rgb), 0.2)' }}>
+            <svg className="w-5 h-5" style={{ color: 'var(--accent)' }} fill="currentColor" viewBox="0 0 24 24">
+              <path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+            </svg>
+            <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+              Video {activeVideo + 1} of {videos.length}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Video Player */}
+      <div className="main-video-container relative rounded-2xl overflow-hidden mb-8 shadow-2xl">
+        <div className="video-wrapper relative">
+          <div
+            className={`relative w-full bg-black transition-opacity duration-300 ${isTransitioning ? 'opacity-50' : 'opacity-100'}`}
+            style={{ paddingBottom: '56.25%' }}
+          >
+            {currentVideoId && (
+              <iframe
+                key={`video-${activeVideo}`}
+                className="absolute top-0 left-0 w-full h-full"
+                src={`https://www.youtube.com/embed/${currentVideoId}`}
+                title={videos[activeVideo].title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ border: 0 }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Video Info Bar */}
+        <div className="video-info-bar relative bg-gray-100 dark:bg-gradient-to-r dark:from-gray-900 dark:to-gray-800 p-6 border-t border-gray-200 dark:border-gray-700/50">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h3 className="text-gray-900 dark:text-white text-xl font-bold mb-2 leading-tight">
+                {videos[activeVideo].title}
+              </h3>
+              {videos[activeVideo].description && (
+                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed">
+                  {videos[activeVideo].description}
+                </p>
+              )}
+            </div>
+            <div className="flex-shrink-0">
+              <div className="px-3 py-1.5 rounded-full text-xs font-bold text-white shadow-lg" style={{ backgroundColor: 'var(--accent)' }}>
+                Playing
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Thumbnails Grid */}
+      {videos.length > 1 && (
+        <div>
+          <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+            All Videos
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {videos.map((video, index) => {
+              const videoId = getYouTubeId(video.url);
+              const isActive = index === activeVideo;
+
+              return (
+                <button
+                  key={index}
+                  onClick={() => handleVideoChange(index)}
+                  className="thumbnail-card group relative rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-1"
+                  data-active={isActive}
+                >
+                  {/* Thumbnail Image */}
+                  <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                    <img
+                      src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
+                      alt={video.title}
+                      className="absolute top-0 left-0 w-full h-full object-cover"
+                    />
+
+                    {/* Overlay */}
+                    <div className={`
+                      absolute inset-0 transition-all duration-300
+                      ${isActive
+                        ? 'bg-gradient-to-t from-black/80 via-transparent'
+                        : 'bg-black/30 group-hover:bg-black/50'
+                      }
+                    `}>
+                      {/* Play Icon */}
+                      {!isActive && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-14 h-14 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-lg">
+                            <svg
+                              className="w-6 h-6 ml-1"
+                              style={{ color: 'var(--accent)' }}
+                              fill="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Active Indicator */}
+                      {isActive && (
+                        <div className="absolute bottom-2 left-2 right-2">
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm shadow-lg">
+                            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }}></div>
+                            <span className="text-xs font-bold" style={{ color: 'var(--accent)' }}>
+                              Now Playing
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Title */}
+                  <div
+                    className="p-3 transition-colors duration-300"
+                    style={{
+                      backgroundColor: isActive
+                        ? 'rgba(var(--accent-rgb), 0.1)'
+                        : 'var(--card-bg)'
+                    }}
+                  >
+                    <p className={`
+                      text-xs font-medium text-left line-clamp-2 leading-snug
+                      ${isActive
+                        ? 'text-gray-900 dark:text-white font-semibold'
+                        : 'text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200'
+                      }
+                    `}>
+                      {video.title}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        .video-showcase {
+          container-type: inline-size;
+        }
+
+        .main-video-container {
+          background: linear-gradient(145deg, rgba(0,0,0,0.95), rgba(20,20,20,0.95));
+        }
+
+        .main-video-container::before {
+          content: '';
+          position: absolute;
+          inset: -2px;
+          background: linear-gradient(45deg, var(--accent), #ec4899, var(--accent));
+          border-radius: 1rem;
+          opacity: 0.15;
+          z-index: -1;
+        }
+
+        .thumbnail-card {
+          background: transparent;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .thumbnail-card:hover {
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        .thumbnail-card[data-active="true"] {
+          box-shadow: 0 0 0 3px var(--accent), 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+        }
+
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @container (max-width: 768px) {
+          .thumbnail-card p {
+            font-size: 0.75rem;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}

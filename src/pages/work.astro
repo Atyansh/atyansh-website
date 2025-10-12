@@ -20,14 +20,15 @@ const papers = (await getCollection('papers'))
       <h2 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">
         Projects
       </h2>
-      <div class="grid md:grid-cols-2 gap-6">
+      <div class="grid md:grid-cols-2 gap-6 md:auto-rows-fr">
         {projects.map((project, index) => (
           <AnimatedCard
             client:load
             href={`/projects/${project.slug}`}
             delay={index * 0.05}
+            className="h-full flex flex-col"
           >
-            <div class="flex justify-between items-start mb-3">
+            <div class="flex justify-between items-start mb-3 flex-shrink-0">
               <h3 class="text-2xl font-semibold" style="color: var(--text-primary);">
                 {project.data.title}
               </h3>
@@ -38,12 +39,12 @@ const papers = (await getCollection('papers'))
               )}
             </div>
 
-            <p class="mb-4" style="color: var(--text-secondary);">
+            <p class="mb-4 flex-grow" style="color: var(--text-secondary);">
               {project.data.description}
             </p>
 
             {project.data.technologies && project.data.technologies.length > 0 && (
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2 mt-auto">
                 {project.data.technologies.map((tech) => (
                   <span class="text-xs px-3 py-1 rounded-full font-medium" style="background-color: var(--bg-secondary); color: var(--accent);">
                     {tech}

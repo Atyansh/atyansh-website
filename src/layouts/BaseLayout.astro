@@ -104,6 +104,15 @@ if (image) {
         const savedTheme = localStorage.getItem('theme') || 'minimal-technical';
         e.newDocument.documentElement.setAttribute('data-theme', savedTheme);
       });
+
+      // Suppress harmless WebSocket closed errors during View Transitions (dev only)
+      if (import.meta.env.DEV) {
+        const originalError = console.error;
+        console.error = (...args) => {
+          if (args[0]?.includes?.('WebSocket closed')) return;
+          originalError.apply(console, args);
+        };
+      }
     </script>
 
     <!-- Structured Data -->

@@ -6,7 +6,7 @@ pubDate: 2017-06-01
 featured: true
 tags: ['web security', 'TLS', 'browser security', 'Fetch API']
 links:
-  pdf: 'https://atyansh.com/saber.pdf'
+  pdf: '/papers/saber.pdf'
 ---
 
 # Abstract
@@ -25,4 +25,4 @@ This paper presents Saber, a system that delegates web security responsibilities
 
 This work was conducted as part of my graduate research at UC San Diego, focusing on addressing security issues in non-browser web-connected applications. The fundamental insight is that browsers have spent decades perfecting web security mechanisms, and applications can benefit from this work by delegating security decisions to the browser.
 
-For the full paper, please see the [PDF link](https://atyansh.com/saber.pdf).
+For the full paper, please see the [PDF link](/papers/saber.pdf).

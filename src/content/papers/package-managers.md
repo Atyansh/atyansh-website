@@ -6,7 +6,7 @@ pubDate: 2017-06-01
 featured: true
 tags: ['package managers', 'security', 'software supply chain', 'Byzantine fault tolerance']
 links:
-  pdf: 'https://atyansh.com/spam.pdf'
+  pdf: '/papers/spam.pdf'
 ---
 
 # Abstract
@@ -25,4 +25,4 @@ This paper presents SPAM (Secure PAckage Manager), a framework for package manag
 
 This work was part of my graduate research at UC San Diego, addressing the critical problem of trust in package management systems. As software increasingly relies on third-party dependencies, securing the package supply chain becomes essential for preventing malicious code injection and supply chain attacks.
 
-For the full paper, please see the [PDF link](https://atyansh.com/spam.pdf).
+For the full paper, please see the [PDF link](/papers/spam.pdf).

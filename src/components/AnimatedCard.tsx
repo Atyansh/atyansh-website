@@ -22,7 +22,8 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
     }
   };
 
-  const hoverVariants = {
+  // Only apply hover animation to non-link cards to avoid interfering with navigation
+  const hoverVariants = href ? {} : {
     scale: 1.02,
     y: -5,
     transition: {
@@ -31,12 +32,28 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
     }
   };
 
-  const Component = href ? motion.a : motion.div;
-  const extraProps = href ? { href } : {};
+  // If href is provided, use a simple div with anchor tag (no hover animation to avoid click issues)
+  if (href) {
+    return (
+      <motion.div
+        className="h-full"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-100px' }}
+        variants={cardVariants}
+      >
+        <a
+          href={href}
+          className={`block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 transition-transform hover:scale-[1.02] hover:-translate-y-1 ${className}`}
+        >
+          {children}
+        </a>
+      </motion.div>
+    );
+  }
 
   return (
-    <Component
-      {...extraProps}
+    <motion.div
       className={`block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 ${className}`}
       initial="hidden"
       whileInView="visible"
@@ -45,6 +62,6 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
       variants={cardVariants}
     >
       {children}
-    </Component>
+    </motion.div>
   );
 }

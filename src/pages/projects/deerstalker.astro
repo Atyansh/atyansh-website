@@ -1,0 +1,440 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AnimatedCard from '../../components/AnimatedCard';
+import ProjectStats from '../../components/ProjectStats';
+import VideoShowcase from '../../components/VideoShowcase';
+import WeeklyTimeline from '../../components/WeeklyTimeline';
+import TechStackGrid from '../../components/TechStackGrid';
+import ImageGallery from '../../components/ImageGallery';
+
+const projectStats = [
+  { label: 'Team Size', value: '7', icon: '👥' },
+  { label: 'Development Time', value: '10', suffix: ' weeks', icon: '⏱️' },
+  { label: 'Lines of Code', value: '10,804', icon: '💻' },
+  { label: 'Technologies', value: '8', icon: '🔧' },
+];
+
+const videos = [
+  {
+    title: 'Final Demo',
+    url: 'https://www.youtube.com/watch?v=hPvb_gEyWpQ',
+    description: 'Complete gameplay demonstration showcasing all features'
+  },
+  {
+    title: 'Week 8 Progress - Character Animations & Hat Abilities',
+    url: 'https://www.youtube.com/watch?v=yz5jUcFPwLI',
+    description: 'Demonstrating character animations and hat ability system'
+  },
+  {
+    title: 'Week 7 Progress',
+    url: 'https://www.youtube.com/watch?v=4PwvKw4NaIY',
+    description: 'Progress update showing gameplay improvements'
+  },
+  {
+    title: 'Week 3 Progress',
+    url: 'https://www.youtube.com/watch?v=tpUt3saxkA4',
+    description: 'Early development progress'
+  },
+  {
+    title: 'Week 2 Progress',
+    url: 'https://www.youtube.com/watch?v=3cpmFJnNamk',
+    description: 'Initial development showcase'
+  },
+  {
+    title: 'Item Spawning Demo',
+    url: 'https://www.youtube.com/watch?v=XN-m29KHtW4',
+    description: 'Demonstration of item spawning mechanics'
+  },
+  {
+    title: 'Spinning Model',
+    url: 'https://www.youtube.com/watch?v=7BA-LT_wsd0',
+    description: 'Character model showcase'
+  },
+  {
+    title: 'Mango Fight',
+    url: 'https://www.youtube.com/watch?v=XNsKVmllshY',
+    description: 'Fun gameplay demonstration'
+  },
+];
+
+const developmentImages = [
+  {
+    src: '/projects/deerstalker/concept-art.png',
+    alt: 'Initial concept art',
+    caption: 'Initial concept art sketches for characters and gameplay'
+  },
+  {
+    src: '/projects/deerstalker/hat-designs.png',
+    alt: 'Hat designs and character concepts',
+    caption: 'Hat ability designs and character concept sketches'
+  },
+  {
+    src: '/projects/deerstalker/3d-modeling.png',
+    alt: '3D modeling in progress',
+    caption: '3D character modeling and rigging in Maya'
+  },
+  {
+    src: '/projects/deerstalker/week5-skin-painting.png',
+    alt: 'Character texture painting',
+    caption: 'Week 5: Character skin painting and texturing'
+  },
+  {
+    src: '/projects/deerstalker/week7-skin-painting.png',
+    alt: 'Refined character textures',
+    caption: 'Week 7: Refined character textures with improved detail'
+  },
+  {
+    src: '/projects/deerstalker/week7-billboard-1.png',
+    alt: 'Environment billboard art',
+    caption: 'Week 7: In-game billboard and environment art'
+  },
+  {
+    src: '/projects/deerstalker/week7-billboard-2.png',
+    alt: 'Additional billboard designs',
+    caption: 'Week 7: Creative billboard designs for game atmosphere'
+  },
+  {
+    src: '/projects/deerstalker/week3-lighting-white.png',
+    alt: 'Early lighting tests',
+    caption: 'Week 3: Early lighting experiments with character models'
+  },
+];
+
+const weeklyProgress = [
+  {
+    week: 'Week 2-3',
+    title: 'Foundation & Core Systems',
+    mood: 10,
+    accomplishments: [
+      'Implemented core networking framework using Boost Asio',
+      'Set up server broadcasting to multiple clients',
+      'Integrated Google Protocol Buffers for data serialization',
+      'Integrated Bullet Physics into game engine',
+    ]
+  },
+  {
+    week: 'Week 4-5',
+    title: 'Physics & Controllers',
+    mood: 8,
+    accomplishments: [
+      'Integrated Xbox controller support',
+      'Loaded compound rigid body models from Maya into Bullet',
+      'Debugged camera and skybox rendering with graphics team',
+      'Collaborated on item spawning logic and bullet shooting mechanics',
+    ]
+  },
+  {
+    week: 'Week 6-7',
+    title: 'Game Logic & MVP',
+    mood: 8,
+    accomplishments: [
+      'Developed core game logic and mechanics',
+      'Implemented hat logic and item interactions',
+      'Fixed critical server-client synchronization issues',
+      'Achieved MVP milestone with the team',
+    ]
+  },
+  {
+    week: 'Week 8-9',
+    title: 'Polish & Features',
+    mood: 8,
+    accomplishments: [
+      'Added primary and secondary hat abilities',
+      'Developed rotational physics for bullet shooting orientation',
+      'Refactored codebase for performance',
+      'Added more fighting elements and gameplay refinements',
+    ]
+  },
+];
+
+const techStack = [
+  {
+    name: 'ASSIMP',
+    category: 'Client-Side',
+    description: '3D model loading and processing',
+    icon: '🎨'
+  },
+  {
+    name: 'OpenGL',
+    category: 'Client-Side',
+    description: 'Modern graphics rendering with VBO/VBA',
+    icon: '🖼️'
+  },
+  {
+    name: 'FMOD',
+    category: 'Client-Side',
+    description: 'Audio engine for sound effects',
+    icon: '🔊'
+  },
+  {
+    name: 'FreeType',
+    category: 'Client-Side',
+    description: 'Font rendering for UI elements',
+    icon: '📝'
+  },
+  {
+    name: 'Bullet Physics',
+    category: 'Server-Side',
+    description: 'Physics simulation and collision detection',
+    icon: '⚡'
+  },
+  {
+    name: 'Protocol Buffers',
+    category: 'Server-Side',
+    description: 'Efficient binary serialization',
+    icon: '📦'
+  },
+  {
+    name: 'Boost Networking',
+    category: 'Shared',
+    description: 'TCP-based client-server communication',
+    icon: '🔗'
+  },
+  {
+    name: 'C++',
+    category: 'Shared',
+    description: 'Primary programming language',
+    icon: '⚙️'
+  },
+];
+---
+
+<BaseLayout
+  title="Deerstalker - 3D Multiplayer Brawler"
+  description="A 3D online multiplayer brawler game built for CSE 125, featuring networked gameplay with custom physics and real-time combat."
+>
+  <article class="max-w-6xl mx-auto">
+    <!-- Hero Section -->
+    <AnimatedCard client:load delay={0}>
+      <div class="text-center mb-12">
+        <h1 class="text-5xl md:text-7xl font-bold mb-6" style="color: var(--accent);">
+          Deerstalker
+        </h1>
+        <p class="text-xl md:text-2xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
+          A 3D online multiplayer brawler game where players fight to be the last standing on the stage, featuring special ability "hats" for strategic gameplay.
+        </p>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap justify-center gap-4 mt-8">
+          <a
+            href="https://github.com/atyansh/deerstalker"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="action-button-primary inline-flex items-center gap-2 px-6 py-3 text-white rounded-lg transition-colors font-medium text-base"
+          >
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            View on GitHub
+          </a>
+        </div>
+      </div>
+    </AnimatedCard>
+
+    <!-- Project Stats -->
+    <AnimatedCard client:load delay={0.1}>
+      <ProjectStats client:load stats={projectStats} />
+    </AnimatedCard>
+
+    <!-- About Section -->
+    <AnimatedCard client:load delay={0.2}>
+      <div class="my-16 p-8 rounded-2xl" style="background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.05) 0%, rgba(var(--accent-rgb), 0.02) 100%); border: 1px solid rgba(var(--accent-rgb), 0.1);">
+        <h2 class="text-3xl md:text-4xl font-bold mb-6 text-gray-900 dark:text-white">
+          About the Project
+        </h2>
+        <div class="space-y-4 text-lg text-gray-600 dark:text-gray-300">
+          <p>
+            Deerstalker is a four-person pseudo-wrestling game where players fight to knock each other off the stage.
+            The game features special ability "hats" that provide unique powers, creating strategic gameplay where choosing
+            the right hat at the right time can be the difference between victory and defeat.
+          </p>
+          <p>
+            Developed as part of CSE 125 at UC San Diego, this 10-week capstone project showcases advanced game development,
+            network programming, physics simulation, and collaborative software engineering.
+          </p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            <div class="flex items-start gap-3">
+              <span class="text-3xl">🎯</span>
+              <div>
+                <h4 class="font-bold text-gray-900 dark:text-white">Objective</h4>
+                <p class="text-base">Be the last player standing on the stage</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="text-3xl">🎩</span>
+              <div>
+                <h4 class="font-bold text-gray-900 dark:text-white">Special Abilities</h4>
+                <p class="text-base">5 unique hats with distinct powers</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="text-3xl">🌐</span>
+              <div>
+                <h4 class="font-bold text-gray-900 dark:text-white">Multiplayer</h4>
+                <p class="text-base">Up to 4 players in networked combat</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="text-3xl">⚡</span>
+              <div>
+                <h4 class="font-bold text-gray-900 dark:text-white">Real-time Physics</h4>
+                <p class="text-base">Dynamic physics simulation with Bullet</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </AnimatedCard>
+
+    <!-- Video Showcase -->
+    <AnimatedCard client:load delay={0.3}>
+      <div class="my-16">
+        <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center text-gray-900 dark:text-white">
+          Development Progress Videos
+        </h2>
+        <VideoShowcase client:only="react" videos={videos} />
+      </div>
+    </AnimatedCard>
+
+    <!-- Development Images -->
+    <AnimatedCard client:load delay={0.4}>
+      <div class="my-16">
+        <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center text-gray-900 dark:text-white">
+          Development Gallery
+        </h2>
+        <ImageGallery client:load images={developmentImages} />
+      </div>
+    </AnimatedCard>
+
+    <!-- Tech Stack -->
+    <AnimatedCard client:load delay={0.5}>
+      <div class="my-16">
+        <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center text-gray-900 dark:text-white">
+          Technology Stack
+        </h2>
+        <TechStackGrid client:load technologies={techStack} />
+      </div>
+    </AnimatedCard>
+
+    <!-- Development Journey -->
+    <AnimatedCard client:load delay={0.6}>
+      <div class="my-16">
+        <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center text-gray-900 dark:text-white">
+          My Development Journey
+        </h2>
+        <p class="text-center text-lg text-gray-600 dark:text-gray-300 mb-12 max-w-3xl mx-auto">
+          My contributions as the networking and game engine lead throughout the 10-week development cycle
+        </p>
+        <WeeklyTimeline client:load items={weeklyProgress} />
+      </div>
+    </AnimatedCard>
+
+    <!-- Technical Challenges -->
+    <AnimatedCard client:load delay={0.7}>
+      <div class="my-16">
+        <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center text-gray-900 dark:text-white">
+          Technical Challenges & Solutions
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">⚙️</span>
+              <span class="text-gray-900 dark:text-white">Physics Integration</span>
+            </h3>
+            <p class="text-gray-600 dark:text-gray-300 mb-2"><strong>Challenge:</strong> Poor Bullet Physics API documentation</p>
+            <p class="text-gray-600 dark:text-gray-300"><strong>Solution:</strong> Extensive trial-and-error experimentation and community research</p>
+          </div>
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">🌐</span>
+              <span class="text-gray-900 dark:text-white">Network Synchronization</span>
+            </h3>
+            <p class="text-gray-600 dark:text-gray-300 mb-2"><strong>Challenge:</strong> Maintaining consistent game state across multiple clients</p>
+            <p class="text-gray-600 dark:text-gray-300"><strong>Solution:</strong> Server-authoritative architecture with Protocol Buffers</p>
+          </div>
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">🎮</span>
+              <span class="text-gray-900 dark:text-white">Character Controllers</span>
+            </h3>
+            <p class="text-gray-600 dark:text-gray-300 mb-2"><strong>Challenge:</strong> Kinematic controllers had limitations for our use case</p>
+            <p class="text-gray-600 dark:text-gray-300"><strong>Solution:</strong> Developed custom dynamic character controllers with physics-based movement</p>
+          </div>
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">🎨</span>
+              <span class="text-gray-900 dark:text-white">Animation Pipeline</span>
+            </h3>
+            <p class="text-gray-600 dark:text-gray-300 mb-2"><strong>Challenge:</strong> Loading and animating FBX models with skeletal animation</p>
+            <p class="text-gray-600 dark:text-gray-300"><strong>Solution:</strong> Used ASSIMP for model loading and developed custom animation system</p>
+          </div>
+        </div>
+      </div>
+    </AnimatedCard>
+
+    <!-- Team Lessons -->
+    <AnimatedCard client:load delay={0.8}>
+      <div class="my-16 p-8 rounded-2xl" style="background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.05) 0%, rgba(var(--accent-rgb), 0.02) 100%); border: 1px solid rgba(var(--accent-rgb), 0.1);">
+        <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center text-gray-900 dark:text-white">
+          Lessons Learned
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="flex gap-4">
+            <span class="text-3xl">💡</span>
+            <div>
+              <h4 class="font-bold text-lg text-gray-900 dark:text-white mb-2">Early Game Design</h4>
+              <p class="text-gray-600 dark:text-gray-300">Starting with clear game mechanics from the beginning is crucial for project success</p>
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <span class="text-3xl">🤝</span>
+            <div>
+              <h4 class="font-bold text-lg text-gray-900 dark:text-white mb-2">Team Communication</h4>
+              <p class="text-gray-600 dark:text-gray-300">Regular synchronization prevented integration issues and kept everyone aligned</p>
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <span class="text-3xl">🎯</span>
+            <div>
+              <h4 class="font-bold text-lg text-gray-900 dark:text-white mb-2">Sub-team Structure</h4>
+              <p class="text-gray-600 dark:text-gray-300">Breaking into focused teams improved productivity and allowed for specialized work</p>
+            </div>
+          </div>
+          <div class="flex gap-4">
+            <span class="text-3xl">📚</span>
+            <div>
+              <h4 class="font-bold text-lg text-gray-900 dark:text-white mb-2">Learning Curve</h4>
+              <p class="text-gray-600 dark:text-gray-300">Complex libraries like Bullet Physics require significant time investment to master</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </AnimatedCard>
+
+    <!-- Footer -->
+    <footer class="mt-12 mb-8">
+      <a
+        href="/work"
+        class="inline-flex items-center gap-2 transition-colors font-medium text-lg"
+        style="color: var(--accent);"
+        onmouseover="this.style.color='var(--accent-hover)'"
+        onmouseout="this.style.color='var(--accent)'"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        Back to all work
+      </a>
+    </footer>
+  </article>
+</BaseLayout>
+
+<style>
+  .action-button-primary {
+    background-color: var(--accent);
+  }
+
+  .action-button-primary:hover {
+    background-color: var(--accent-hover);
+  }
+</style>

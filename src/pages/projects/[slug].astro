@@ -5,10 +5,13 @@ import { getCollection } from 'astro:content';
 
 export async function getStaticPaths() {
   const projects = await getCollection('projects');
-  return projects.map((project) => ({
-    params: { slug: project.slug },
-    props: { project },
-  }));
+  // Exclude deerstalker since it has a custom page
+  return projects
+    .filter((project) => project.slug !== 'deerstalker')
+    .map((project) => ({
+      params: { slug: project.slug },
+      props: { project },
+    }));
 }
 
 const { project } = Astro.props;
@@ -24,7 +27,7 @@ const { Content } = await project.render();
           <h1 class="text-4xl md:text-5xl font-bold mb-4 text-gray-900 dark:text-white">
             {project.data.title}
           </h1>
-          <p class="text-lg md:text-xl text-gray-700 dark:text-gray-300 leading-relaxed">
+          <p class="text-lg md:text-xl text-gray-600 dark:text-gray-300 leading-relaxed">
             {project.data.description}
           </p>
         </div>

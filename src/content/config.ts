@@ -40,7 +40,7 @@ const papers = defineCollection({
     publishedIn: z.string().optional(),
     pubDate: z.coerce.date(),
     links: z.object({
-      pdf: z.string().url().optional(),
+      pdf: z.string().optional(),
       doi: z.string().url().optional(),
       arxiv: z.string().url().optional(),
       github: z.string().url().optional(),

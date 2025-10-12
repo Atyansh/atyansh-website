@@ -242,10 +242,59 @@ echo -n "new_value" | gcloud secrets versions add SECRET_NAME --data-file=-
 - Verify cache headers aren't too aggressive
 - Clear browser cache or try incognito mode
 
+## Cloud CDN Cache Management
+
+Cloud CDN is enabled on the backend bucket to provide:
+- ✅ Faster page loads globally (CDN edge locations)
+- ✅ Manual cache invalidation capability
+- ✅ Reduced load on Cloud Storage
+- ✅ Better performance for international visitors
+
+### Cache Configuration
+
+**Current cache settings:**
+- Static assets (`/_astro/**`): 1 year (immutable)
+- HTML pages: 1 hour
+
+### Manual Cache Invalidation
+
+When you need to force a cache refresh (e.g., after updating movie data):
+
+**Using the helper script:**
+```bash
+# Invalidate a specific page
+./scripts/invalidate-cache.sh /movies/index.html
+
+# Invalidate all HTML pages
+./scripts/invalidate-cache.sh "/*.html"
+
+# Invalidate everything
+./scripts/invalidate-cache.sh "/*"
+```
+
+**Direct gcloud command:**
+```bash
+gcloud compute url-maps invalidate-cdn-cache atyansh-website \
+  --path "/movies/index.html" \
+  --async
+```
+
+**Note:** Cache invalidation takes 30-60 seconds to propagate globally.
+
+### Cost Information
+
+Cloud CDN pricing for a personal website:
+- **Cache egress**: $0.02-0.08/GB (North America)
+- **Cache invalidations**: First 1,000/month are FREE
+- **Estimated cost**: $0.20-0.50/month for typical traffic
+
+For 10,000 visitors/month × 250KB per page = ~2.5GB = **~$0.20/month**
+
 ## Files Created
 
 - `cloudbuild.yaml` - Cloud Build configuration
 - `create-secrets.sh` - Script to create/update secrets
+- `scripts/invalidate-cache.sh` - Helper script for manual cache invalidation
 - `DEPLOYMENT_GUIDE.md` - This file
 - `.gcloudignore` - Files to exclude from Cloud Build uploads (auto-created)
 

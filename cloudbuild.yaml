@@ -53,18 +53,9 @@ steps:
       - 'setmeta'
       - '-h'
       - 'Cache-Control:public, max-age=3600'
-      - 'gs://atyansh.com/**/*.html'
+      - '-r'
+      - 'gs://atyansh.com/**.html'
     id: 'set-html-cache'
-    waitFor: ['deploy-to-gcs']
-
-  # Set cache headers for root HTML files
-  - name: 'gcr.io/cloud-builders/gsutil'
-    args:
-      - 'setmeta'
-      - '-h'
-      - 'Cache-Control:public, max-age=3600'
-      - 'gs://atyansh.com/index.html'
-    id: 'set-root-cache'
     waitFor: ['deploy-to-gcs']
 
 # Secret Manager configuration

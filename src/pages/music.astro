@@ -19,7 +19,15 @@ const topGenres = spotifyData
   : [];
 
 // Separate music and podcast items from recently played
-const recentMusic = spotifyData?.recentlyPlayed.filter(item => item.track) || [];
+// Remove duplicate tracks (keep first occurrence only)
+const seenTrackIds = new Set<string>();
+const recentMusic = spotifyData?.recentlyPlayed
+  .filter(item => {
+    if (!item.track) return false;
+    if (seenTrackIds.has(item.track.id)) return false;
+    seenTrackIds.add(item.track.id);
+    return true;
+  }) || [];
 const recentPodcasts = spotifyData?.recentlyPlayed.filter(item => item.episode) || [];
 
 // Aggregate podcast shows from recent episodes

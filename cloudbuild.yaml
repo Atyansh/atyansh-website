@@ -106,6 +106,19 @@ steps:
     id: 'set-html-cache'
     waitFor: ['deploy-to-gcs']
 
+  # Invalidate CDN cache for HTML files to ensure new content is served immediately
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'compute'
+      - 'url-maps'
+      - 'invalidate-cdn-cache'
+      - 'atyansh-website'
+      - '--path'
+      - '/*'
+      - '--async'
+    id: 'invalidate-cdn-cache'
+    waitFor: ['set-html-cache', 'set-asset-cache']
+
 # Secret Manager configuration
 availableSecrets:
   secretManager:

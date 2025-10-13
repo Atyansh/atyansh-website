@@ -115,6 +115,8 @@ async function cacheCover(gameKey: string, url: string): Promise<void> {
 // Rate limiting
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 250; // 250ms between requests (4 requests per second)
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY = 2000; // Start with 2 second delay
 
 /**
  * Wait to respect rate limits
@@ -129,6 +131,13 @@ async function waitForRateLimit(): Promise<void> {
   }
 
   lastRequestTime = Date.now();
+}
+
+/**
+ * Sleep for specified milliseconds
+ */
+async function sleep(ms: number): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -170,9 +179,6 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
   }
 
   try {
-    // Wait for rate limit
-    await waitForRateLimit();
-
     // Clean the game name for better search results
     const cleanedName = cleanGameName(gameName);
 
@@ -198,18 +204,37 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
       limit 3;
     `;
 
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Client-ID': IGDB_CLIENT_ID,
-        'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
-        'Content-Type': 'text/plain',
-      },
-      body: query,
-    });
+    // Retry logic with exponential backoff for rate limit errors
+    let response: Response | null = null;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      // Wait for rate limit before each attempt
+      await waitForRateLimit();
 
-    if (!response.ok) {
-      console.log(`IGDB API error for "${gameName}": ${response.status}`);
+      response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Client-ID': IGDB_CLIENT_ID,
+          'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
+          'Content-Type': 'text/plain',
+        },
+        body: query,
+      });
+
+      // If successful or non-rate-limit error, break
+      if (response.ok || response.status !== 429) {
+        break;
+      }
+
+      // If rate limited and we have retries left
+      if (response.status === 429 && attempt < MAX_RETRIES) {
+        const delay = RETRY_BASE_DELAY * Math.pow(2, attempt);
+        console.log(`Rate limited for "${gameName}", retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
+        await sleep(delay);
+      }
+    }
+
+    if (!response || !response.ok) {
+      console.log(`IGDB API error for "${gameName}": ${response?.status || 'unknown'}`);
       return null;
     }
 
@@ -219,8 +244,6 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
     if (data.length === 0 && platformFilter) {
       console.log(`No results with platform filter for "${cleanedName}", retrying without filter...`);
 
-      await waitForRateLimit();
-
       const queryWithoutPlatform = `
         search "${cleanedName.replace(/"/g, '\\"')}";
         fields name,cover.image_id,cover.url;
@@ -228,17 +251,33 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
         limit 3;
       `;
 
-      const response2 = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Client-ID': IGDB_CLIENT_ID,
-          'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
-          'Content-Type': 'text/plain',
-        },
-        body: queryWithoutPlatform,
-      });
+      // Retry logic for fallback query
+      let response2: Response | null = null;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        await waitForRateLimit();
 
-      if (response2.ok) {
+        response2 = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Client-ID': IGDB_CLIENT_ID,
+            'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
+            'Content-Type': 'text/plain',
+          },
+          body: queryWithoutPlatform,
+        });
+
+        if (response2.ok || response2.status !== 429) {
+          break;
+        }
+
+        if (response2.status === 429 && attempt < MAX_RETRIES) {
+          const delay = RETRY_BASE_DELAY * Math.pow(2, attempt);
+          console.log(`Rate limited for "${gameName}" (no filter), retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
+          await sleep(delay);
+        }
+      }
+
+      if (response2 && response2.ok) {
         const data2: IGDBGame[] = await response2.json();
         if (data2.length > 0) {
           // Use results from query without platform filter

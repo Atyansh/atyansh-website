@@ -228,6 +228,7 @@ echo -n "new_value" | gcloud secrets versions add SECRET_NAME --data-file=-
 - Some API calls (especially Letterboxd scraping) can be slow
 
 ### API Rate Limits
+- **IGDB API (Game Covers)**: The build fetches game covers from IGDB for Steam, PlayStation, and Nintendo games. If you see 429 errors in build logs, the retry logic with exponential backoff (2s, 4s, 8s delays) should automatically handle it. The IGDB API typically allows 4 requests per second.
 - Add caching to API utility functions
 - Reduce build frequency if hitting limits
 

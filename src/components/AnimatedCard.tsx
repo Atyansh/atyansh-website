@@ -36,7 +36,7 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
   if (href) {
     return (
       <motion.div
-        className="h-full"
+        className="h-full overflow-hidden md:overflow-visible"
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, margin: '-100px' }}
@@ -44,7 +44,7 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
       >
         <a
           href={href}
-          className={`block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 transition-transform hover:scale-[1.02] hover:-translate-y-1 ${className}`}
+          className={`block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 transition-transform hover:scale-[1.02] hover:-translate-y-1 overflow-hidden md:overflow-visible ${className}`}
         >
           {children}
         </a>
@@ -54,7 +54,7 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
 
   return (
     <motion.div
-      className={`block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 ${className}`}
+      className={`block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden md:overflow-visible ${className}`}
       initial="hidden"
       whileInView="visible"
       viewport={{ once: true, margin: '-100px' }}

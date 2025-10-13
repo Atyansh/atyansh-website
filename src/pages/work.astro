@@ -4,7 +4,13 @@ import { getCollection } from 'astro:content';
 import AnimatedCard from '../components/AnimatedCard';
 
 const projects = (await getCollection('projects'))
-  .sort((a, b) => b.data.startDate.valueOf() - a.data.startDate.valueOf());
+  .sort((a, b) => {
+    // First, sort by featured status (featured first)
+    if (a.data.featured && !b.data.featured) return -1;
+    if (!a.data.featured && b.data.featured) return 1;
+    // Then, sort by start date (most recent first)
+    return b.data.startDate.valueOf() - a.data.startDate.valueOf();
+  });
 
 const papers = (await getCollection('papers'))
   .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());

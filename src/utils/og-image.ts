@@ -1,11 +1,14 @@
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 
-export async function generateOGImage(
-  title: string,
-  description?: string,
-  type: 'default' | 'blog' | 'project' = 'default'
-): Promise<Buffer> {
+export async function generateOGImage(): Promise<Buffer> {
+  // Fetch profile image and convert to base64
+  const profileImageUrl = 'https://www.gravatar.com/avatar/7e16fc57778ed552f69eb809ce567b38?s=512';
+  const profileImageResponse = await fetch(profileImageUrl);
+  const profileImageBuffer = await profileImageResponse.arrayBuffer();
+  const base64Image = Buffer.from(profileImageBuffer).toString('base64');
+  const profileImageSrc = `data:image/png;base64,${base64Image}`;
+
   const svg = await satori(
     {
       type: 'div',
@@ -15,8 +18,8 @@ export async function generateOGImage(
           width: '100%',
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
+          alignItems: 'center',
+          justifyContent: 'center',
           backgroundColor: '#0f172a',
           padding: '60px',
           fontFamily: 'Inter, sans-serif',
@@ -28,98 +31,58 @@ export async function generateOGImage(
               style: {
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '20px',
+                alignItems: 'center',
+                gap: '30px',
               },
               children: [
-                // Badge/Type
-                type !== 'default' && {
-                  type: 'div',
+                // Profile image
+                {
+                  type: 'img',
                   props: {
+                    src: profileImageSrc,
                     style: {
-                      display: 'flex',
-                      backgroundColor: '#2563eb',
-                      color: '#ffffff',
-                      padding: '12px 24px',
-                      borderRadius: '8px',
-                      fontSize: '24px',
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
+                      width: '192px',
+                      height: '192px',
+                      borderRadius: '9999px',
+                      border: '6px solid #2563eb',
                     },
-                    children: type === 'blog' ? 'Blog Post' : 'Project',
                   },
                 },
-                // Title
+                // Name
                 {
                   type: 'div',
                   props: {
                     style: {
-                      fontSize: '72px',
+                      fontSize: '64px',
                       fontWeight: 700,
                       color: '#f1f5f9',
-                      lineHeight: 1.2,
-                      maxWidth: '1100px',
-                      wordWrap: 'break-word',
-                    },
-                    children: title,
-                  },
-                },
-                // Description
-                description && {
-                  type: 'div',
-                  props: {
-                    style: {
-                      fontSize: '32px',
-                      color: '#94a3b8',
-                      lineHeight: 1.5,
-                      maxWidth: '1000px',
-                    },
-                    children: description,
-                  },
-                },
-              ].filter(Boolean),
-            },
-          },
-          // Footer
-          {
-            type: 'div',
-            props: {
-              style: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                width: '100%',
-                borderTop: '2px solid #334155',
-                paddingTop: '30px',
-              },
-              children: [
-                {
-                  type: 'div',
-                  props: {
-                    style: {
-                      fontSize: '28px',
-                      fontWeight: 700,
-                      color: '#2563eb',
+                      textAlign: 'center',
                     },
                     children: 'Atyansh Jaiswal',
                   },
                 },
+                // Title/Role
                 {
                   type: 'div',
                   props: {
                     style: {
-                      fontSize: '28px',
-                      color: '#64748b',
+                      fontSize: '36px',
+                      fontWeight: 600,
+                      color: '#2563eb',
+                      textAlign: 'center',
                     },
-                    children: '•',
+                    children: 'Software Engineer',
                   },
                 },
+                // Website
                 {
                   type: 'div',
                   props: {
                     style: {
                       fontSize: '28px',
                       color: '#94a3b8',
+                      textAlign: 'center',
+                      marginTop: '20px',
                     },
                     children: 'atyansh.com',
                   },

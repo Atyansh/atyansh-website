@@ -13,7 +13,7 @@ interface Props {
   structuredData?: Record<string, any>;
 }
 
-const { title, description = "Security & Privacy Engineer | Personal Website", image, type = "website", structuredDataType = "website", structuredData = {} } = Astro.props;
+const { title, description = "Software Engineer | Personal Website", image, type = "website", structuredDataType = "website", structuredData = {} } = Astro.props;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
 // Generate OG image URL
@@ -139,7 +139,7 @@ if (image) {
           <div class="hidden lg:flex items-center gap-6">
             <ul class="flex gap-6 text-sm font-medium" role="list">
               <li><a href="/" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to home page">Home</a></li>
-              <li><a href="/work" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to work experience page">Work</a></li>
+              <li><a href="/work" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to projects page">Projects</a></li>
               <li><a href="/books" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to books page">Books</a></li>
               <li><a href="/music" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to music page">Music</a></li>
               <li><a href="/movies" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to movies page">Movies</a></li>
@@ -165,7 +165,7 @@ if (image) {
         <div id="mobile-menu" class="hidden lg:hidden mt-4">
           <ul class="flex flex-col gap-2 text-sm font-medium" role="list">
             <li><a href="/" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to home page">Home</a></li>
-            <li><a href="/work" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to work experience page">Work</a></li>
+            <li><a href="/work" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to projects page">Projects</a></li>
             <li><a href="/books" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to books page">Books</a></li>
             <li><a href="/music" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to music page">Music</a></li>
             <li><a href="/movies" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to movies page">Movies</a></li>

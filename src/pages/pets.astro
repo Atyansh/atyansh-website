@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
 import AnimatedCard from '../components/AnimatedCard';
-import ImageGallery from '../components/ImageGallery';
+import PetPhotoCarousel from '../components/PetPhotoCarousel';
 
 const pets = await getCollection('pets');
 ---
@@ -11,7 +11,7 @@ const pets = await getCollection('pets');
   title="Pets - Atyansh Jaiswal"
   description="Meet my furry friends"
 >
-  <div class="max-w-6xl mx-auto">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="text-center mb-16">
       <h1 class="text-5xl font-bold mb-4" style="color: var(--text-primary);">
         My Pets
@@ -39,10 +39,10 @@ const pets = await getCollection('pets');
         }));
 
         return (
-          <section>
+          <section class="overflow-hidden md:overflow-visible">
             <AnimatedCard client:load delay={index * 0.1}>
-              <div class="grid md:grid-cols-2 gap-8">
-                <div>
+              <div class="grid md:grid-cols-2 gap-8 overflow-hidden md:overflow-visible">
+                <div class="min-w-0">
                   <div class="flex items-start justify-between mb-4">
                     <div>
                       <h2 class="text-4xl font-bold mb-2" style="color: var(--text-primary);">
@@ -91,21 +91,11 @@ const pets = await getCollection('pets');
                   )}
                 </div>
 
-                <div>
-                  {pet.data.images.length === 1 && (
-                    <img
-                      src={pet.data.images[0]}
-                      alt={pet.data.name}
-                      class="w-full h-auto rounded-lg shadow-lg"
-                    />
-                  )}
-
-                  {pet.data.images.length > 1 && (
-                    <ImageGallery
-                      client:load
-                      images={galleryImages}
-                    />
-                  )}
+                <div class="min-w-0 overflow-hidden md:overflow-visible">
+                  <PetPhotoCarousel
+                    client:load
+                    images={galleryImages}
+                  />
                 </div>
               </div>
 

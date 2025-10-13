@@ -247,6 +247,7 @@ echo -n "new_value" | gcloud secrets versions add SECRET_NAME --data-file=-
 
 Cloud CDN is enabled on the backend bucket to provide:
 - ✅ Faster page loads globally (CDN edge locations)
+- ✅ Automatic cache invalidation on deployments
 - ✅ Manual cache invalidation capability
 - ✅ Reduced load on Cloud Storage
 - ✅ Better performance for international visitors
@@ -257,9 +258,21 @@ Cloud CDN is enabled on the backend bucket to provide:
 - Static assets (`/_astro/**`): 1 year (immutable)
 - HTML pages: 1 hour
 
+### Automatic Cache Invalidation
+
+**Cloud Build automatically invalidates the CDN cache after every deployment.** This ensures that new content is served immediately instead of waiting for cache expiry (up to 1 hour for HTML files).
+
+The invalidation:
+- Runs automatically as the final step in `cloudbuild.yaml`
+- Invalidates all paths (`/*`)
+- Executes asynchronously (doesn't block deployment completion)
+- Takes 30-60 seconds to propagate globally
+
+**No manual action required** - your changes will be live within ~1 minute after deployment completes.
+
 ### Manual Cache Invalidation
 
-When you need to force a cache refresh (e.g., after updating movie data):
+For specific scenarios where you need to force a cache refresh outside of deployments (e.g., testing or debugging):
 
 **Using the helper script:**
 ```bash

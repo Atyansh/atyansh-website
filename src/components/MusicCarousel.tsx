@@ -57,8 +57,12 @@ export default function MusicCarousel({ tracks, title, playlistUrl }: MusicCarou
               href={playlistUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm px-3 py-1 rounded-full hover:opacity-80 transition-opacity"
-              style={{ backgroundColor: 'var(--accent)', color: 'white' }}
+              className="text-sm px-3 py-1 rounded-full hover:opacity-80 transition-all border-2"
+              style={{
+                backgroundColor: 'transparent',
+                color: 'var(--accent)',
+                borderColor: 'var(--accent)'
+              }}
             >
               Open in Spotify
             </a>

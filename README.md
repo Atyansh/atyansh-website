@@ -278,6 +278,35 @@ MyAnimeList uses OAuth2. Use the included helper script.
 
 **Note:** Uses web scraping. Your reading list must be public.
 
+### 9. Email Notifications (API Health Monitoring)
+
+Get notified when API keys expire during automated builds.
+
+**What you need:**
+- Gmail account with 2-Factor Authentication enabled
+- Gmail App Password
+
+**Steps:**
+1. Enable 2FA on your Google account at https://myaccount.google.com/security
+2. Go to "App passwords" and create one for "Mail"
+3. Copy the 16-character password
+4. Add to `.env`:
+   ```bash
+   NOTIFICATION_EMAIL=your@email.com
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your@gmail.com
+   SMTP_PASS=your_app_password_here
+   ```
+
+**What it does:**
+- Runs after every build (daily at 2 AM UTC in production)
+- Checks if all API integrations succeeded
+- Sends email if any API keys have expired
+- Includes exact commands to fix issues
+
+See [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for detailed setup instructions.
+
 ## Development
 
 ### Run Development Server
@@ -325,6 +354,8 @@ Preview the production build locally before deployment.
 ├── scripts/                     # Helper scripts
 │   ├── get-spotify-token.cjs   # Spotify OAuth helper
 │   ├── get-mal-token.cjs       # MyAnimeList OAuth helper
+│   ├── check-api-health.cjs    # API health monitoring
+│   ├── sync-secrets-to-gcloud.sh # Sync .env to Secret Manager
 │   └── *.cjs                   # Debug/analysis scripts
 ├── src/
 │   ├── components/             # React/Astro components
@@ -503,7 +534,13 @@ If you accidentally commit secrets:
 **Spotify, MyAnimeList, IGDB tokens expire periodically:**
 - Re-run the respective helper script to get new tokens
 - Update `.env` with new values
+- For production: Sync to Google Cloud with `./scripts/sync-secrets-to-gcloud.sh`
 - Restart the dev server
+
+**Automated monitoring:**
+- If email notifications are configured, you'll automatically receive alerts when tokens expire
+- The email includes exact commands to fix each issue
+- See [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for setup
 
 ### Web Scraping Issues
 

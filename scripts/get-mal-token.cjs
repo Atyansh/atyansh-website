@@ -10,8 +10,15 @@
  *    - App Type: Web
  *    - App Redirect URL: http://localhost:3001/callback
  * 2. Copy your Client ID and Client Secret
- * 3. Run: MAL_CLIENT_ID=your_id MAL_CLIENT_SECRET=your_secret node scripts/get-mal-token.cjs
+ * 3. Run: node scripts/get-mal-token.cjs (loads .env automatically)
  */
+
+// Load .env file
+try {
+  require('dotenv').config();
+} catch (error) {
+  // dotenv not installed, continue without it
+}
 
 const http = require('http');
 const crypto = require('crypto');

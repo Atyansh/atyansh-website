@@ -6,12 +6,14 @@
 2. ✅ Set project to `personal-website-334502`
 3. ✅ Enabled required APIs (Cloud Build, Secret Manager, Cloud Scheduler, Cloud Storage)
 4. ✅ Created `cloudbuild.yaml` configuration
-5. ✅ Created 14 secrets in Google Secret Manager
+5. ✅ Created 19 secrets in Google Secret Manager (14 API keys + 5 email notification settings)
 6. ✅ Granted IAM permissions to Cloud Build service accounts
 7. ✅ Configured Cloud Storage bucket (`gs://atyansh.com/`)
 8. ✅ Updated Cloud Build to use Node.js 22 (matches local environment)
 9. ✅ Granted Secret Manager access to Compute Engine service account
 10. ✅ Successfully deployed site via Cloud Build
+11. ✅ Configured API health monitoring with email notifications
+12. ✅ Added file-based caching to all API integrations
 
 ## Working Configuration
 
@@ -186,6 +188,29 @@ chmod +x deploy.sh
 
 ## Monitoring and Logs
 
+### API Health Monitoring
+
+The build automatically monitors all 8 API integrations and sends email notifications if any fail:
+
+**Monitored APIs:**
+- With API keys: Spotify, MyAnimeList, Steam, PSN, IGDB
+- Web scraping: Letterboxd, Goodreads, Nintendo (Exophase)
+
+**How it works:**
+- Runs after every build (`scripts/check-api-health.cjs`)
+- Validates cache files are fresh (<1 hour old)
+- Checks that data was successfully fetched
+- Sends email via SMTP if any API fails
+- Never fails the build (just notifies)
+
+**Email notifications are sent when:**
+- API credentials are missing or expired
+- Cache files are stale (API fetch failed but old cache exists)
+- Web scraping failed
+- Cache data is empty or invalid
+
+See `API_HEALTH_MONITORING.md` for detailed setup instructions.
+
 ### View Build History
 ```bash
 gcloud builds list --limit=10
@@ -197,6 +222,12 @@ BUILD_ID="your-build-id-here"
 gcloud builds log $BUILD_ID
 ```
 
+### View API Health Report
+```bash
+# View the latest health check results
+cat .cache/api-health-report.json
+```
+
 ### View in Console
 https://console.cloud.google.com/cloud-build/builds?project=personal-website-334502
 
@@ -204,11 +235,42 @@ https://console.cloud.google.com/cloud-build/builds?project=personal-website-334
 
 If you need to update any API keys:
 
+### Option 1: Sync All Secrets from .env (Recommended)
+
+The easiest way to update secrets after modifying your `.env` file:
+
 ```bash
-# Update a secret
+# Update all 19 secrets from .env to Google Cloud
+./scripts/sync-secrets-to-gcloud.sh
+```
+
+This script will:
+- Read all values from your `.env` file
+- Update or create each secret in Google Cloud Secret Manager
+- Skip any secrets that aren't set in `.env`
+- Show a summary of updated/skipped/failed secrets
+
+**All 19 secrets managed:**
+- API Keys: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `IGDB_CLIENT_ID`, `IGDB_ACCESS_TOKEN`
+- Spotify: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`
+- MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
+- Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`
+- Email Notifications: `NOTIFICATION_EMAIL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
+
+### Option 2: Update Individual Secrets
+
+```bash
+# Update a single secret manually
 echo -n "new_value" | gcloud secrets versions add SECRET_NAME --data-file=-
 
-# Or use the script
+# Example: Update Spotify refresh token
+echo -n "AQC..." | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file=-
+```
+
+### Option 3: Use Original Script
+
+```bash
+# Create or update secrets interactively
 ./create-secrets.sh
 ```
 
@@ -233,10 +295,26 @@ echo -n "new_value" | gcloud secrets versions add SECRET_NAME --data-file=-
 - Reduce build frequency if hitting limits
 
 ### Secrets Expired
-- Spotify: Re-run `scripts/get-spotify-token.cjs`
-- MyAnimeList: Re-run `scripts/get-mal-token.cjs`
-- PSN: Get new NPSSO token (expires every ~60 days)
-- IGDB: Regenerate access token
+
+**Automatic detection:** The build now sends email notifications when API keys expire or fail. Check your inbox for alerts.
+
+**Manual renewal:**
+- **Spotify**: Re-run `scripts/get-spotify-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
+- **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
+- **PSN**: Get new NPSSO token (expires every ~60 days), update `.env`, then sync
+- **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then sync
+
+**Quick workflow:**
+```bash
+# 1. Update the expired token in .env
+nano .env
+
+# 2. Sync all secrets to Google Cloud
+./scripts/sync-secrets-to-gcloud.sh
+
+# 3. Trigger a new build to verify
+gcloud builds submit --config cloudbuild.yaml .
+```
 
 ### Build Succeeds but Site Not Updated
 - Check if files were uploaded: `gsutil ls -lh gs://atyansh.com/ | head`
@@ -306,9 +384,12 @@ For 10,000 visitors/month × 250KB per page = ~2.5GB = **~$0.20/month**
 
 ## Files Created
 
-- `cloudbuild.yaml` - Cloud Build configuration
-- `create-secrets.sh` - Script to create/update secrets
+- `cloudbuild.yaml` - Cloud Build configuration with health monitoring
+- `create-secrets.sh` - Script to create/update secrets interactively
+- `scripts/sync-secrets-to-gcloud.sh` - Sync all secrets from .env to Google Cloud
+- `scripts/check-api-health.cjs` - API health monitoring and email notifications
 - `scripts/invalidate-cache.sh` - Helper script for manual cache invalidation
+- `API_HEALTH_MONITORING.md` - Complete guide for email notification setup
 - `DEPLOYMENT_GUIDE.md` - This file
 - `.gcloudignore` - Files to exclude from Cloud Build uploads (auto-created)
 
@@ -317,11 +398,12 @@ For 10,000 visitors/month × 250KB per page = ~2.5GB = **~$0.20/month**
 1. Wait 5-10 minutes for IAM permissions to fully propagate
 2. Run `gcloud builds submit --config cloudbuild.yaml .`
 3. If successful, set up Cloud Scheduler for daily builds
-4. Update README.md to document the deployment process
-5. Commit the new files to git:
+4. Set up email notifications for API health monitoring (see `API_HEALTH_MONITORING.md`)
+5. Test the health monitoring by checking `.cache/api-health-report.json` after a build
+6. Commit the new files to git:
    ```bash
-   git add cloudbuild.yaml create-secrets.sh DEPLOYMENT_GUIDE.md
-   git commit -m "Add automated deployment configuration"
+   git add cloudbuild.yaml create-secrets.sh scripts/ API_HEALTH_MONITORING.md DEPLOYMENT_GUIDE.md
+   git commit -m "Add automated deployment with API health monitoring"
    git push
    ```
 
@@ -329,9 +411,11 @@ For 10,000 visitors/month × 250KB per page = ~2.5GB = **~$0.20/month**
 
 If you continue to have issues:
 1. Check Cloud Build logs in the GCP Console
-2. Verify all secrets are populated: `gcloud secrets list`
-3. Test secret access: `gcloud secrets versions access latest --secret=STEAM_API_KEY | head -c 20`
-4. Check IAM permissions for both service accounts
+2. Check API health report: `cat .cache/api-health-report.json` (after a build)
+3. Verify all secrets are populated: `gcloud secrets list`
+4. Test secret access: `gcloud secrets versions access latest --secret=STEAM_API_KEY | head -c 20`
+5. Check IAM permissions for both service accounts
+6. Review email notifications if any APIs are failing
 
 ## Alternative: GitHub Actions
 

@@ -5,6 +5,14 @@ const STEAM_API_KEY = import.meta.env.STEAM_API_KEY;
 const STEAM_ID = import.meta.env.STEAM_ID;
 const BASE_URL = 'https://api.steampowered.com';
 
+// Cache configuration
+const CACHE_DIR = '.cache';
+const STEAM_CACHE_FILE = '.cache/steam-data.json';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+// Check if we're in a Node.js environment
+const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+
 export interface SteamGame {
   appid: number;
   name: string;
@@ -38,6 +46,69 @@ export interface SteamStats {
   playerSummary: PlayerSummary;
   gamesPlayedCount: number; // Games with playtime > 0
   averageHoursPerGame: number;
+}
+
+export interface SteamData {
+  games: SteamGame[];
+  stats: SteamStats;
+  timestamp: number;
+}
+
+interface CachedSteamData extends SteamData {}
+
+// In-memory cache
+let memoryCache: CachedSteamData | null = null;
+
+/**
+ * Load Steam cache from disk
+ */
+async function loadCache(): Promise<CachedSteamData | null> {
+  if (memoryCache) {
+    return memoryCache;
+  }
+
+  if (!isNode) {
+    return null;
+  }
+
+  try {
+    const { promises: fs } = await import('fs');
+    const cacheData = await fs.readFile(STEAM_CACHE_FILE, 'utf-8');
+    const cached: CachedSteamData = JSON.parse(cacheData);
+
+    // Check if cache is still valid
+    const age = Date.now() - cached.timestamp;
+    if (age < CACHE_DURATION) {
+      memoryCache = cached;
+      console.log('✓ Using cached Steam data');
+      return cached;
+    }
+
+    console.log('Steam cache expired, fetching fresh data...');
+    return null;
+  } catch (error) {
+    // Cache doesn't exist or is invalid
+    return null;
+  }
+}
+
+/**
+ * Save Steam cache to disk
+ */
+async function saveCache(data: SteamData): Promise<void> {
+  if (!isNode) {
+    return;
+  }
+
+  try {
+    const { promises: fs } = await import('fs');
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    await fs.writeFile(STEAM_CACHE_FILE, JSON.stringify(data, null, 2));
+    memoryCache = data;
+    console.log('✓ Saved Steam data to cache');
+  } catch (error) {
+    console.error('Failed to save Steam cache:', error);
+  }
 }
 
 /**
@@ -113,6 +184,15 @@ export async function getOwnedGames(): Promise<SteamGame[]> {
  * Get comprehensive Steam stats
  */
 export async function getSteamStats(): Promise<SteamStats | null> {
+  // Check cache first
+  const cached = await loadCache();
+  if (cached) {
+    return cached.stats;
+  }
+
+  // Get fresh data from Steam
+  console.log('Fetching Steam data...');
+
   try {
     const [playerSummary, recentGames, ownedGames] = await Promise.all([
       getPlayerSummary(),
@@ -121,6 +201,7 @@ export async function getSteamStats(): Promise<SteamStats | null> {
     ]);
 
     if (!playerSummary) {
+      console.error('Failed to get Steam player summary');
       return null;
     }
 
@@ -142,7 +223,7 @@ export async function getSteamStats(): Promise<SteamStats | null> {
       .sort((a, b) => b.playtime_forever - a.playtime_forever)
       .slice(0, 10);
 
-    return {
+    const stats: SteamStats = {
       recentGames,
       topPlayedGames,
       totalGames: ownedGames.length,
@@ -151,6 +232,18 @@ export async function getSteamStats(): Promise<SteamStats | null> {
       gamesPlayedCount,
       averageHoursPerGame,
     };
+
+    // Save to cache
+    const data: SteamData = {
+      games: ownedGames,
+      stats,
+      timestamp: Date.now(),
+    };
+    await saveCache(data);
+
+    console.log(`✓ Fetched Steam data: ${stats.totalGames} games, ${stats.totalHoursPlayed} hours played`);
+
+    return stats;
   } catch (error) {
     console.error('Error fetching Steam stats:', error);
     return null;

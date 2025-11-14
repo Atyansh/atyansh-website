@@ -4,11 +4,13 @@
 import type { NintendoGame, NintendoStats } from './nintendo';
 
 const EXOPHASE_USER = 'atyansh';
-const CACHE_FILE = '/tmp/exophase-nintendo-cache.json';
+const CACHE_DIR = '.cache';
+const CACHE_FILE = '.cache/nintendo-data.json';
 const CACHE_DURATION = 86400000; // 24 hours in milliseconds
 
 interface CachedData {
-  data: NintendoStats;
+  games: NintendoGame[];
+  stats: NintendoStats;
   timestamp: number;
 }
 
@@ -42,7 +44,7 @@ export async function getCachedNintendoStats(): Promise<NintendoStats | null> {
       const now = Date.now();
       if ((now - cached.timestamp) < CACHE_DURATION) {
         console.log('✓ Using cached Nintendo data');
-        return cached.data;
+        return cached.stats;
       }
     }
   } catch (error) {
@@ -57,8 +59,13 @@ export async function getCachedNintendoStats(): Promise<NintendoStats | null> {
 export async function cacheNintendoStats(stats: NintendoStats): Promise<void> {
   try {
     const fs = await import('fs/promises');
+
+    // Ensure cache directory exists
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+
     const cacheData: CachedData = {
-      data: stats,
+      games: stats.recentGames, // Store games array separately for health check
+      stats: stats,
       timestamp: Date.now(),
     };
     await fs.writeFile(CACHE_FILE, JSON.stringify(cacheData, null, 2), 'utf-8');

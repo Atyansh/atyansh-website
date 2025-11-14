@@ -11,6 +11,14 @@ import {
 
 const PSN_NPSSO = import.meta.env.PSN_NPSSO;
 
+// Cache configuration
+const CACHE_DIR = '.cache';
+const PSN_CACHE_FILE = '.cache/psn-data.json';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+// Check if we're in a Node.js environment
+const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+
 let cachedAuth: AuthTokensResponse | null = null;
 
 export interface PSNGame {
@@ -40,6 +48,69 @@ export interface PSNStats {
   };
   trophyLevel?: number;
   completedGames: number; // Games with 100% trophies
+}
+
+export interface PSNData {
+  games: PSNGame[];
+  stats: PSNStats;
+  timestamp: number;
+}
+
+interface CachedPSNData extends PSNData {}
+
+// In-memory cache
+let memoryCache: CachedPSNData | null = null;
+
+/**
+ * Load PSN cache from disk
+ */
+async function loadCache(): Promise<CachedPSNData | null> {
+  if (memoryCache) {
+    return memoryCache;
+  }
+
+  if (!isNode) {
+    return null;
+  }
+
+  try {
+    const { promises: fs } = await import('fs');
+    const cacheData = await fs.readFile(PSN_CACHE_FILE, 'utf-8');
+    const cached: CachedPSNData = JSON.parse(cacheData);
+
+    // Check if cache is still valid
+    const age = Date.now() - cached.timestamp;
+    if (age < CACHE_DURATION) {
+      memoryCache = cached;
+      console.log('✓ Using cached PSN data');
+      return cached;
+    }
+
+    console.log('PSN cache expired, fetching fresh data...');
+    return null;
+  } catch (error) {
+    // Cache doesn't exist or is invalid
+    return null;
+  }
+}
+
+/**
+ * Save PSN cache to disk
+ */
+async function saveCache(data: PSNData): Promise<void> {
+  if (!isNode) {
+    return;
+  }
+
+  try {
+    const { promises: fs } = await import('fs');
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    await fs.writeFile(PSN_CACHE_FILE, JSON.stringify(data, null, 2));
+    memoryCache = data;
+    console.log('✓ Saved PSN data to cache');
+  } catch (error) {
+    console.error('Failed to save PSN cache:', error);
+  }
 }
 
 /**
@@ -135,15 +206,26 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
  * Get PSN gaming stats
  */
 export async function getPSNStats(): Promise<PSNStats | null> {
+  // Check cache first
+  const cached = await loadCache();
+  if (cached) {
+    return cached.stats;
+  }
+
+  // Get fresh data from PSN
+  console.log('Fetching PSN data...');
+
   try {
     const auth = await getPSNAuth();
     if (!auth) {
+      console.error('Failed to get PSN authorization');
       return null;
     }
 
     const titles = await getPSNTitles();
 
     if (titles.length === 0) {
+      console.error('No PSN titles found');
       return null;
     }
 
@@ -180,13 +262,25 @@ export async function getPSNStats(): Promise<PSNStats | null> {
     // For now, set to 0 as a placeholder
     const completedGames = 0;
 
-    return {
+    const stats: PSNStats = {
       recentGames,
       totalGames: titles.length,
       totalTrophies,
       trophyLevel,
       completedGames,
     };
+
+    // Save to cache
+    const data: PSNData = {
+      games: titles,
+      stats,
+      timestamp: Date.now(),
+    };
+    await saveCache(data);
+
+    console.log(`✓ Fetched PSN data: ${stats.totalGames} games, ${totalTrophies.total} trophies`);
+
+    return stats;
   } catch (error) {
     console.error('Error fetching PSN stats:', error);
     return null;

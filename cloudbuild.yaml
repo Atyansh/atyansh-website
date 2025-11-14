@@ -77,6 +77,21 @@ steps:
       - 'GOODREADS_USER_ID'
     waitFor: ['install-dependencies']
 
+  # Check API health and send notifications if any failed
+  - name: 'node:22'
+    entrypoint: node
+    args: ['scripts/check-api-health.cjs']
+    id: 'check-api-health'
+    env:
+      - 'NODE_ENV=production'
+    secretEnv:
+      - 'NOTIFICATION_EMAIL'
+      - 'SMTP_HOST'
+      - 'SMTP_PORT'
+      - 'SMTP_USER'
+      - 'SMTP_PASS'
+    waitFor: ['build-site']
+
   # Deploy to Cloud Storage
   - name: 'gcr.io/cloud-builders/gsutil'
     args: ['-m', 'rsync', '-r', '-c', '-d', 'dist/', 'gs://atyansh.com/']
@@ -150,6 +165,17 @@ availableSecrets:
       env: 'MAL_REFRESH_TOKEN'
     - versionName: projects/personal-website-334502/secrets/GOODREADS_USER_ID/versions/latest
       env: 'GOODREADS_USER_ID'
+    # Email notification secrets
+    - versionName: projects/personal-website-334502/secrets/NOTIFICATION_EMAIL/versions/latest
+      env: 'NOTIFICATION_EMAIL'
+    - versionName: projects/personal-website-334502/secrets/SMTP_HOST/versions/latest
+      env: 'SMTP_HOST'
+    - versionName: projects/personal-website-334502/secrets/SMTP_PORT/versions/latest
+      env: 'SMTP_PORT'
+    - versionName: projects/personal-website-334502/secrets/SMTP_USER/versions/latest
+      env: 'SMTP_USER'
+    - versionName: projects/personal-website-334502/secrets/SMTP_PASS/versions/latest
+      env: 'SMTP_PASS'
 
 # Build configuration
 options:

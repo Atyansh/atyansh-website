@@ -145,6 +145,26 @@ async function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Update a secret in Google Cloud Secret Manager
+ */
+async function updateSecretManager(secretName: string, value: string): Promise<boolean> {
+  if (!isNode) return false;
+
+  try {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    await execAsync(`echo -n "${value}" | gcloud secrets versions add ${secretName} --data-file=-`);
+    console.log(`✓ Updated ${secretName} in Secret Manager`);
+    return true;
+  } catch (error) {
+    console.log(`Note: Could not update Secret Manager (may not be in Cloud Build environment)`);
+    return false;
+  }
+}
+
+/**
  * Refresh the IGDB access token using client credentials
  * Returns true if successful, false otherwise
  */
@@ -185,8 +205,9 @@ async function refreshAccessToken(): Promise<boolean> {
 
     const expiresInDays = Math.round(data.expires_in / 86400);
     console.log(`IGDB token refreshed successfully (expires in ${expiresInDays} days)`);
-    console.log('Note: Update Secret Manager with new token:');
-    console.log(`echo -n "${data.access_token}" | gcloud secrets versions add IGDB_ACCESS_TOKEN --data-file=-`);
+
+    // Try to persist to Secret Manager for future builds
+    await updateSecretManager('IGDB_ACCESS_TOKEN', data.access_token);
 
     return true;
   } catch (error) {

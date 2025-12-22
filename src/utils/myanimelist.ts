@@ -99,6 +99,26 @@ async function saveCache(data: MALData): Promise<void> {
 }
 
 /**
+ * Update a secret in Google Cloud Secret Manager
+ */
+async function updateSecretManager(secretName: string, value: string): Promise<boolean> {
+  if (!isNode) return false;
+
+  try {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    await execAsync(`echo -n "${value}" | gcloud secrets versions add ${secretName} --data-file=-`);
+    console.log(`✓ Updated ${secretName} in Secret Manager`);
+    return true;
+  } catch (error) {
+    console.log(`Note: Could not update Secret Manager (may not be in Cloud Build environment)`);
+    return false;
+  }
+}
+
+/**
  * Refresh the MAL access token using the refresh token
  * Returns true if successful, false otherwise
  */
@@ -140,9 +160,10 @@ async function refreshAccessToken(): Promise<boolean> {
 
     const expiresInDays = Math.round(data.expires_in / 86400);
     console.log(`MAL token refreshed successfully (expires in ${expiresInDays} days)`);
-    console.log('Note: Update Secret Manager with new tokens:');
-    console.log(`echo -n "${data.access_token}" | gcloud secrets versions add MAL_ACCESS_TOKEN --data-file=-`);
-    console.log(`echo -n "${data.refresh_token}" | gcloud secrets versions add MAL_REFRESH_TOKEN --data-file=-`);
+
+    // Try to persist to Secret Manager for future builds
+    await updateSecretManager('MAL_ACCESS_TOKEN', data.access_token);
+    await updateSecretManager('MAL_REFRESH_TOKEN', data.refresh_token);
 
     return true;
   } catch (error) {

@@ -2,7 +2,12 @@
 // Fetches anime data from the official MyAnimeList API
 
 const MAL_CLIENT_ID = import.meta.env.MAL_CLIENT_ID;
-const MAL_ACCESS_TOKEN = import.meta.env.MAL_ACCESS_TOKEN;
+const MAL_CLIENT_SECRET = import.meta.env.MAL_CLIENT_SECRET;
+let MAL_ACCESS_TOKEN = import.meta.env.MAL_ACCESS_TOKEN;
+const MAL_REFRESH_TOKEN = import.meta.env.MAL_REFRESH_TOKEN;
+
+// Track if we've already refreshed the token this session
+let tokenRefreshed = false;
 
 // Cache configuration
 const CACHE_DIR = '.cache';
@@ -94,6 +99,59 @@ async function saveCache(data: MALData): Promise<void> {
 }
 
 /**
+ * Refresh the MAL access token using the refresh token
+ * Returns true if successful, false otherwise
+ */
+async function refreshAccessToken(): Promise<boolean> {
+  if (!MAL_CLIENT_ID || !MAL_CLIENT_SECRET || !MAL_REFRESH_TOKEN) {
+    console.log('Cannot refresh MAL token: missing credentials');
+    return false;
+  }
+
+  if (tokenRefreshed) {
+    console.log('MAL token already refreshed this session, not retrying');
+    return false;
+  }
+
+  try {
+    console.log('Refreshing MAL access token...');
+
+    const response = await fetch('https://myanimelist.net/v1/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: MAL_CLIENT_ID,
+        client_secret: MAL_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: MAL_REFRESH_TOKEN,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to refresh MAL token: ${response.status}`);
+      return false;
+    }
+
+    const data = await response.json();
+    MAL_ACCESS_TOKEN = data.access_token;
+    tokenRefreshed = true;
+
+    const expiresInDays = Math.round(data.expires_in / 86400);
+    console.log(`MAL token refreshed successfully (expires in ${expiresInDays} days)`);
+    console.log('Note: Update Secret Manager with new tokens:');
+    console.log(`echo -n "${data.access_token}" | gcloud secrets versions add MAL_ACCESS_TOKEN --data-file=-`);
+    console.log(`echo -n "${data.refresh_token}" | gcloud secrets versions add MAL_REFRESH_TOKEN --data-file=-`);
+
+    return true;
+  } catch (error) {
+    console.error('Error refreshing MAL token:', error);
+    return false;
+  }
+}
+
+/**
  * Fetch user's animelist from MAL API with pagination
  */
 async function fetchAnimeList(): Promise<MALAnime[]> {
@@ -120,6 +178,14 @@ async function fetchAnimeList(): Promise<MALAnime[]> {
 
       if (!response.ok) {
         if (response.status === 401) {
+          // Try to refresh the token
+          const refreshed = await refreshAccessToken();
+          if (refreshed) {
+            // Reset and retry from the beginning
+            offset = 0;
+            allAnime.length = 0;
+            continue;
+          }
           throw new Error('MAL Access Token expired or invalid. Please run: node scripts/get-mal-token.cjs');
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

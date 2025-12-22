@@ -2,7 +2,11 @@
 // Provides high-quality game cover art for all platforms
 
 const IGDB_CLIENT_ID = import.meta.env.IGDB_CLIENT_ID;
-const IGDB_ACCESS_TOKEN = import.meta.env.IGDB_ACCESS_TOKEN;
+const IGDB_CLIENT_SECRET = import.meta.env.IGDB_CLIENT_SECRET;
+let IGDB_ACCESS_TOKEN = import.meta.env.IGDB_ACCESS_TOKEN;
+
+// Track if we've already refreshed the token this session
+let tokenRefreshed = false;
 
 // Cache configuration
 const CACHE_DIR = '.cache';
@@ -141,6 +145,57 @@ async function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Refresh the IGDB access token using client credentials
+ * Returns true if successful, false otherwise
+ */
+async function refreshAccessToken(): Promise<boolean> {
+  if (!IGDB_CLIENT_ID || !IGDB_CLIENT_SECRET) {
+    console.log('Cannot refresh IGDB token: missing client credentials');
+    return false;
+  }
+
+  if (tokenRefreshed) {
+    console.log('Token already refreshed this session, not retrying');
+    return false;
+  }
+
+  try {
+    console.log('Refreshing IGDB access token...');
+
+    const response = await fetch('https://id.twitch.tv/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: IGDB_CLIENT_ID,
+        client_secret: IGDB_CLIENT_SECRET,
+        grant_type: 'client_credentials',
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to refresh token: ${response.status}`);
+      return false;
+    }
+
+    const data = await response.json();
+    IGDB_ACCESS_TOKEN = data.access_token;
+    tokenRefreshed = true;
+
+    const expiresInDays = Math.round(data.expires_in / 86400);
+    console.log(`IGDB token refreshed successfully (expires in ${expiresInDays} days)`);
+    console.log('Note: Update Secret Manager with new token:');
+    console.log(`echo -n "${data.access_token}" | gcloud secrets versions add IGDB_ACCESS_TOKEN --data-file=-`);
+
+    return true;
+  } catch (error) {
+    console.error('Error refreshing IGDB token:', error);
+    return false;
+  }
+}
+
+/**
  * Clean game name for better IGDB search results
  * Removes trademark symbols, suffixes, and other noise
  */
@@ -234,6 +289,14 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
     }
 
     if (!response || !response.ok) {
+      // Check if it's an auth error and try to refresh token
+      if (response?.status === 401 || response?.status === 403) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          // Retry with new token (recursive call, but tokenRefreshed prevents infinite loop)
+          return getIGDBCoverUrl(gameName, platform);
+        }
+      }
       console.log(`IGDB API error for "${gameName}": ${response?.status || 'unknown'}`);
       return null;
     }

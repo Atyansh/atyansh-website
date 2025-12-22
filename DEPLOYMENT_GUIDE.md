@@ -83,8 +83,8 @@ If needed, re-run the permission grant script:
 cd /Users/atyansh/Repos/atyansh-website
 
 # Re-grant to both service accounts
-for secret in STEAM_API_KEY STEAM_ID PSN_NPSSO IGDB_CLIENT_ID IGDB_ACCESS_TOKEN \
-              SPOTIFY_CLIENT_ID SPOTIFY_CLIENT_SECRET SPOTIFY_REFRESH_TOKEN \
+for secret in STEAM_API_KEY STEAM_ID PSN_NPSSO IGDB_CLIENT_ID IGDB_CLIENT_SECRET \
+              IGDB_ACCESS_TOKEN SPOTIFY_CLIENT_ID SPOTIFY_CLIENT_SECRET SPOTIFY_REFRESH_TOKEN \
               LETTERBOXD_USERNAME MAL_CLIENT_ID MAL_CLIENT_SECRET \
               MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN GOODREADS_USER_ID; do
   gcloud secrets add-iam-policy-binding $secret \
@@ -250,8 +250,8 @@ This script will:
 - Skip any secrets that aren't set in `.env`
 - Show a summary of updated/skipped/failed secrets
 
-**All 19 secrets managed:**
-- API Keys: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `IGDB_CLIENT_ID`, `IGDB_ACCESS_TOKEN`
+**All 20 secrets managed:**
+- API Keys: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`
 - Spotify: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`

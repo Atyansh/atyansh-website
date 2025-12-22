@@ -156,10 +156,11 @@ IGDB provides high-quality game cover images for all platforms.
 7. Add to `.env`:
    ```bash
    IGDB_CLIENT_ID=your_twitch_client_id
+   IGDB_CLIENT_SECRET=your_twitch_client_secret
    IGDB_ACCESS_TOKEN=your_twitch_access_token
    ```
 
-**Note:** Access tokens expire after ~60 days. You'll need to regenerate them.
+**Note:** Access tokens expire after ~60 days. If you provide `IGDB_CLIENT_SECRET`, the build will auto-refresh expired tokens.
 
 ### 5. Spotify (Music Tracking)
 
@@ -531,11 +532,18 @@ If you accidentally commit secrets:
 
 ### API Tokens Expired
 
-**Spotify, MyAnimeList, IGDB tokens expire periodically:**
-- Re-run the respective helper script to get new tokens
+**IGDB and MyAnimeList tokens auto-refresh during builds** if you have the required credentials:
+- IGDB: Requires `IGDB_CLIENT_SECRET` to auto-refresh
+- MyAnimeList: Uses `MAL_REFRESH_TOKEN` to auto-refresh
+
+**Spotify tokens expire periodically:**
+- Re-run `node scripts/get-spotify-token.cjs` to get new tokens
 - Update `.env` with new values
 - For production: Sync to Google Cloud with `./scripts/sync-secrets-to-gcloud.sh`
-- Restart the dev server
+
+**PSN NPSSO tokens expire every ~60 days** and must be manually refreshed:
+- Visit https://store.playstation.com and sign in
+- Get new token from https://ca.account.sony.com/api/v1/ssocookie
 
 **Automated monitoring:**
 - If email notifications are configured, you'll automatically receive alerts when tokens expire

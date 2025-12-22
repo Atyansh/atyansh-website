@@ -65,6 +65,7 @@ steps:
       - 'STEAM_ID'
       - 'PSN_NPSSO'
       - 'IGDB_CLIENT_ID'
+      - 'IGDB_CLIENT_SECRET'
       - 'IGDB_ACCESS_TOKEN'
       - 'SPOTIFY_CLIENT_ID'
       - 'SPOTIFY_CLIENT_SECRET'
@@ -145,6 +146,8 @@ availableSecrets:
       env: 'PSN_NPSSO'
     - versionName: projects/personal-website-334502/secrets/IGDB_CLIENT_ID/versions/latest
       env: 'IGDB_CLIENT_ID'
+    - versionName: projects/personal-website-334502/secrets/IGDB_CLIENT_SECRET/versions/latest
+      env: 'IGDB_CLIENT_SECRET'
     - versionName: projects/personal-website-334502/secrets/IGDB_ACCESS_TOKEN/versions/latest
       env: 'IGDB_ACCESS_TOKEN'
     - versionName: projects/personal-website-334502/secrets/SPOTIFY_CLIENT_ID/versions/latest

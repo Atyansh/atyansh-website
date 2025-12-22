@@ -544,6 +544,7 @@ If you accidentally commit secrets:
 **IGDB and MyAnimeList tokens auto-refresh during builds** if you have the required credentials:
 - IGDB: Requires `IGDB_CLIENT_SECRET` to auto-refresh
 - MyAnimeList: Uses `MAL_REFRESH_TOKEN` to auto-refresh
+- Refreshed tokens are automatically saved to Secret Manager for future builds
 
 **Spotify tokens expire periodically:**
 - Re-run `node scripts/get-spotify-token.cjs` to get new tokens

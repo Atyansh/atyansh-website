@@ -113,7 +113,7 @@ async function updateSecretManager(secretName: string, value: string): Promise<b
     console.log(`✓ Updated ${secretName} in Secret Manager`);
     return true;
   } catch (error) {
-    console.log(`Note: Could not update Secret Manager (may not be in Cloud Build environment)`);
+    console.log(`Note: Could not update Secret Manager (gcloud may not be configured)`);
     return false;
   }
 }

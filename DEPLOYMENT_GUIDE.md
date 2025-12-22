@@ -257,6 +257,18 @@ This script will:
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`
 - Email Notifications: `NOTIFICATION_EMAIL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
 
+### Pulling Secrets to Local .env
+
+To sync secrets from Secret Manager to your local `.env` file:
+
+```bash
+node scripts/pull-secrets.cjs
+```
+
+This runs automatically before `npm run build` (via the `prebuild` hook), so your local builds always use the latest secrets from Secret Manager.
+
+**Secret Manager is the single source of truth.** When tokens are auto-refreshed during a build (IGDB, MAL), they're updated in Secret Manager. The next local build will pull the fresh tokens automatically.
+
 ### Option 2: Update Individual Secrets
 
 ```bash
@@ -387,6 +399,7 @@ For 10,000 visitors/month × 250KB per page = ~2.5GB = **~$0.20/month**
 - `cloudbuild.yaml` - Cloud Build configuration with health monitoring
 - `create-secrets.sh` - Script to create/update secrets interactively
 - `scripts/sync-secrets-to-gcloud.sh` - Sync all secrets from .env to Google Cloud
+- `scripts/pull-secrets.cjs` - Sync secrets from Google Cloud to .env (runs automatically before builds)
 - `scripts/check-api-health.cjs` - API health monitoring and email notifications
 - `scripts/invalidate-cache.sh` - Helper script for manual cache invalidation
 - `API_HEALTH_MONITORING.md` - Complete guide for email notification setup

@@ -52,11 +52,20 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
    ```
 
 3. **Set up environment variables**
+
+   For new setup, copy the example file:
    ```bash
    cp .env.example .env
    ```
 
+   If you have secrets in Google Cloud Secret Manager, sync them instead:
+   ```bash
+   node scripts/pull-secrets.cjs
+   ```
+
 4. **Configure your API keys** (see detailed instructions below)
+
+**Note:** `npm run build` automatically syncs secrets from Secret Manager before building (if gcloud is configured). Secret Manager is the single source of truth.
 
 ## Quick Start (Minimal Setup)
 
@@ -535,6 +544,7 @@ If you accidentally commit secrets:
 **IGDB and MyAnimeList tokens auto-refresh during builds** if you have the required credentials:
 - IGDB: Requires `IGDB_CLIENT_SECRET` to auto-refresh
 - MyAnimeList: Uses `MAL_REFRESH_TOKEN` to auto-refresh
+- Refreshed tokens are automatically saved to Secret Manager for future builds
 
 **Spotify tokens expire periodically:**
 - Re-run `node scripts/get-spotify-token.cjs` to get new tokens

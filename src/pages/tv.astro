@@ -1,0 +1,97 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import TVFilter from '../components/TVFilter';
+import { getTraktData } from '../utils/trakt';
+
+// Fetch Trakt data at build time
+const traktData = await getTraktData();
+
+// Map Trakt shows to the format expected by the UI
+let shows = [];
+if (traktData && traktData.shows.length > 0) {
+  shows = traktData.shows.map(show => ({
+    data: {
+      title: show.title,
+      year: show.year,
+      posterImage: show.posterImage,
+      rating: show.rating,
+      plays: show.plays,
+      lastWatchedAt: show.lastWatchedAt,
+      link: show.link,
+    }
+  }));
+}
+---
+
+<BaseLayout
+  title="TV Shows - Atyansh Jaiswal"
+  description="TV shows I've watched"
+>
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-bold mb-4" style="color: var(--text-primary);">
+        TV Shows
+      </h1>
+    </div>
+
+    {shows.length > 0 && (
+      <section class="mb-20">
+        <div class="flex items-center justify-between mb-8">
+          <h2 class="text-3xl font-bold" style="color: var(--text-primary);">
+            My Watch History
+          </h2>
+          <span class="text-sm" style="color: var(--text-secondary);">
+            {shows.length} {shows.length === 1 ? 'show' : 'shows'}
+          </span>
+        </div>
+
+        <TVFilter client:load shows={shows} />
+
+        <div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+          <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
+            Viewing Stats
+          </h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {traktData?.stats.totalShows || 0}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Total Shows</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {traktData?.stats.totalPlays || 0}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Episodes Watched</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {traktData?.stats.rated || 0}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Rated</div>
+            </div>
+            <div>
+              <div class="text-3xl font-bold" style="color: var(--accent);">
+                {traktData?.stats.averageRating || 0}
+              </div>
+              <div class="text-sm" style="color: var(--text-secondary);">Avg Rating</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )}
+
+    {shows.length === 0 && (
+      <div class="text-center py-12">
+        <p class="text-lg" style="color: var(--text-secondary);">
+          No TV shows found. Configure your Trakt credentials in the environment variables.
+        </p>
+      </div>
+    )}
+
+    {/* Attribution */}
+    <div class="text-center mt-8 text-sm" style="color: var(--text-secondary);">
+      Data from <a href="https://trakt.tv" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline" style="color: var(--accent);">Trakt</a>
+    </div>
+  </div>
+</BaseLayout>

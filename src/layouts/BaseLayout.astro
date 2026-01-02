@@ -137,13 +137,27 @@ if (image) {
 
           <!-- Desktop Navigation -->
           <div class="hidden lg:flex items-center gap-6">
-            <ul class="flex gap-6 text-sm font-medium" role="list">
+            <ul class="flex items-center gap-5 text-sm font-medium" role="list">
               <li><a href="/" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to home page">Home</a></li>
               <li><a href="/work" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to projects page">Projects</a></li>
-              <li><a href="/books" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to books page">Books</a></li>
-              <li><a href="/music" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to music page">Music</a></li>
-              <li><a href="/movies" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to movies page">Movies</a></li>
-              <li><a href="/anime" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to anime page">Anime</a></li>
+
+              <!-- Media Dropdown -->
+              <li class="nav-dropdown relative">
+                <button class="nav-dropdown-trigger transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1 flex items-center gap-1" style="outline-color: var(--accent);" aria-expanded="false" aria-haspopup="true">
+                  Media
+                  <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </button>
+                <ul class="nav-dropdown-menu absolute left-0 top-full mt-1 py-2 rounded-lg shadow-lg border min-w-[140px] opacity-0 invisible transition-all duration-200 z-50" style="background-color: var(--bg-primary); border-color: var(--border);">
+                  <li><a href="/books" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">Books</a></li>
+                  <li><a href="/music" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">Music</a></li>
+                  <li><a href="/movies" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">Movies</a></li>
+                  <li><a href="/tv" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">TV</a></li>
+                  <li><a href="/anime" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">Anime</a></li>
+                </ul>
+              </li>
+
               <li><a href="/games" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to games page">Games</a></li>
               <li><a href="/climbing" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to climbing page">Climbing</a></li>
               <li><a href="/pets" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to pets page">Pets</a></li>
@@ -164,14 +178,18 @@ if (image) {
 
         <!-- Mobile Navigation -->
         <div id="mobile-menu" class="hidden lg:hidden mt-4">
-          <ul class="flex flex-col gap-2 text-sm font-medium" role="list">
+          <ul class="flex flex-col gap-1 text-sm font-medium" role="list">
             <li><a href="/" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to home page">Home</a></li>
             <li><a href="/work" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to projects page">Projects</a></li>
-            <li><a href="/books" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to books page">Books</a></li>
-            <li><a href="/music" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to music page">Music</a></li>
-            <li><a href="/movies" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to movies page">Movies</a></li>
-            <li><a href="/anime" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to anime page">Anime</a></li>
-            <li><a href="/games" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to games page">Games</a></li>
+            <!-- Media section -->
+            <li class="pt-2 pb-1 px-2 text-xs uppercase tracking-wider" style="color: var(--text-secondary);">Media</li>
+            <li><a href="/books" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to books page">Books</a></li>
+            <li><a href="/music" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to music page">Music</a></li>
+            <li><a href="/movies" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to movies page">Movies</a></li>
+            <li><a href="/tv" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to TV shows page">TV</a></li>
+            <li><a href="/anime" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to anime page">Anime</a></li>
+            <!-- Other pages -->
+            <li class="pt-2"><a href="/games" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to games page">Games</a></li>
             <li><a href="/climbing" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to climbing page">Climbing</a></li>
             <li><a href="/pets" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to pets page">Pets</a></li>
             <li><a href="/blog" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to blog">Blog</a></li>
@@ -192,11 +210,93 @@ if (image) {
         });
       }
 
+      function initNavDropdowns() {
+        const dropdowns = document.querySelectorAll('.nav-dropdown');
+
+        dropdowns.forEach(dropdown => {
+          const trigger = dropdown.querySelector('.nav-dropdown-trigger');
+          const menu = dropdown.querySelector('.nav-dropdown-menu');
+          const arrow = trigger?.querySelector('svg');
+
+          if (!trigger || !menu) return;
+
+          let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+          const showMenu = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            menu.classList.remove('opacity-0', 'invisible');
+            menu.classList.add('opacity-100', 'visible');
+            trigger.setAttribute('aria-expanded', 'true');
+            if (arrow) arrow.style.transform = 'rotate(180deg)';
+          };
+
+          const hideMenu = () => {
+            timeoutId = setTimeout(() => {
+              menu.classList.add('opacity-0', 'invisible');
+              menu.classList.remove('opacity-100', 'visible');
+              trigger.setAttribute('aria-expanded', 'false');
+              if (arrow) arrow.style.transform = '';
+            }, 150);
+          };
+
+          // Hover events
+          dropdown.addEventListener('mouseenter', showMenu);
+          dropdown.addEventListener('mouseleave', hideMenu);
+
+          // Click for accessibility/touch
+          trigger.addEventListener('click', (e) => {
+            e.preventDefault();
+            const isVisible = menu.classList.contains('visible');
+            if (isVisible) {
+              hideMenu();
+            } else {
+              showMenu();
+            }
+          });
+
+          // Keyboard navigation
+          trigger.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              const isVisible = menu.classList.contains('visible');
+              if (isVisible) {
+                hideMenu();
+              } else {
+                showMenu();
+              }
+            } else if (e.key === 'Escape') {
+              hideMenu();
+              trigger.focus();
+            }
+          });
+        });
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', (e) => {
+          const target = e.target as Element;
+          if (!target.closest('.nav-dropdown')) {
+            document.querySelectorAll('.nav-dropdown-menu').forEach(menu => {
+              menu.classList.add('opacity-0', 'invisible');
+              menu.classList.remove('opacity-100', 'visible');
+            });
+            document.querySelectorAll('.nav-dropdown-trigger').forEach(trigger => {
+              trigger.setAttribute('aria-expanded', 'false');
+              const arrow = trigger.querySelector('svg');
+              if (arrow) (arrow as HTMLElement).style.transform = '';
+            });
+          }
+        });
+      }
+
       // Initialize on page load
       initMobileMenu();
+      initNavDropdowns();
 
       // Re-initialize after View Transitions
-      document.addEventListener('astro:after-swap', initMobileMenu);
+      document.addEventListener('astro:after-swap', () => {
+        initMobileMenu();
+        initNavDropdowns();
+      });
     </script>
 
     <main id="main-content" class="flex-1 container mx-auto px-4 py-8" role="main">

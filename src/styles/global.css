@@ -146,6 +146,15 @@ body {
   border-radius: 4px;
 }
 
+/* Navigation dropdown styles */
+.nav-dropdown-trigger:hover {
+  color: var(--accent);
+}
+
+.nav-dropdown-menu a:hover {
+  background-color: var(--bg-secondary);
+}
+
 /* Override Tailwind with theme variables */
 /* Only apply bg-gray-50 override to dark themes */
 [data-theme="modern-glass"] .bg-gray-50,

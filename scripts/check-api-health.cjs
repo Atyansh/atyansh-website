@@ -106,6 +106,13 @@ const APIs = [
     renewal: 'Check KAYA_USERNAME in .env (uses public GraphQL API)',
     requiresApiKey: false,
   },
+  {
+    name: 'Trakt (TV Shows)',
+    cacheFile: 'trakt-data.json',
+    checkFn: (data) => data.shows && data.shows.length > 0,
+    renewal: 'Run: node scripts/get-trakt-token.cjs (token expires every 24h, auto-refreshes)',
+    requiresApiKey: true,
+  },
 ];
 
 /**

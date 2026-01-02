@@ -62,8 +62,8 @@ export default function WeeklyTimeline({ items }: WeeklyTimelineProps) {
                   {/* Left side: Week badge + Title */}
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     <span
-                      className="px-3 py-1.5 rounded-full text-sm font-bold text-white whitespace-nowrap flex-shrink-0"
-                      style={{ backgroundColor: 'var(--accent)' }}
+                      className="px-3 py-1.5 rounded-full text-sm font-bold whitespace-nowrap flex-shrink-0 border"
+                      style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--accent)', color: 'var(--accent)' }}
                     >
                       {item.week}
                     </span>

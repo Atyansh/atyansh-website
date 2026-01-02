@@ -13,6 +13,14 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
   const [imageError, setImageError] = useState(false);
   const [imageSrc, setImageSrc] = useState(game.image);
   const [fallbackIndex, setFallbackIndex] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleTap = () => {
+    // Only toggle on touch devices (no hover capability)
+    if (window.matchMedia('(hover: none)').matches) {
+      setIsExpanded(!isExpanded);
+    }
+  };
 
   const cardVariants = {
     hidden: { opacity: 0, scale: 0.9 },
@@ -54,7 +62,7 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
   };
 
   return (
-    <div className="relative group w-full">
+    <div className="relative group w-full" onClick={handleTap}>
       <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden shadow-md border border-gray-200 dark:border-gray-700 bg-gray-800">
         {/* Game Image */}
         {!imageError ? (
@@ -80,14 +88,14 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
           {getPlatformName(game.platform)}
         </div>
 
-        {/* Stats Overlay on Hover */}
+        {/* Stats Overlay - tap to show on mobile, hover on desktop */}
         <div
-          className="absolute inset-0 flex flex-col justify-end p-3 opacity-0 group-hover:opacity-100 z-10 transition-opacity duration-200"
+          className={`absolute inset-0 flex flex-col justify-end p-3 z-10 transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0'} md:opacity-0 md:group-hover:opacity-100`}
           style={{
-            background: 'linear-gradient(to bottom, transparent 0%, transparent 30%, rgba(0,0,0,0.85) 100%)'
+            background: 'linear-gradient(to bottom, transparent 0%, transparent 30%, color-mix(in srgb, var(--bg-primary) 95%, transparent) 100%)'
           }}
         >
-          <div className="text-white space-y-2">
+          <div className="space-y-2" style={{ color: 'var(--text-primary)' }}>
             {/* Game Title */}
             <h3 className="font-bold text-sm line-clamp-2">{game.name}</h3>
 
@@ -95,12 +103,12 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
             {game.steamData && (
               <div className="text-xs space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-gray-300">Playtime:</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Playtime:</span>
                   <span className="font-semibold">{Math.floor(game.steamData.playtimeMinutes / 60)}h</span>
                 </div>
                 {game.steamData.playtime2Weeks && game.steamData.playtime2Weeks > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Last 2 weeks:</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Last 2 weeks:</span>
                     <span className="font-semibold">{Math.floor(game.steamData.playtime2Weeks / 60)}h</span>
                   </div>
                 )}
@@ -112,13 +120,13 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
               <div className="text-xs space-y-1">
                 {game.psnData.playDuration && (
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Playtime:</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Playtime:</span>
                     <span className="font-semibold">{game.psnData.playDuration}</span>
                   </div>
                 )}
                 {game.psnData.trophies && game.psnData.trophies.total > 0 && (
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Trophies:</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Trophies:</span>
                     <div className="flex gap-1 text-xs">
                       {game.psnData.trophies.platinum > 0 && <span>🏆{game.psnData.trophies.platinum}</span>}
                       {game.psnData.trophies.gold > 0 && <span>🥇{game.psnData.trophies.gold}</span>}
@@ -129,7 +137,7 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
                 )}
                 {game.psnData.lastPlayed && (
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Last Played:</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Last Played:</span>
                     <span className="font-semibold text-xs">
                       {new Date(game.psnData.lastPlayed).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
@@ -142,12 +150,12 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
             {game.nintendoData && (
               <div className="text-xs space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-gray-300">Playtime:</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Playtime:</span>
                   <span className="font-semibold">{Math.floor(game.nintendoData.playtimeSeconds / 3600)}h</span>
                 </div>
                 {game.nintendoData.lastPlayed && (
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Last Played:</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Last Played:</span>
                     <span className="font-semibold text-xs">
                       {new Date(game.nintendoData.lastPlayed).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>

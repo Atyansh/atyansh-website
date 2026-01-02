@@ -1,0 +1,397 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getKayaData, formatHeight, formatApeIndex, getGradeOrdering } from '../utils/kaya';
+
+// Fetch Kaya data at build time
+const kayaData = await getKayaData();
+
+// Group videos by grade for display
+const videosByGrade = kayaData?.ascentsWithVideos.reduce((acc, ascent) => {
+  const grade = ascent.climb.grade.name;
+  if (!acc[grade]) {
+    acc[grade] = [];
+  }
+  acc[grade].push(ascent);
+  return acc;
+}, {} as Record<string, typeof kayaData.ascentsWithVideos>) || {};
+
+// Sort grades by difficulty (highest first)
+const sortedGrades = Object.keys(videosByGrade).sort((a, b) => {
+  return getGradeOrdering(b) - getGradeOrdering(a);
+});
+
+// Calculate max count for pyramid scaling
+const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_count), 0) || 1;
+---
+
+<BaseLayout
+  title="Climbing - Atyansh Jaiswal"
+  description="My bouldering stats, grade pyramid, and send videos from Kaya"
+>
+  <div class="max-w-7xl mx-auto">
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-bold mb-4" style="color: var(--text-primary);">
+        Climbing
+      </h1>
+    </div>
+
+    {kayaData ? (
+      <>
+        {/* Profile & Stats Section */}
+        <section class="mb-12">
+          <div class="p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+            {/* Mobile: stacked centered layout, Desktop: horizontal layout */}
+            <div class="flex flex-col lg:flex-row gap-8 items-center lg:items-start">
+              {/* Profile Photo & Info */}
+              <div class="flex flex-col items-center lg:flex-row lg:items-start gap-6">
+                {kayaData.profile?.photo_url && (
+                  <img
+                    src={kayaData.profile.photo_url}
+                    alt={kayaData.profile.fname}
+                    class="w-32 h-32 rounded-full object-cover border-4 shrink-0"
+                    style="border-color: var(--accent);"
+                  />
+                )}
+                <div class="text-center lg:text-left">
+                  <h2 class="text-2xl font-bold mb-2" style="color: var(--text-primary);">
+                    {kayaData.profile?.fname} {kayaData.profile?.lname?.trim()}
+                  </h2>
+                  {kayaData.profile?.bio && (
+                    <p class="text-sm mb-3" style="color: var(--text-secondary);">
+                      {kayaData.profile.bio}
+                    </p>
+                  )}
+                  <div class="flex flex-wrap gap-2 text-sm justify-center lg:justify-start">
+                    {kayaData.profile?.height && (
+                      <span class="px-3 py-1 rounded-full" style="background-color: var(--bg-primary); color: var(--text-secondary);">
+                        {formatHeight(kayaData.profile.height)}
+                      </span>
+                    )}
+                    {kayaData.profile?.ape_index && (
+                      <span class="px-3 py-1 rounded-full" style="background-color: var(--bg-primary); color: var(--text-secondary);">
+                        Ape: {formatApeIndex(kayaData.profile.ape_index)}
+                      </span>
+                    )}
+                    {kayaData.stats.maxGrade && (
+                      <span class="px-3 py-1 rounded-full font-medium" style="background-color: var(--accent); color: white;">
+                        Max: {kayaData.stats.maxGrade}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full lg:flex-1 lg:w-auto">
+                <div class="text-center p-4 rounded-lg" style="background-color: var(--bg-primary);">
+                  <div class="text-3xl font-bold" style="color: var(--accent);">
+                    {kayaData.stats.totalSends}
+                  </div>
+                  <div class="text-sm" style="color: var(--text-secondary);">Total Sends</div>
+                </div>
+                <div class="text-center p-4 rounded-lg" style="background-color: var(--bg-primary);">
+                  <div class="text-3xl font-bold" style="color: var(--accent);">
+                    {kayaData.stats.totalFlashes}
+                  </div>
+                  <div class="text-sm" style="color: var(--text-secondary);">Flashes</div>
+                </div>
+                <div class="text-center p-4 rounded-lg" style="background-color: var(--bg-primary);">
+                  <div class="text-3xl font-bold" style="color: var(--accent);">
+                    {kayaData.stats.flashRate}%
+                  </div>
+                  <div class="text-sm" style="color: var(--text-secondary);">Flash Rate</div>
+                </div>
+                <div class="text-center p-4 rounded-lg" style="background-color: var(--bg-primary);">
+                  <div class="text-3xl font-bold" style="color: var(--accent);">
+                    {kayaData.stats.totalVideos}
+                  </div>
+                  <div class="text-sm" style="color: var(--text-secondary);">Videos</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Grade Pyramid Section */}
+        {kayaData.pyramid.length > 0 && (
+          <section class="mb-12">
+            <div class="p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+              <h2 class="text-2xl font-bold mb-6" style="color: var(--text-primary);">
+                Grade Pyramid
+              </h2>
+              <div class="space-y-2">
+                {kayaData.pyramid.map((gradeData) => {
+                  const percentage = (gradeData.ascent_count / maxCount) * 100;
+                  // First try = flash + onsight (both are first attempt sends)
+                  const firstTryCount = gradeData.flash_count + gradeData.onsight_count;
+                  return (
+                    <div class="flex items-center gap-4">
+                      <div class="w-16 text-right font-mono font-bold text-sm" style="color: var(--text-primary);">
+                        {gradeData.grade.name}
+                      </div>
+                      <div class="flex-1 relative cursor-pointer pyramid-bar">
+                        {/* Bar container with overflow hidden */}
+                        <div
+                          class="h-8 rounded-lg overflow-hidden relative"
+                          style="background-color: var(--bg-primary);"
+                        >
+                          {/* Total sends bar */}
+                          <div
+                            class="h-full rounded-lg transition-all duration-500 relative"
+                            style={`width: ${percentage}%; background-color: var(--accent); opacity: 0.4;`}
+                          />
+                          {/* First try (flash + onsight) portion overlay */}
+                          <div
+                            class="h-full rounded-lg absolute top-0 left-0"
+                            style={`width: ${(firstTryCount / maxCount) * 100}%; background-color: var(--accent);`}
+                          />
+                        </div>
+                        {/* Tooltip - outside overflow-hidden container */}
+                        <div class="pyramid-tooltip absolute left-1/2 -translate-x-1/2 -top-10 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap opacity-0 pointer-events-none transition-opacity z-10" style="background-color: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--accent);">
+                          {gradeData.ascent_count} sends ({firstTryCount} flash)
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div class="mt-4 flex gap-6 text-sm" style="color: var(--text-secondary);">
+                <div class="flex items-center gap-2">
+                  <div class="w-4 h-4 rounded" style="background-color: var(--accent);"></div>
+                  <span>Flash (1st try)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-4 h-4 rounded" style="background-color: var(--accent); opacity: 0.4;"></div>
+                  <span>Redpoint</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Send Videos Section */}
+        {kayaData.ascentsWithVideos.length > 0 && (
+          <section class="mb-12">
+            <div class="p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+              <h2 class="text-2xl font-bold mb-6" style="color: var(--text-primary);">
+                Send Videos
+              </h2>
+
+              {sortedGrades.map((grade) => (
+                <div class="mb-8 last:mb-0">
+                  <h3 class="text-xl font-bold mb-4 flex items-center gap-3" style="color: var(--text-primary);">
+                    <span class="px-3 py-1 rounded-lg text-sm font-mono" style="background-color: var(--accent); color: white;">
+                      {grade}
+                    </span>
+                    <span class="text-sm font-normal" style="color: var(--text-secondary);">
+                      {videosByGrade[grade].length} video{videosByGrade[grade].length !== 1 ? 's' : ''}
+                    </span>
+                  </h3>
+                  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    {videosByGrade[grade].map((ascent) => (
+                      <div class="relative group cursor-pointer" data-video-url={ascent.video?.video_url}>
+                        <div class="aspect-[9/16] rounded-lg overflow-hidden" style="background-color: var(--bg-primary);">
+                          <img
+                            src={ascent.video?.thumb_url}
+                            alt={ascent.climb.name || `${grade} send`}
+                            class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                          {/* Play button overlay */}
+                          <div class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background-color: var(--accent);">
+                              <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Info overlay */}
+                        <div class="absolute bottom-0 left-0 right-0 p-2 rounded-b-lg" style="background: linear-gradient(to top, var(--bg-secondary) 0%, transparent 100%);">
+                          <div class="text-xs truncate" style="color: var(--text-primary);">
+                            {ascent.climb.name || ascent.climb.gym?.name || 'Gym Boulder'}
+                          </div>
+                          <div class="text-xs" style="color: var(--text-secondary);">
+                            {new Date(ascent.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Video Modal */}
+        <div id="video-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 p-4">
+          <button
+            id="close-modal"
+            class="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors z-10"
+            aria-label="Close video"
+          >
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+          <video
+            id="modal-video"
+            class="max-h-[90vh] max-w-full rounded-lg"
+            controls
+            playsinline
+            referrerpolicy="no-referrer"
+          >
+          </video>
+        </div>
+
+        <style>
+          /* Pyramid bar tooltip - show on hover */
+          .pyramid-bar:hover .pyramid-tooltip,
+          .pyramid-bar.tooltip-active .pyramid-tooltip {
+            opacity: 1;
+          }
+        </style>
+
+        <script>
+          function initPyramidTooltips() {
+            // Handle touch events for mobile
+            document.querySelectorAll('.pyramid-bar').forEach(bar => {
+              bar.addEventListener('touchstart', (e) => {
+                // Hide all other tooltips first
+                document.querySelectorAll('.pyramid-bar').forEach(b => b.classList.remove('tooltip-active'));
+                // Show this tooltip
+                bar.classList.add('tooltip-active');
+              });
+            });
+
+            // Hide tooltips when touching elsewhere
+            document.addEventListener('touchstart', (e) => {
+              const target = e.target as Element;
+              if (!target.closest('.pyramid-bar')) {
+                document.querySelectorAll('.pyramid-bar').forEach(b => b.classList.remove('tooltip-active'));
+              }
+            });
+          }
+
+          // Initialize pyramid tooltips
+          initPyramidTooltips();
+          document.addEventListener('astro:after-swap', initPyramidTooltips);
+
+          function initVideoModal() {
+            const modal = document.getElementById('video-modal');
+            const video = document.getElementById('modal-video') as HTMLVideoElement;
+            const closeBtn = document.getElementById('close-modal');
+
+            // Error message element
+            let errorMsg: HTMLDivElement | null = null;
+
+            function showError(message: string) {
+              if (!errorMsg) {
+                errorMsg = document.createElement('div');
+                errorMsg.className = 'absolute inset-0 flex items-center justify-center text-white text-center p-4';
+                errorMsg.style.backgroundColor = 'rgba(0,0,0,0.8)';
+              }
+              errorMsg.textContent = message;
+              video.parentElement?.appendChild(errorMsg);
+            }
+
+            function hideError() {
+              errorMsg?.remove();
+            }
+
+            // Handle video errors
+            video.addEventListener('error', () => {
+              showError('Video unavailable - may be restricted by Kaya');
+            });
+
+            // Track current blob URL to revoke it later
+            let currentBlobUrl: string | null = null;
+
+            // Open modal when clicking on video thumbnails
+            document.querySelectorAll('[data-video-url]').forEach(el => {
+              el.addEventListener('click', async () => {
+                const videoUrl = el.getAttribute('data-video-url');
+                if (videoUrl && modal && video) {
+                  hideError();
+                  modal.classList.remove('hidden');
+                  modal.classList.add('flex');
+
+                  // Revoke previous blob URL
+                  if (currentBlobUrl) {
+                    URL.revokeObjectURL(currentBlobUrl);
+                    currentBlobUrl = null;
+                  }
+
+                  try {
+                    // Fetch video without sending Referer
+                    const response = await fetch(videoUrl, {
+                      referrerPolicy: 'no-referrer'
+                    });
+
+                    if (!response.ok) {
+                      throw new Error('Video unavailable');
+                    }
+
+                    const blob = await response.blob();
+                    currentBlobUrl = URL.createObjectURL(blob);
+                    video.src = currentBlobUrl;
+                    video.play().catch(() => {
+                      // Autoplay may be blocked, user can click play
+                    });
+                  } catch (e) {
+                    showError('Video unavailable - may be restricted by Kaya');
+                  }
+                }
+              });
+            });
+
+            // Close modal
+            function closeModal() {
+              if (modal && video) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                video.pause();
+                video.removeAttribute('src');
+                video.load(); // Reset video element
+                hideError();
+                // Revoke blob URL to free memory
+                if (currentBlobUrl) {
+                  URL.revokeObjectURL(currentBlobUrl);
+                  currentBlobUrl = null;
+                }
+              }
+            }
+
+            closeBtn?.addEventListener('click', closeModal);
+            modal?.addEventListener('click', (e) => {
+              if (e.target === modal) closeModal();
+            });
+
+            // Close on escape key
+            document.addEventListener('keydown', (e) => {
+              if (e.key === 'Escape') closeModal();
+            });
+          }
+
+          // Initialize on page load
+          initVideoModal();
+
+          // Re-initialize after View Transitions
+          document.addEventListener('astro:after-swap', initVideoModal);
+        </script>
+      </>
+    ) : (
+      <div class="text-center py-12">
+        <p style="color: var(--text-secondary);">
+          Unable to load climbing data. Please try again later.
+        </p>
+      </div>
+    )}
+
+    {/* Attribution */}
+    <div class="text-center mt-8 text-sm" style="color: var(--text-secondary);">
+      Data from <a href="https://kayaclimb.com" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline" style="color: var(--accent);">Kaya</a>
+    </div>
+  </div>
+</BaseLayout>

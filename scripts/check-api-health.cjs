@@ -99,6 +99,13 @@ const APIs = [
     renewal: 'Exophase scraping for user "atyansh" may have failed',
     requiresApiKey: false,
   },
+  {
+    name: 'Kaya (Climbing)',
+    cacheFile: 'kaya-data.json',
+    checkFn: (data) => data.pyramid && data.pyramid.length > 0,
+    renewal: 'Check KAYA_USERNAME in .env (uses public GraphQL API)',
+    requiresApiKey: false,
+  },
 ];
 
 /**

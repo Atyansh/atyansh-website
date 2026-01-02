@@ -3,7 +3,7 @@
 
 import type { NintendoGame, NintendoStats } from './nintendo';
 
-const EXOPHASE_USER = 'atyansh';
+const EXOPHASE_USER = import.meta.env.EXOPHASE_USERNAME;
 const CACHE_DIR = '.cache';
 const CACHE_FILE = '.cache/nintendo-data.json';
 const CACHE_DURATION = 86400000; // 24 hours in milliseconds

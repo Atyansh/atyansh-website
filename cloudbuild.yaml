@@ -76,6 +76,8 @@ steps:
       - 'MAL_ACCESS_TOKEN'
       - 'MAL_REFRESH_TOKEN'
       - 'GOODREADS_USER_ID'
+      - 'KAYA_USERNAME'
+      - 'EXOPHASE_USERNAME'
     waitFor: ['install-dependencies']
 
   # Check API health and send notifications if any failed
@@ -168,6 +170,10 @@ availableSecrets:
       env: 'MAL_REFRESH_TOKEN'
     - versionName: projects/personal-website-334502/secrets/GOODREADS_USER_ID/versions/latest
       env: 'GOODREADS_USER_ID'
+    - versionName: projects/personal-website-334502/secrets/KAYA_USERNAME/versions/latest
+      env: 'KAYA_USERNAME'
+    - versionName: projects/personal-website-334502/secrets/EXOPHASE_USERNAME/versions/latest
+      env: 'EXOPHASE_USERNAME'
     # Email notification secrets
     - versionName: projects/personal-website-334502/secrets/NOTIFICATION_EMAIL/versions/latest
       env: 'NOTIFICATION_EMAIL'

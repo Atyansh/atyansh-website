@@ -101,7 +101,7 @@ const APIs = [
     name: 'Nintendo Switch',
     cacheFile: 'nintendo-data.json',
     checkFn: (data) => data.games && data.games.length > 0,
-    renewal: 'Exophase scraping for user "atyansh" may have failed',
+    renewal: 'Exophase scraping may have failed - check EXOPHASE_USERNAME in Secret Manager',
     requiresApiKey: false,
   },
   {

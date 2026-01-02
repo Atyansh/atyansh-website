@@ -430,9 +430,11 @@ Preview the production build locally before deployment.
 ├── scripts/                     # Helper scripts
 │   ├── get-spotify-token.cjs   # Spotify OAuth helper
 │   ├── get-mal-token.cjs       # MyAnimeList OAuth helper
+│   ├── get-trakt-token.cjs     # Trakt OAuth helper
 │   ├── check-api-health.cjs    # API health monitoring
+│   ├── pull-secrets.cjs        # Sync secrets from GCloud to .env
 │   ├── sync-secrets-to-gcloud.sh # Sync .env to Secret Manager
-│   └── *.cjs                   # Debug/analysis scripts
+│   └── invalidate-cache.sh     # CDN cache invalidation
 ├── src/
 │   ├── components/             # React/Astro components
 │   │   ├── GameCard.tsx

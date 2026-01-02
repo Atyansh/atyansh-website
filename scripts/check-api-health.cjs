@@ -36,15 +36,17 @@ const APIs = [
     name: 'Spotify',
     cacheFile: 'spotify-data.json',
     checkFn: (data) => data.recentlyPlayed && data.recentlyPlayed.length > 0,
-    renewal: 'Run: node scripts/get-spotify-token.cjs',
+    renewal: 'Auto-refreshes tokens. If still failing: run node scripts/get-spotify-token.cjs',
     requiresApiKey: true,
+    selfHealing: true, // Uses refresh token to get new access token each build
   },
   {
     name: 'MyAnimeList',
     cacheFile: 'myanimelist-data.json',
     checkFn: (data) => data.anime && data.anime.length > 0,
-    renewal: 'Run: node scripts/get-mal-token.cjs',
+    renewal: 'Auto-refreshes tokens. If still failing: run node scripts/get-mal-token.cjs',
     requiresApiKey: true,
+    selfHealing: true, // Refresh token auto-persists to Secret Manager
   },
   {
     name: 'Steam',
@@ -52,13 +54,15 @@ const APIs = [
     checkFn: (data) => data.games && data.games.length > 0,
     renewal: 'Check STEAM_API_KEY and STEAM_ID in Secret Manager',
     requiresApiKey: true,
+    selfHealing: false, // API key doesn't expire
   },
   {
     name: 'PlayStation Network',
     cacheFile: 'psn-data.json',
     checkFn: (data) => data.games && data.games.length > 0,
-    renewal: 'Update PSN_NPSSO token in Secret Manager (expires every ~60 days)',
+    renewal: 'Update PSN_NPSSO token in Secret Manager (expires every ~60 days, requires manual browser login)',
     requiresApiKey: true,
+    selfHealing: false, // NPSSO requires manual browser authentication
   },
   {
     name: 'IGDB (Game Covers)',
@@ -75,8 +79,9 @@ const APIs = [
         .map(entry => entry.timestamp);
       return timestamps.length > 0 ? Math.max(...timestamps) : 0;
     },
-    renewal: 'Check IGDB_CLIENT_ID and IGDB_ACCESS_TOKEN in Secret Manager',
+    renewal: 'Auto-refreshes tokens. If still failing: check IGDB_CLIENT_ID and IGDB_CLIENT_SECRET',
     requiresApiKey: true,
+    selfHealing: true, // Uses client credentials to auto-refresh and persist to Secret Manager
   },
   {
     name: 'Letterboxd',
@@ -96,8 +101,37 @@ const APIs = [
     name: 'Nintendo Switch',
     cacheFile: 'nintendo-data.json',
     checkFn: (data) => data.games && data.games.length > 0,
-    renewal: 'Exophase scraping for user "atyansh" may have failed',
+    renewal: 'Exophase scraping may have failed - check EXOPHASE_USERNAME in Secret Manager',
     requiresApiKey: false,
+  },
+  {
+    name: 'Kaya (Climbing)',
+    cacheFile: 'kaya-data.json',
+    checkFn: (data) => data.pyramid && data.pyramid.length > 0,
+    renewal: 'Check KAYA_USERNAME in .env (uses public GraphQL API)',
+    requiresApiKey: false,
+  },
+  {
+    name: 'Trakt (TV Shows)',
+    cacheFile: 'trakt-data.json',
+    checkFn: (data) => data.shows && data.shows.length > 0,
+    renewal: 'Auto-refreshes tokens. If still failing: run node scripts/get-trakt-token.cjs',
+    requiresApiKey: true,
+    selfHealing: true,
+  },
+  {
+    name: 'TMDB (TV Posters)',
+    cacheFile: 'trakt-data.json', // TMDB data is embedded in Trakt cache
+    checkFn: (data) => {
+      // Check that at least some shows have poster images (TMDB working)
+      if (!data.shows || data.shows.length === 0) return false;
+      const showsWithPosters = data.shows.filter(s => s.posterImage && s.posterImage.length > 0);
+      // At least 50% should have posters if TMDB is working
+      return showsWithPosters.length >= data.shows.length * 0.5;
+    },
+    renewal: 'Check TMDB_API_KEY in Secret Manager (get key at themoviedb.org/settings/api)',
+    requiresApiKey: true,
+    selfHealing: false,
   },
 ];
 
@@ -128,6 +162,7 @@ async function checkAPIHealth() {
           reason,
           renewal: api.renewal,
           requiresApiKey: api.requiresApiKey,
+          selfHealing: api.selfHealing || false,
         });
         console.log(`❌ ${api.name}: Cache file missing`);
         continue;
@@ -149,6 +184,7 @@ async function checkAPIHealth() {
           reason: `Cache is stale (${Math.round(cacheAgeHours)}h old) - API likely failed but old cache still exists`,
           renewal: api.renewal,
           requiresApiKey: api.requiresApiKey,
+          selfHealing: api.selfHealing || false,
         });
         console.log(`❌ ${api.name}: Cache too old (${Math.round(cacheAgeHours)}h)`);
         continue;
@@ -163,6 +199,7 @@ async function checkAPIHealth() {
           reason: 'Cache exists but contains no data - API call may have failed',
           renewal: api.renewal,
           requiresApiKey: api.requiresApiKey,
+          selfHealing: api.selfHealing || false,
         });
         console.log(`⚠️  ${api.name}: Empty data in cache`);
         continue;
@@ -174,6 +211,7 @@ async function checkAPIHealth() {
         lastUpdated: new Date(cacheTimestamp).toISOString(),
         cacheAgeMinutes: Math.round(cacheAge / (1000 * 60)),
         requiresApiKey: api.requiresApiKey,
+        selfHealing: api.selfHealing || false,
       });
       console.log(`✅ ${api.name}: OK (${Math.round(cacheAge / (1000 * 60))}m old)`);
 
@@ -183,6 +221,7 @@ async function checkAPIHealth() {
         reason: `Error reading cache: ${error.message}`,
         renewal: api.renewal,
         requiresApiKey: api.requiresApiKey,
+        selfHealing: api.selfHealing || false,
       });
       console.log(`❌ ${api.name}: Error - ${error.message}`);
     }
@@ -206,14 +245,26 @@ function generateReport(results) {
   report += `Health Score: ${results.healthy.length}/${total} APIs (${healthPercentage}%)\n\n`;
 
   if (results.failed.length > 0) {
-    // Separate API key failures from scraping failures
-    const apiKeyFailures = results.failed.filter(f => f.requiresApiKey);
+    // Separate failures by urgency
+    const manualInterventionNeeded = results.failed.filter(f => f.requiresApiKey && !f.selfHealing);
+    const selfHealingFailed = results.failed.filter(f => f.requiresApiKey && f.selfHealing);
     const scrapingFailures = results.failed.filter(f => !f.requiresApiKey);
 
-    if (apiKeyFailures.length > 0) {
-      report += '❌ FAILED APIs (Credentials Required):\n';
+    if (manualInterventionNeeded.length > 0) {
+      report += '🚨 ACTION REQUIRED (Manual Intervention):\n';
       report += '───────────────────────────────────────────────\n';
-      apiKeyFailures.forEach((api) => {
+      manualInterventionNeeded.forEach((api) => {
+        report += `\n• ${api.name}\n`;
+        report += `  Reason: ${api.reason}\n`;
+        report += `  Fix: ${api.renewal}\n`;
+      });
+      report += '\n';
+    }
+
+    if (selfHealingFailed.length > 0) {
+      report += '⚠️  SELF-HEALING FAILED (May need investigation):\n';
+      report += '───────────────────────────────────────────────\n';
+      selfHealingFailed.forEach((api) => {
         report += `\n• ${api.name}\n`;
         report += `  Reason: ${api.reason}\n`;
         report += `  Fix: ${api.renewal}\n`;
@@ -237,7 +288,8 @@ function generateReport(results) {
     report += '✅ HEALTHY APIs:\n';
     report += '───────────────────────────────────────────────\n';
     results.healthy.forEach((api) => {
-      const type = api.requiresApiKey ? 'API Key' : 'Web Scraping';
+      let type = api.requiresApiKey ? 'API' : 'Scraping';
+      if (api.selfHealing) type += ', Auto-refresh';
       report += `\n• ${api.name} (${type})\n`;
       report += `  Last updated: ${new Date(api.lastUpdated).toLocaleString('en-US')}\n`;
       report += `  Cache age: ${api.cacheAgeMinutes} minutes\n`;

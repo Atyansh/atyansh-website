@@ -6,7 +6,7 @@
 2. ✅ Set project to `personal-website-334502`
 3. ✅ Enabled required APIs (Cloud Build, Secret Manager, Cloud Scheduler, Cloud Storage)
 4. ✅ Created `cloudbuild.yaml` configuration
-5. ✅ Created 19 secrets in Google Secret Manager (14 API keys + 5 email notification settings)
+5. ✅ Created 26 secrets in Google Secret Manager (20 API keys + 6 email notification settings)
 6. ✅ Granted IAM permissions to Cloud Build service accounts
 7. ✅ Configured Cloud Storage bucket (`gs://atyansh.com/`)
 8. ✅ Updated Cloud Build to use Node.js 22 (matches local environment)
@@ -14,6 +14,8 @@
 10. ✅ Successfully deployed site via Cloud Build
 11. ✅ Configured API health monitoring with email notifications
 12. ✅ Added file-based caching to all API integrations
+13. ✅ Added TV shows page with Trakt/TMDB integration
+14. ✅ Added climbing page with Kaya integration
 
 ## Working Configuration
 
@@ -190,11 +192,12 @@ chmod +x deploy.sh
 
 ### API Health Monitoring
 
-The build automatically monitors all 8 API integrations and sends email notifications if any fail:
+The build automatically monitors all 11 API integrations and sends email notifications if any fail:
 
 **Monitored APIs:**
-- With API keys: Spotify, MyAnimeList, Steam, PSN, IGDB
-- Web scraping: Letterboxd, Goodreads, Nintendo (Exophase)
+- With API keys (self-healing): Spotify, MyAnimeList, IGDB, Trakt
+- With API keys (manual renewal): Steam, PSN, TMDB
+- Web scraping/public APIs: Letterboxd, Goodreads, Nintendo (Exophase), Kaya (climbing)
 
 **How it works:**
 - Runs after every build (`scripts/check-api-health.cjs`)
@@ -250,11 +253,12 @@ This script will:
 - Skip any secrets that aren't set in `.env`
 - Show a summary of updated/skipped/failed secrets
 
-**All 20 secrets managed:**
-- API Keys: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`
+**All secrets managed:**
+- Gaming: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`, `EXOPHASE_USERNAME`
 - Spotify: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
-- Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`
+- TV Shows: `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET`, `TRAKT_USERNAME`, `TRAKT_ACCESS_TOKEN`, `TRAKT_REFRESH_TOKEN`, `TMDB_API_KEY`
+- Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`, `KAYA_USERNAME`
 - Email Notifications: `NOTIFICATION_EMAIL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
 
 ### Pulling Secrets to Local .env
@@ -313,6 +317,7 @@ echo -n "AQC..." | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file
 **Manual renewal:**
 - **Spotify**: Re-run `scripts/get-spotify-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
 - **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
+- **Trakt**: Re-run `scripts/get-trakt-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
 - **PSN**: Get new NPSSO token (expires every ~60 days), update `.env`, then sync
 - **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then sync
 

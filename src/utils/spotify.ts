@@ -1,6 +1,8 @@
 // Spotify API integration
 // Uses OAuth 2.0 with refresh token for authentication
 
+import { fetchWithRetry } from './retry';
+
 const SPOTIFY_CLIENT_ID = import.meta.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = import.meta.env.SPOTIFY_CLIENT_SECRET;
 const SPOTIFY_REFRESH_TOKEN = import.meta.env.SPOTIFY_REFRESH_TOKEN;
@@ -198,6 +200,7 @@ async function saveCache(data: SpotifyData): Promise<void> {
 
 /**
  * Get access token using refresh token
+ * Includes retry logic for transient failures
  */
 async function getAccessToken(): Promise<string | null> {
   if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET || !SPOTIFY_REFRESH_TOKEN) {
@@ -208,17 +211,27 @@ async function getAccessToken(): Promise<string | null> {
   const basic = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64');
 
   try {
-    const response = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${basic}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+    const response = await fetchWithRetry(
+      'https://accounts.spotify.com/api/token',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${basic}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: SPOTIFY_REFRESH_TOKEN,
+        }),
       },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: SPOTIFY_REFRESH_TOKEN,
-      }),
-    });
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`Spotify auth retry ${attempt}: ${error.message}`);
+        },
+      }
+    );
 
     if (!response.ok) {
       console.error(`Spotify auth error: ${response.status}`);
@@ -235,14 +248,25 @@ async function getAccessToken(): Promise<string | null> {
 
 /**
  * Fetch data from Spotify API
+ * Includes retry logic for transient failures
  */
 async function spotifyFetch<T>(endpoint: string, accessToken: string): Promise<T | null> {
   try {
-    const response = await fetch(`https://api.spotify.com/v1${endpoint}`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
+    const response = await fetchWithRetry(
+      `https://api.spotify.com/v1${endpoint}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
       },
-    });
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`Spotify API retry ${attempt} for ${endpoint}: ${error.message}`);
+        },
+      }
+    );
 
     if (!response.ok) {
       console.error(`Spotify API error for ${endpoint}: ${response.status}`);

@@ -1,6 +1,8 @@
 // IGDB (Internet Game Database) API integration
 // Provides high-quality game cover art for all platforms
 
+import { fetchWithRetry } from './retry';
+
 const IGDB_CLIENT_ID = import.meta.env.IGDB_CLIENT_ID;
 const IGDB_CLIENT_SECRET = import.meta.env.IGDB_CLIENT_SECRET;
 let IGDB_ACCESS_TOKEN = import.meta.env.IGDB_ACCESS_TOKEN;
@@ -167,6 +169,7 @@ async function updateSecretManager(secretName: string, value: string): Promise<b
 /**
  * Refresh the IGDB access token using client credentials
  * Returns true if successful, false otherwise
+ * Includes retry logic for transient failures
  */
 async function refreshAccessToken(): Promise<boolean> {
   if (!IGDB_CLIENT_ID || !IGDB_CLIENT_SECRET) {
@@ -182,17 +185,27 @@ async function refreshAccessToken(): Promise<boolean> {
   try {
     console.log('Refreshing IGDB access token...');
 
-    const response = await fetch('https://id.twitch.tv/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+    const response = await fetchWithRetry(
+      'https://id.twitch.tv/oauth2/token',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: IGDB_CLIENT_ID,
+          client_secret: IGDB_CLIENT_SECRET,
+          grant_type: 'client_credentials',
+        }),
       },
-      body: new URLSearchParams({
-        client_id: IGDB_CLIENT_ID,
-        client_secret: IGDB_CLIENT_SECRET,
-        grant_type: 'client_credentials',
-      }),
-    });
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`IGDB token refresh retry ${attempt}: ${error.message}`);
+        },
+      }
+    );
 
     if (!response.ok) {
       console.error(`Failed to refresh token: ${response.status}`);
@@ -236,6 +249,7 @@ function cleanGameName(gameName: string): string {
 /**
  * Search IGDB for a game and get its cover art
  * Returns high-quality cover URL (3:4 aspect ratio)
+ * Includes retry logic for transient failures
  */
 export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo'): Promise<string | null> {
   // If no API credentials, return null
@@ -280,13 +294,12 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
       limit 3;
     `;
 
-    // Retry logic with exponential backoff for rate limit errors
-    let response: Response | null = null;
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      // Wait for rate limit before each attempt
-      await waitForRateLimit();
+    // Wait for rate limit before request
+    await waitForRateLimit();
 
-      response = await fetch(apiUrl, {
+    const response = await fetchWithRetry(
+      apiUrl,
+      {
         method: 'POST',
         headers: {
           'Client-ID': IGDB_CLIENT_ID,
@@ -294,31 +307,26 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
           'Content-Type': 'text/plain',
         },
         body: query,
-      });
-
-      // If successful or non-rate-limit error, break
-      if (response.ok || response.status !== 429) {
-        break;
+      },
+      {
+        maxRetries: MAX_RETRIES,
+        initialDelayMs: RETRY_BASE_DELAY,
+        onRetry: (error, attempt) => {
+          console.log(`IGDB retry ${attempt} for "${gameName}": ${error.message}`);
+        },
       }
+    );
 
-      // If rate limited and we have retries left
-      if (response.status === 429 && attempt < MAX_RETRIES) {
-        const delay = RETRY_BASE_DELAY * Math.pow(2, attempt);
-        console.log(`Rate limited for "${gameName}", retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
-        await sleep(delay);
-      }
-    }
-
-    if (!response || !response.ok) {
+    if (!response.ok) {
       // Check if it's an auth error and try to refresh token
-      if (response?.status === 401 || response?.status === 403) {
+      if (response.status === 401 || response.status === 403) {
         const refreshed = await refreshAccessToken();
         if (refreshed) {
           // Retry with new token (recursive call, but tokenRefreshed prevents infinite loop)
           return getIGDBCoverUrl(gameName, platform);
         }
       }
-      console.log(`IGDB API error for "${gameName}": ${response?.status || 'unknown'}`);
+      console.log(`IGDB API error for "${gameName}": ${response.status}`);
       return null;
     }
 
@@ -335,12 +343,11 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
         limit 3;
       `;
 
-      // Retry logic for fallback query
-      let response2: Response | null = null;
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        await waitForRateLimit();
+      await waitForRateLimit();
 
-        response2 = await fetch(apiUrl, {
+      const response2 = await fetchWithRetry(
+        apiUrl,
+        {
           method: 'POST',
           headers: {
             'Client-ID': IGDB_CLIENT_ID,
@@ -348,20 +355,17 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
             'Content-Type': 'text/plain',
           },
           body: queryWithoutPlatform,
-        });
-
-        if (response2.ok || response2.status !== 429) {
-          break;
+        },
+        {
+          maxRetries: MAX_RETRIES,
+          initialDelayMs: RETRY_BASE_DELAY,
+          onRetry: (error, attempt) => {
+            console.log(`IGDB retry ${attempt} for "${gameName}" (no filter): ${error.message}`);
+          },
         }
+      );
 
-        if (response2.status === 429 && attempt < MAX_RETRIES) {
-          const delay = RETRY_BASE_DELAY * Math.pow(2, attempt);
-          console.log(`Rate limited for "${gameName}" (no filter), retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
-          await sleep(delay);
-        }
-      }
-
-      if (response2 && response2.ok) {
+      if (response2.ok) {
         const data2: IGDBGame[] = await response2.json();
         if (data2.length > 0) {
           // Use results from query without platform filter

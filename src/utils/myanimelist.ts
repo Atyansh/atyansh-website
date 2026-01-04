@@ -1,6 +1,8 @@
 // MyAnimeList integration using official MAL API v2
 // Fetches anime data from the official MyAnimeList API
 
+import { fetchWithRetry } from './retry';
+
 const MAL_CLIENT_ID = import.meta.env.MAL_CLIENT_ID;
 const MAL_CLIENT_SECRET = import.meta.env.MAL_CLIENT_SECRET;
 let MAL_ACCESS_TOKEN = import.meta.env.MAL_ACCESS_TOKEN;
@@ -121,6 +123,7 @@ async function updateSecretManager(secretName: string, value: string): Promise<b
 /**
  * Refresh the MAL access token using the refresh token
  * Returns true if successful, false otherwise
+ * Includes retry logic for transient failures
  */
 async function refreshAccessToken(): Promise<boolean> {
   if (!MAL_CLIENT_ID || !MAL_CLIENT_SECRET || !MAL_REFRESH_TOKEN) {
@@ -136,18 +139,28 @@ async function refreshAccessToken(): Promise<boolean> {
   try {
     console.log('Refreshing MAL access token...');
 
-    const response = await fetch('https://myanimelist.net/v1/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+    const response = await fetchWithRetry(
+      'https://myanimelist.net/v1/oauth2/token',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: MAL_CLIENT_ID,
+          client_secret: MAL_CLIENT_SECRET,
+          grant_type: 'refresh_token',
+          refresh_token: MAL_REFRESH_TOKEN,
+        }),
       },
-      body: new URLSearchParams({
-        client_id: MAL_CLIENT_ID,
-        client_secret: MAL_CLIENT_SECRET,
-        grant_type: 'refresh_token',
-        refresh_token: MAL_REFRESH_TOKEN,
-      }),
-    });
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`MAL token refresh retry ${attempt}: ${error.message}`);
+        },
+      }
+    );
 
     if (!response.ok) {
       console.error(`Failed to refresh MAL token: ${response.status}`);
@@ -174,6 +187,7 @@ async function refreshAccessToken(): Promise<boolean> {
 
 /**
  * Fetch user's animelist from MAL API with pagination
+ * Includes retry logic for transient failures
  */
 async function fetchAnimeList(): Promise<MALAnime[]> {
   const allAnime: MALAnime[] = [];
@@ -190,16 +204,26 @@ async function fetchAnimeList(): Promise<MALAnime[]> {
 
       const url = `${MAL_API_BASE}/users/@me/animelist?fields=${fields}&limit=${limit}&offset=${offset}`;
 
-      const response = await fetch(url, {
-        headers: {
-          'X-MAL-Client-ID': MAL_CLIENT_ID,
-          'Authorization': `Bearer ${MAL_ACCESS_TOKEN}`,
+      const response = await fetchWithRetry(
+        url,
+        {
+          headers: {
+            'X-MAL-Client-ID': MAL_CLIENT_ID,
+            'Authorization': `Bearer ${MAL_ACCESS_TOKEN}`,
+          },
         },
-      });
+        {
+          maxRetries: 2,
+          initialDelayMs: 1000,
+          onRetry: (error, attempt) => {
+            console.log(`MAL animelist retry ${attempt} (offset ${offset}): ${error.message}`);
+          },
+        }
+      );
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Try to refresh the token
+          // Try to refresh the token (not a transient error, but token expiration)
           const refreshed = await refreshAccessToken();
           if (refreshed) {
             // Reset and retry from the beginning

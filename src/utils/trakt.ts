@@ -1,6 +1,8 @@
 // Trakt API integration for TV shows
 // Uses OAuth 2.0 with automatic token refresh
 
+import { fetchWithRetry } from './retry';
+
 const TRAKT_CLIENT_ID = import.meta.env.TRAKT_CLIENT_ID;
 const TRAKT_CLIENT_SECRET = import.meta.env.TRAKT_CLIENT_SECRET;
 const TRAKT_USERNAME = import.meta.env.TRAKT_USERNAME;
@@ -96,6 +98,7 @@ async function updateSecretManager(secretName: string, value: string): Promise<b
 
 /**
  * Refresh the Trakt access token using the refresh token
+ * Includes retry logic for transient failures
  */
 async function refreshAccessToken(): Promise<boolean> {
   if (!TRAKT_CLIENT_ID || !TRAKT_CLIENT_SECRET || !TRAKT_REFRESH_TOKEN) {
@@ -111,20 +114,30 @@ async function refreshAccessToken(): Promise<boolean> {
   try {
     console.log('Refreshing Trakt access token...');
 
-    const response = await fetch('https://api.trakt.tv/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    const response = await fetchWithRetry(
+      'https://api.trakt.tv/oauth/token',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+        body: JSON.stringify({
+          refresh_token: TRAKT_REFRESH_TOKEN,
+          client_id: TRAKT_CLIENT_ID,
+          client_secret: TRAKT_CLIENT_SECRET,
+          redirect_uri: 'urn:ietf:wg:oauth:2.0:oob',
+          grant_type: 'refresh_token',
+        }),
       },
-      body: JSON.stringify({
-        refresh_token: TRAKT_REFRESH_TOKEN,
-        client_id: TRAKT_CLIENT_ID,
-        client_secret: TRAKT_CLIENT_SECRET,
-        redirect_uri: 'urn:ietf:wg:oauth:2.0:oob',
-        grant_type: 'refresh_token',
-      }),
-    });
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`Trakt token refresh retry ${attempt}: ${error.message}`);
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -207,6 +220,7 @@ async function saveCache(data: TraktData): Promise<void> {
 
 /**
  * Make authenticated request to Trakt API
+ * Includes retry logic for transient failures
  */
 async function traktRequest<T>(endpoint: string, retry = true): Promise<T | null> {
   if (!TRAKT_ACCESS_TOKEN) {
@@ -215,18 +229,28 @@ async function traktRequest<T>(endpoint: string, retry = true): Promise<T | null
   }
 
   try {
-    const response = await fetch(`https://api.trakt.tv${endpoint}`, {
-      headers: {
-        'Authorization': `Bearer ${TRAKT_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json',
-        'trakt-api-version': '2',
-        'trakt-api-key': TRAKT_CLIENT_ID || '',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    const response = await fetchWithRetry(
+      `https://api.trakt.tv${endpoint}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${TRAKT_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+          'trakt-api-version': '2',
+          'trakt-api-key': TRAKT_CLIENT_ID || '',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
       },
-    });
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`Trakt API retry ${attempt} for ${endpoint}: ${error.message}`);
+        },
+      }
+    );
 
     if (response.status === 401 && retry) {
-      // Token expired, try to refresh
+      // Token expired, try to refresh (not a transient error)
       console.log('Trakt token expired, attempting refresh...');
       const refreshed = await refreshAccessToken();
       if (refreshed) {
@@ -249,6 +273,7 @@ async function traktRequest<T>(endpoint: string, retry = true): Promise<T | null
 
 /**
  * Fetch show details from TMDB (poster and first air date)
+ * Includes retry logic for transient failures
  */
 async function fetchTMDBDetails(tmdbId: number): Promise<{ posterImage: string; firstAiredAt?: Date }> {
   if (!TMDB_API_KEY || !tmdbId) {
@@ -256,8 +281,16 @@ async function fetchTMDBDetails(tmdbId: number): Promise<{ posterImage: string; 
   }
 
   try {
-    const response = await fetch(
-      `https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${TMDB_API_KEY}`
+    const response = await fetchWithRetry(
+      `https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${TMDB_API_KEY}`,
+      undefined,
+      {
+        maxRetries: 2,
+        initialDelayMs: 500,
+        onRetry: (error, attempt) => {
+          console.log(`TMDB retry ${attempt} for show ${tmdbId}: ${error.message}`);
+        },
+      }
     );
 
     if (!response.ok) {

@@ -8,6 +8,7 @@ import {
   type AuthTokensResponse,
   type TitleThinResponse,
 } from 'psn-api';
+import { withRetry } from './retry';
 
 const PSN_NPSSO = import.meta.env.PSN_NPSSO;
 
@@ -115,6 +116,7 @@ async function saveCache(data: PSNData): Promise<void> {
 
 /**
  * Get PSN authorization tokens
+ * Includes retry logic for transient failures
  */
 async function getPSNAuth(): Promise<AuthTokensResponse | null> {
   if (!PSN_NPSSO) {
@@ -128,11 +130,21 @@ async function getPSNAuth(): Promise<AuthTokensResponse | null> {
   }
 
   try {
-    // Exchange NPSSO for authorization code
-    const accessCode = await exchangeNpssoForCode(PSN_NPSSO);
-
-    // Exchange code for access token
-    const authorization = await exchangeCodeForAccessToken(accessCode);
+    const authorization = await withRetry(
+      async () => {
+        // Exchange NPSSO for authorization code
+        const accessCode = await exchangeNpssoForCode(PSN_NPSSO);
+        // Exchange code for access token
+        return await exchangeCodeForAccessToken(accessCode);
+      },
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`PSN auth retry ${attempt}: ${error.message}`);
+        },
+      }
+    );
 
     cachedAuth = authorization;
     return authorization;
@@ -144,6 +156,7 @@ async function getPSNAuth(): Promise<AuthTokensResponse | null> {
 
 /**
  * Get user's played titles
+ * Includes retry logic for transient failures
  */
 export async function getPSNTitles(): Promise<PSNGame[]> {
   try {
@@ -152,12 +165,21 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
       return [];
     }
 
-    // Get titles for the authenticated user
-    const response = await getUserTitles(
-      { accessToken: auth.accessToken },
-      'me',
+    // Get titles for the authenticated user with retry logic
+    const response = await withRetry(
+      () => getUserTitles(
+        { accessToken: auth.accessToken },
+        'me',
+        {
+          limit: 50, // Get last 50 games
+        }
+      ),
       {
-        limit: 50, // Get last 50 games
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`PSN titles retry ${attempt}: ${error.message}`);
+        },
       }
     );
 

@@ -63,8 +63,8 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
           id: `steam-${game.appid}`,
           name: game.name,
           platform: 'steam',
-          image: igdbCover || undefined,
-          headerImage: igdbCover || undefined,
+          image: igdbCover || '',
+          headerImage: igdbCover || '',
           steamData: {
             appid: game.appid,
             playtimeMinutes: game.playtime_forever,
@@ -86,8 +86,8 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
           id: `psn-${game.titleId}`,
           name: game.name,
           platform: 'psn',
-          image: igdbCover || undefined,
-          headerImage: igdbCover || undefined,
+          image: igdbCover || '',
+          headerImage: igdbCover || '',
           psnData: {
             titleId: game.titleId,
             category: game.category,
@@ -118,8 +118,8 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
           id: `nintendo-${game.titleId}`,
           name: game.name,
           platform: 'nintendo',
-          image: igdbCover || undefined,
-          headerImage: igdbCover || undefined,
+          image: igdbCover || '',
+          headerImage: igdbCover || '',
           nintendoData: {
             titleId: game.titleId,
             playtimeSeconds: game.totalPlayTime,

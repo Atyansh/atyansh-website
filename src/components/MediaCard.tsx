@@ -38,7 +38,7 @@ export default function MediaCard({
       transition: {
         duration: 0.4,
         delay: delay,
-        ease: 'easeOut'
+        ease: 'easeOut' as const
       }
     }
   };

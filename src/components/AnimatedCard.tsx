@@ -17,7 +17,7 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
       transition: {
         duration: 0.5,
         delay: delay,
-        ease: 'easeOut'
+        ease: 'easeOut' as const
       }
     }
   };
@@ -28,7 +28,7 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
     y: -5,
     transition: {
       duration: 0.2,
-      ease: 'easeInOut'
+      ease: 'easeInOut' as const
     }
   };
 

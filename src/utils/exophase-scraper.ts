@@ -4,6 +4,14 @@
 import type { NintendoGame, NintendoStats } from './nintendo';
 import { withRetry } from './retry';
 
+// Type for data extracted from Exophase page
+interface ExophaseGameData {
+  name: string;
+  imageUri: string;
+  playTime: string;
+  lastPlayed?: string;
+}
+
 const EXOPHASE_USER = import.meta.env.EXOPHASE_USERNAME;
 const CACHE_DIR = '.cache';
 const CACHE_FILE = '.cache/nintendo-data.json';
@@ -176,7 +184,7 @@ export async function scrapeExophaseNintendoStats(): Promise<NintendoStats | nul
           }
 
           // Transform to our format
-          const games: NintendoGame[] = nintendoData.map((game, index) => {
+          const games: NintendoGame[] = (nintendoData as ExophaseGameData[]).map((game, index) => {
             const totalPlayTime = parsePlayTime(game.playTime);
 
             return {

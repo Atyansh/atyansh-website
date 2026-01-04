@@ -131,9 +131,6 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
                   openFullscreen();
                 }}
                 className="flex-shrink-0 w-64 sm:w-80 rounded-2xl overflow-hidden shadow-2xl bg-gray-100 dark:bg-gray-900 transition-transform hover:scale-105 active:scale-95 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2"
-                style={{
-                  focusRingColor: 'var(--accent)'
-                }}
                 aria-label={`View ${image.alt} in fullscreen`}
               >
                 <div className="relative w-full" style={{ paddingBottom: '60%' }}>
@@ -230,7 +227,7 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .image-gallery-slider {
           width: 100%;
         }

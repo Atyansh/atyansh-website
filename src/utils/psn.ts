@@ -6,7 +6,6 @@ import {
   exchangeCodeForAccessToken,
   getUserTitles,
   type AuthTokensResponse,
-  type TitleThinResponse,
 } from 'psn-api';
 import { withRetry } from './retry';
 

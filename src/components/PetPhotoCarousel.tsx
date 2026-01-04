@@ -162,8 +162,7 @@ export default function PetPhotoCarousel({ images }: PetPhotoCarouselProps) {
                   onClick={() => openFullscreen(index)}
                   className="flex-shrink-0 w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 rounded-lg overflow-hidden transition-transform hover:scale-105 active:scale-95 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2"
                   style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    focusRingColor: 'var(--accent)'
+                    backgroundColor: 'var(--bg-secondary)'
                   }}
                   aria-label={`View ${image.alt} in fullscreen`}
                 >

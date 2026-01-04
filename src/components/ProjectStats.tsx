@@ -119,7 +119,7 @@ export default function ProjectStats({ stats }: ProjectStatsProps) {
         );
       })}
 
-      <style jsx>{`
+      <style>{`
         @keyframes slideUp {
           from {
             opacity: 0;

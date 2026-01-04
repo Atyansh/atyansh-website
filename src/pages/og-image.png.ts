@@ -5,7 +5,7 @@ export const GET: APIRoute = async () => {
   try {
     const png = await generateOGImage();
 
-    return new Response(png, {
+    return new Response(new Uint8Array(png), {
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'public, max-age=31536000, immutable',

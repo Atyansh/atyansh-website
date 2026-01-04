@@ -123,7 +123,7 @@ export default function WeeklyTimeline({ items }: WeeklyTimelineProps) {
         );
       })}
 
-      <style jsx>{`
+      <style>{`
         .weekly-timeline {
           width: 100%;
           max-width: 100%;

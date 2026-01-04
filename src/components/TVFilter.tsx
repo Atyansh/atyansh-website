@@ -226,7 +226,6 @@ export default function TVFilter({ shows }: TVFilterProps) {
               }}
             >
               <MediaCard
-                client:load
                 title={show.data.title}
                 subtitle={show.data.year ? `${show.data.year}` : ''}
                 image={show.data.posterImage}

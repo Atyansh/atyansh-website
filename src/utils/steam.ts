@@ -1,6 +1,8 @@
 // Steam Web API integration
 // Documentation: https://steamwebapi.azurewebsites.net/
 
+import { fetchWithRetry } from './retry';
+
 const STEAM_API_KEY = import.meta.env.STEAM_API_KEY;
 const STEAM_ID = import.meta.env.STEAM_ID;
 const BASE_URL = 'https://api.steampowered.com';
@@ -113,6 +115,7 @@ async function saveCache(data: SteamData): Promise<void> {
 
 /**
  * Fetch player summary (profile info, online status, currently playing)
+ * Includes retry logic for transient failures
  */
 export async function getPlayerSummary(): Promise<PlayerSummary | null> {
   if (!STEAM_API_KEY || !STEAM_ID) {
@@ -121,8 +124,16 @@ export async function getPlayerSummary(): Promise<PlayerSummary | null> {
   }
 
   try {
-    const response = await fetch(
-      `${BASE_URL}/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${STEAM_ID}`
+    const response = await fetchWithRetry(
+      `${BASE_URL}/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${STEAM_ID}`,
+      undefined,
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`Steam player summary retry ${attempt}: ${error.message}`);
+        },
+      }
     );
     const data = await response.json();
 
@@ -138,6 +149,7 @@ export async function getPlayerSummary(): Promise<PlayerSummary | null> {
 
 /**
  * Fetch recently played games (games played in last 2 weeks)
+ * Includes retry logic for transient failures
  */
 export async function getRecentlyPlayedGames(): Promise<RecentGame[]> {
   if (!STEAM_API_KEY || !STEAM_ID) {
@@ -146,8 +158,16 @@ export async function getRecentlyPlayedGames(): Promise<RecentGame[]> {
   }
 
   try {
-    const response = await fetch(
-      `${BASE_URL}/IPlayerService/GetRecentlyPlayedGames/v0001/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}&format=json`
+    const response = await fetchWithRetry(
+      `${BASE_URL}/IPlayerService/GetRecentlyPlayedGames/v0001/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}&format=json`,
+      undefined,
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`Steam recent games retry ${attempt}: ${error.message}`);
+        },
+      }
     );
     const data = await response.json();
 
@@ -160,6 +180,7 @@ export async function getRecentlyPlayedGames(): Promise<RecentGame[]> {
 
 /**
  * Fetch all owned games with playtime
+ * Includes retry logic for transient failures
  */
 export async function getOwnedGames(): Promise<SteamGame[]> {
   if (!STEAM_API_KEY || !STEAM_ID) {
@@ -168,8 +189,16 @@ export async function getOwnedGames(): Promise<SteamGame[]> {
   }
 
   try {
-    const response = await fetch(
-      `${BASE_URL}/IPlayerService/GetOwnedGames/v0001/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}&format=json&include_appinfo=true&include_played_free_games=true`
+    const response = await fetchWithRetry(
+      `${BASE_URL}/IPlayerService/GetOwnedGames/v0001/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}&format=json&include_appinfo=true&include_played_free_games=true`,
+      undefined,
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`Steam owned games retry ${attempt}: ${error.message}`);
+        },
+      }
     );
     const data = await response.json();
 

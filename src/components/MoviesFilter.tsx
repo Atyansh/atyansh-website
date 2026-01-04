@@ -238,7 +238,6 @@ export default function MoviesFilter({ movies }: MoviesFilterProps) {
               }}
             >
               <MediaCard
-                client:load
                 title={movie.data.title}
                 subtitle={movie.data.director || (movie.data.year ? `${movie.data.year}` : '')}
                 image={movie.data.posterImage}

@@ -9,7 +9,9 @@ export async function generateOGImage(): Promise<Buffer> {
   const base64Image = Buffer.from(profileImageBuffer).toString('base64');
   const profileImageSrc = `data:image/png;base64,${base64Image}`;
 
+  // satori uses a React-like virtual DOM format that TypeScript doesn't fully understand
   const svg = await satori(
+    // @ts-expect-error satori accepts plain objects matching React element structure
     {
       type: 'div',
       props: {

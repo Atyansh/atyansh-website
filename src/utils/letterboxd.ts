@@ -1,6 +1,8 @@
 // Letterboxd web scraping integration
 // Fetches movie data by scraping Letterboxd profile pages with pagination
 
+import { withRetry, isTransientError } from './retry';
+
 const LETTERBOXD_USERNAME = import.meta.env.LETTERBOXD_USERNAME;
 
 // Cache configuration
@@ -88,156 +90,168 @@ async function saveCache(data: LetterboxdData): Promise<void> {
 
 /**
  * Scrape films from a single Letterboxd page using Puppeteer for accurate image URLs
+ * Includes retry logic for transient failures
  */
 async function scrapePage(url: string): Promise<{films: LetterboxdMovie[], maxPage: number}> {
-  try {
-    // Use Puppeteer to render the page and extract actual image URLs
-    const puppeteer = await import('puppeteer');
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
-    const page = await browser.newPage();
+  return withRetry(
+    async () => {
+      // Use Puppeteer to render the page and extract actual image URLs
+      const puppeteer = await import('puppeteer');
+      const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-    await page.waitForSelector('.poster-list', { timeout: 10000 });
+      try {
+        const page = await browser.newPage();
 
-    // Scroll down to trigger lazy loading of all images
-    await page.evaluate(async () => {
-      await new Promise<void>((resolve) => {
-        let totalHeight = 0;
-        const distance = 100;
-        const timer = setInterval(() => {
-          const scrollHeight = document.body.scrollHeight;
-          window.scrollBy(0, distance);
-          totalHeight += distance;
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+        await page.waitForSelector('.poster-list', { timeout: 10000 });
 
-          if (totalHeight >= scrollHeight) {
-            clearInterval(timer);
-            resolve();
-          }
-        }, 100);
-      });
-    });
+        // Scroll down to trigger lazy loading of all images
+        await page.evaluate(async () => {
+          await new Promise<void>((resolve) => {
+            let totalHeight = 0;
+            const distance = 100;
+            const timer = setInterval(() => {
+              const scrollHeight = document.body.scrollHeight;
+              window.scrollBy(0, distance);
+              totalHeight += distance;
 
-    // Wait for images to actually load (not just placeholders)
-    await page.waitForFunction(
-      () => {
-        const imgs = document.querySelectorAll('.react-component[data-item-name] img');
-        const loadedCount = Array.from(imgs).filter(img => {
-          const src = img.getAttribute('src') || '';
-          return src && !src.includes('empty-poster') && src.includes('ltrbxd.com');
-        }).length;
-        const totalCount = imgs.length;
-        // Wait until at least 90% of images have loaded (some might genuinely not have posters)
-        return loadedCount >= totalCount * 0.9;
-      },
-      { timeout: 15000 }
-    ).catch(() => {
-      // If timeout, continue anyway - some movies might not have posters
-      console.log('Some images may not have loaded, continuing...');
-    });
-
-    // Extract film data from rendered page
-    const filmData = await page.evaluate(() => {
-      const films: any[] = [];
-      const reactComponents = document.querySelectorAll('.react-component[data-item-name]');
-
-      reactComponents.forEach((container) => {
-        const filmSlug = container.getAttribute('data-item-slug');
-        const filmName = container.getAttribute('data-item-name') || '';
-        const link = container.getAttribute('data-item-link') || '';
-        const filmId = container.getAttribute('data-film-id') || '';
-        const img = container.querySelector('img');
-        let posterUrl = img?.getAttribute('src') || '';
-
-        // Parse title and year first (needed for slug disambiguation logic)
-        const titleYearMatch = /^(.*?)\s*\((\d{4})\)$/.exec(filmName);
-        let title = filmName;
-        let year: number | undefined;
-
-        if (titleYearMatch) {
-          title = titleYearMatch[1].trim();
-          year = parseInt(titleYearMatch[2], 10);
-        }
-
-        // If lazy loading gave us a placeholder, try to construct the CDN URL from film ID
-        if (!posterUrl || posterUrl.includes('empty-poster')) {
-          if (filmId && filmSlug) {
-            // Determine the correct slug to use for poster URL
-            // Some slugs have year suffixes for disambiguation (e.g., "the-fall-guy-2024")
-            // Others have years as part of the title (e.g., "blade-runner-2049" for a 2017 film)
-            let slugForPoster = filmSlug;
-            if (year) {
-              const yearSuffix = `-${year}`;
-              if (filmSlug.endsWith(yearSuffix)) {
-                // Year in slug matches release year, likely a disambiguation suffix - remove it
-                slugForPoster = filmSlug.slice(0, -yearSuffix.length);
+              if (totalHeight >= scrollHeight) {
+                clearInterval(timer);
+                resolve();
               }
-              // Otherwise keep full slug (year might be part of the title)
+            }, 100);
+          });
+        });
+
+        // Wait for images to actually load (not just placeholders)
+        await page.waitForFunction(
+          () => {
+            const imgs = document.querySelectorAll('.react-component[data-item-name] img');
+            const loadedCount = Array.from(imgs).filter(img => {
+              const src = img.getAttribute('src') || '';
+              return src && !src.includes('empty-poster') && src.includes('ltrbxd.com');
+            }).length;
+            const totalCount = imgs.length;
+            // Wait until at least 90% of images have loaded (some might genuinely not have posters)
+            return loadedCount >= totalCount * 0.9;
+          },
+          { timeout: 15000 }
+        ).catch(() => {
+          // If timeout, continue anyway - some movies might not have posters
+          console.log('Some images may not have loaded, continuing...');
+        });
+
+        // Extract film data from rendered page
+        const filmData = await page.evaluate(() => {
+          const films: any[] = [];
+          const reactComponents = document.querySelectorAll('.react-component[data-item-name]');
+
+          reactComponents.forEach((container) => {
+            const filmSlug = container.getAttribute('data-item-slug');
+            const filmName = container.getAttribute('data-item-name') || '';
+            const link = container.getAttribute('data-item-link') || '';
+            const filmId = container.getAttribute('data-film-id') || '';
+            const img = container.querySelector('img');
+            let posterUrl = img?.getAttribute('src') || '';
+
+            // Parse title and year first (needed for slug disambiguation logic)
+            const titleYearMatch = /^(.*?)\s*\((\d{4})\)$/.exec(filmName);
+            let title = filmName;
+            let year: number | undefined;
+
+            if (titleYearMatch) {
+              title = titleYearMatch[1].trim();
+              year = parseInt(titleYearMatch[2], 10);
             }
 
-            // Split film ID digits into path (e.g., "778885" -> "7/7/8/8/8/5")
-            const idPath = filmId.split('').join('/');
-            // Construct CDN URL
-            posterUrl = `https://a.ltrbxd.com/resized/film-poster/${idPath}/${filmId}-${slugForPoster}-0-230-0-345-crop.jpg`;
-          }
-        }
+            // If lazy loading gave us a placeholder, try to construct the CDN URL from film ID
+            if (!posterUrl || posterUrl.includes('empty-poster')) {
+              if (filmId && filmSlug) {
+                // Determine the correct slug to use for poster URL
+                // Some slugs have year suffixes for disambiguation (e.g., "the-fall-guy-2024")
+                // Others have years as part of the title (e.g., "blade-runner-2049" for a 2017 film)
+                let slugForPoster = filmSlug;
+                if (year) {
+                  const yearSuffix = `-${year}`;
+                  if (filmSlug.endsWith(yearSuffix)) {
+                    // Year in slug matches release year, likely a disambiguation suffix - remove it
+                    slugForPoster = filmSlug.slice(0, -yearSuffix.length);
+                  }
+                  // Otherwise keep full slug (year might be part of the title)
+                }
 
-        // Include all movies
-        if (title) {
-          films.push({
-            title,
-            year,
-            link,
-            posterImage: posterUrl || '',
+                // Split film ID digits into path (e.g., "778885" -> "7/7/8/8/8/5")
+                const idPath = filmId.split('').join('/');
+                // Construct CDN URL
+                posterUrl = `https://a.ltrbxd.com/resized/film-poster/${idPath}/${filmId}-${slugForPoster}-0-230-0-345-crop.jpg`;
+              }
+            }
+
+            // Include all movies
+            if (title) {
+              films.push({
+                title,
+                year,
+                link,
+                posterImage: posterUrl || '',
+              });
+            }
           });
-        }
-      });
 
-      // Find max page from pagination
-      let maxPage = 1;
-      document.querySelectorAll('.pagination a').forEach((a) => {
-        const href = a.getAttribute('href') || '';
-        const match = /\/page\/(\d+)\//.exec(href);
-        if (match) {
-          const pageNum = parseInt(match[1], 10);
-          if (pageNum > maxPage) maxPage = pageNum;
-        }
-      });
+          // Find max page from pagination
+          let maxPage = 1;
+          document.querySelectorAll('.pagination a').forEach((a) => {
+            const href = a.getAttribute('href') || '';
+            const match = /\/page\/(\d+)\//.exec(href);
+            if (match) {
+              const pageNum = parseInt(match[1], 10);
+              if (pageNum > maxPage) maxPage = pageNum;
+            }
+          });
 
-      return { films, maxPage };
-    });
+          return { films, maxPage };
+        });
 
-    await browser.close();
+        await browser.close();
 
-    // Process the extracted data
-    const films: LetterboxdMovie[] = filmData.films.map((film: any) => {
-      let releaseDate: Date | undefined;
-      if (film.year) {
-        try {
-          releaseDate = new Date(film.year, 0, 1);
-        } catch (e) {
-          // Invalid date
-        }
+        // Process the extracted data
+        const films: LetterboxdMovie[] = filmData.films.map((film: any) => {
+          let releaseDate: Date | undefined;
+          if (film.year) {
+            try {
+              releaseDate = new Date(film.year, 0, 1);
+            } catch (e) {
+              // Invalid date
+            }
+          }
+
+          // Upgrade poster image to higher resolution (230x345 instead of 70x105)
+          const posterImage = film.posterImage
+            .replace('-0-70-0-105-crop', '-0-230-0-345-crop')
+            .replace('-0-140-0-210-crop', '-0-230-0-345-crop');
+
+          return {
+            title: film.title,
+            year: film.year,
+            releaseDate,
+            posterImage,
+            link: film.link.startsWith('http') ? film.link : `https://letterboxd.com${film.link}`,
+          };
+        });
+
+        return { films, maxPage: filmData.maxPage };
+      } finally {
+        await browser.close().catch(() => {});
       }
-
-      // Upgrade poster image to higher resolution (230x345 instead of 70x105)
-      const posterImage = film.posterImage
-        .replace('-0-70-0-105-crop', '-0-230-0-345-crop')
-        .replace('-0-140-0-210-crop', '-0-230-0-345-crop');
-
-      return {
-        title: film.title,
-        year: film.year,
-        releaseDate,
-        posterImage,
-        link: film.link.startsWith('http') ? film.link : `https://letterboxd.com${film.link}`,
-      };
-    });
-
-    return { films, maxPage: filmData.maxPage };
-  } catch (error) {
-    console.error(`Error scraping ${url}:`, error);
-    return { films: [], maxPage: 1 };
-  }
+    },
+    {
+      maxRetries: 2,
+      initialDelayMs: 2000,
+      onRetry: (error, attempt) => {
+        console.log(`Letterboxd scrape retry ${attempt}: ${error.message}`);
+      },
+    }
+  );
 }
 
 /**

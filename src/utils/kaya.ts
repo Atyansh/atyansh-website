@@ -1,6 +1,8 @@
 // Kaya Climbing App API integration
 // Uses their internal GraphQL API to fetch climbing data
 
+import { fetchWithRetry } from './retry';
+
 const KAYA_USERNAME = import.meta.env.KAYA_USERNAME;
 const KAYA_GRAPHQL_ENDPOINT = 'https://kaya-beta.kayaclimb.com/graphql';
 
@@ -154,14 +156,25 @@ async function saveCache(data: KayaData): Promise<void> {
 
 /**
  * Execute GraphQL query against Kaya API
+ * Includes retry logic for transient failures
  */
 async function kayaGraphQL<T>(query: string, variables: Record<string, any>): Promise<T | null> {
   try {
-    const response = await fetch(KAYA_GRAPHQL_ENDPOINT, {
-      method: 'POST',
-      headers: GRAPHQL_HEADERS,
-      body: JSON.stringify({ query, variables })
-    });
+    const response = await fetchWithRetry(
+      KAYA_GRAPHQL_ENDPOINT,
+      {
+        method: 'POST',
+        headers: GRAPHQL_HEADERS,
+        body: JSON.stringify({ query, variables })
+      },
+      {
+        maxRetries: 2,
+        initialDelayMs: 1000,
+        onRetry: (error, attempt) => {
+          console.log(`Kaya API retry ${attempt}: ${error.message}`);
+        },
+      }
+    );
 
     if (!response.ok) {
       console.error(`Kaya API error: ${response.status}`);

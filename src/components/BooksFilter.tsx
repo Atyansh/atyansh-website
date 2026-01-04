@@ -218,7 +218,6 @@ export default function BooksFilter({ books }: BooksFilterProps) {
               }}
             >
               <MediaCard
-                client:load
                 title={book.data.title}
                 subtitle={book.data.author}
                 image={book.data.coverImage}

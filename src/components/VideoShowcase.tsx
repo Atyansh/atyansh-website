@@ -200,7 +200,7 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .video-showcase {
           container-type: inline-size;
         }

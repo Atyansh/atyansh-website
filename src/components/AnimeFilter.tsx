@@ -274,7 +274,6 @@ export default function AnimeFilter({ anime }: AnimeFilterProps) {
               }}
             >
               <MediaCard
-                client:load
                 title={a.data.title}
                 subtitle={a.data.type || ''}
                 image={a.data.imageUrl}

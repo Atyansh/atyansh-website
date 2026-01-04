@@ -107,7 +107,7 @@ export default function MusicCarousel({ tracks, title, playlistUrl }: MusicCarou
                   <MediaCard
                     title={track.name}
                     subtitle={track.artists.map(a => a.name).join(', ')}
-                    image={getBestImage(track.album.images)}
+                    image={getBestImage(track.album.images) || ''}
                     delay={0}
                   />
                 </a>

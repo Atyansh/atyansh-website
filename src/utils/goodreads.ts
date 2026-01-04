@@ -1,6 +1,8 @@
 // Goodreads RSS feed integration
 // Fetches book data from Goodreads RSS feeds
 
+import { fetchWithRetry } from './retry';
+
 const GOODREADS_USER_ID = import.meta.env.GOODREADS_USER_ID;
 
 // Cache configuration
@@ -187,13 +189,21 @@ function parseRSSFeed(xml: string, status: 'reading' | 'finished' | 'want-to-rea
 
 /**
  * Fetch books from a specific Goodreads shelf
+ * Includes retry logic for transient failures
  */
 async function fetchShelf(userId: string, shelf: string, status: 'reading' | 'finished' | 'want-to-read'): Promise<GoodreadsBook[]> {
   try {
     const url = `https://www.goodreads.com/review/list_rss/${userId}?shelf=${shelf}`;
     console.log(`Fetching Goodreads ${shelf} shelf...`);
 
-    const response = await fetch(url);
+    const response = await fetchWithRetry(url, undefined, {
+      maxRetries: 2,
+      initialDelayMs: 1000,
+      onRetry: (error, attempt) => {
+        console.log(`Goodreads ${shelf} shelf retry ${attempt}: ${error.message}`);
+      },
+    });
+
     if (!response.ok) {
       console.error(`Failed to fetch Goodreads ${shelf} shelf: ${response.status}`);
       return [];

@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import type { UnifiedGame } from '../utils/unified-games';
-import { formatPlaytime, getPlatformName, getPlatformColor } from '../utils/unified-games';
+import { getPlatformName, getPlatformColor } from '../utils/unified-games';
 import { getGameCapsuleFallbacks } from '../utils/steam';
 
 interface GameCardProps {
@@ -35,17 +35,7 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
     }
   };
 
-  const hoverVariants = {
-    scale: 1.05,
-    y: -5,
-    transition: {
-      duration: 0.2,
-      ease: 'easeInOut'
-    }
-  };
-
   const platformColor = getPlatformColor(game.platform);
-  const playtime = formatPlaytime(game);
 
   const handleImageError = () => {
     // If Steam game, try fallback URLs
@@ -106,10 +96,10 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
                   <span style={{ color: 'var(--text-secondary)' }}>Playtime:</span>
                   <span className="font-semibold">{Math.floor(game.steamData.playtimeMinutes / 60)}h</span>
                 </div>
-                {game.steamData.playtime2Weeks && game.steamData.playtime2Weeks > 0 && (
+                {game.steamData.lastPlayed && game.steamData.lastPlayed > 0 && (
                   <div className="flex justify-between">
-                    <span style={{ color: 'var(--text-secondary)' }}>Last 2 weeks:</span>
-                    <span className="font-semibold">{Math.floor(game.steamData.playtime2Weeks / 60)}h</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>Last Played:</span>
+                    <span className="font-semibold">{new Date(game.steamData.lastPlayed * 1000).toLocaleDateString()}</span>
                   </div>
                 )}
               </div>
@@ -138,9 +128,7 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
                 {game.psnData.lastPlayed && (
                   <div className="flex justify-between">
                     <span style={{ color: 'var(--text-secondary)' }}>Last Played:</span>
-                    <span className="font-semibold text-xs">
-                      {new Date(game.psnData.lastPlayed).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
+                    <span className="font-semibold">{new Date(game.psnData.lastPlayed).toLocaleDateString()}</span>
                   </div>
                 )}
               </div>
@@ -156,9 +144,7 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
                 {game.nintendoData.lastPlayed && (
                   <div className="flex justify-between">
                     <span style={{ color: 'var(--text-secondary)' }}>Last Played:</span>
-                    <span className="font-semibold text-xs">
-                      {new Date(game.nintendoData.lastPlayed).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
+                    <span className="font-semibold">{new Date(game.nintendoData.lastPlayed).toLocaleDateString()}</span>
                   </div>
                 )}
               </div>

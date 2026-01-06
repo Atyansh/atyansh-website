@@ -24,7 +24,6 @@ let cachedAuth: AuthTokensResponse | null = null;
 export interface PSNGame {
   titleId: string;
   name: string;
-  image?: string;
   category: string;
   playDuration?: string;
   lastPlayedDateTime?: string;
@@ -37,7 +36,6 @@ export interface PSNGame {
 }
 
 export interface PSNStats {
-  recentGames: PSNGame[];
   totalGames: number;
   totalTrophies: {
     platinum: number;
@@ -47,24 +45,21 @@ export interface PSNStats {
     total: number;
   };
   trophyLevel?: number;
-  completedGames: number; // Games with 100% trophies
 }
 
-export interface PSNData {
+interface PSNData {
   games: PSNGame[];
   stats: PSNStats;
   timestamp: number;
 }
 
-interface CachedPSNData extends PSNData {}
-
 // In-memory cache
-let memoryCache: CachedPSNData | null = null;
+let memoryCache: PSNData | null = null;
 
 /**
  * Load PSN cache from disk
  */
-async function loadCache(): Promise<CachedPSNData | null> {
+async function loadCache(): Promise<PSNData | null> {
   if (memoryCache) {
     return memoryCache;
   }
@@ -76,7 +71,7 @@ async function loadCache(): Promise<CachedPSNData | null> {
   try {
     const { promises: fs } = await import('fs');
     const cacheData = await fs.readFile(PSN_CACHE_FILE, 'utf-8');
-    const cached: CachedPSNData = JSON.parse(cacheData);
+    const cached: PSNData = JSON.parse(cacheData);
 
     // Check if cache is still valid
     const age = Date.now() - cached.timestamp;
@@ -188,22 +183,9 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
       // We'll leave it undefined for now
       let playDuration: string | undefined = undefined;
 
-      // Try to get a better quality image
-      // PSN trophy icon URLs are typically square and small
-      // We can try to construct better URLs or just use what's available
-      let imageUrl = title.trophyTitleIconUrl;
-
-      // Some PSN images have size parameters we can modify
-      // Try to replace small with larger resolution if possible
-      if (imageUrl && imageUrl.includes('/trophy/')) {
-        // Keep the original URL as PSN doesn't provide easy access to larger game covers
-        imageUrl = imageUrl;
-      }
-
       return {
         titleId: title.npCommunicationId,
         name: title.trophyTitleName,
-        image: imageUrl,
         category: title.trophyTitlePlatform || 'Unknown',
         lastPlayedDateTime: title.lastUpdatedDateTime,
         earnedTrophies: title.earnedTrophies ? {
@@ -250,16 +232,6 @@ export async function getPSNStats(): Promise<PSNStats | null> {
       return null;
     }
 
-    // Sort by last played (most recent first)
-    const recentGames = titles
-      .filter(g => g.lastPlayedDateTime)
-      .sort((a, b) => {
-        const dateA = new Date(a.lastPlayedDateTime!).getTime();
-        const dateB = new Date(b.lastPlayedDateTime!).getTime();
-        return dateB - dateA;
-      })
-      .slice(0, 10); // Get top 10 recent games
-
     // Calculate total trophies across all games
     const totalTrophies = titles.reduce((acc, game) => {
       if (game.earnedTrophies) {
@@ -274,21 +246,9 @@ export async function getPSNStats(): Promise<PSNStats | null> {
     totalTrophies.total = totalTrophies.platinum + totalTrophies.gold +
                           totalTrophies.silver + totalTrophies.bronze;
 
-    // Trophy level would require additional API call
-    // For now, set to undefined
-    const trophyLevel: number | undefined = undefined;
-
-    // Calculate completed games (games with 100% trophy completion)
-    // Note: We'd need total trophy counts to calculate this accurately
-    // For now, set to 0 as a placeholder
-    const completedGames = 0;
-
     const stats: PSNStats = {
-      recentGames,
       totalGames: titles.length,
       totalTrophies,
-      trophyLevel,
-      completedGames,
     };
 
     // Save to cache
@@ -308,26 +268,3 @@ export async function getPSNStats(): Promise<PSNStats | null> {
   }
 }
 
-/**
- * Format last played date
- */
-export function formatLastPlayed(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) {
-    return 'Today';
-  } else if (diffDays === 1) {
-    return 'Yesterday';
-  } else if (diffDays < 7) {
-    return `${diffDays} days ago`;
-  } else if (diffDays < 30) {
-    const weeks = Math.floor(diffDays / 7);
-    return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
-  } else {
-    const months = Math.floor(diffDays / 30);
-    return `${months} ${months === 1 ? 'month' : 'months'} ago`;
-  }
-}

@@ -202,17 +202,12 @@ export async function scrapeExophaseNintendoStats(): Promise<NintendoStats | nul
 
           const recentGames = [...games]
             .filter(g => g.lastPlayedAt)
-            .sort((a, b) => (b.lastPlayedAt || 0) - (a.lastPlayedAt || 0))
-            .slice(0, 10);
-
-          const mostPlayedGame = [...games]
-            .sort((a, b) => b.totalPlayTime - a.totalPlayTime)[0];
+            .sort((a, b) => (b.lastPlayedAt || 0) - (a.lastPlayedAt || 0));
 
           const stats: NintendoStats = {
             recentGames,
             totalGames: games.length,
             totalHoursPlayed,
-            mostPlayedGame,
           };
 
           // Don't cache here - caching happens after image enhancement in getNintendoStats()

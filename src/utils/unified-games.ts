@@ -2,7 +2,7 @@
 import { getSteamStats, type SteamGame } from './steam';
 import { getPSNTitles, type PSNGame } from './psn';
 import { getNintendoStats, type NintendoGame } from './nintendo';
-import { getIGDBCoverUrl } from './igdb';
+import { getIGDBCoverUrl, isExcludedGame } from './igdb';
 
 export type Platform = 'steam' | 'psn' | 'nintendo';
 
@@ -17,7 +17,7 @@ export interface UnifiedGame {
   steamData?: {
     appid: number;
     playtimeMinutes: number;
-    playtime2Weeks?: number;
+    lastPlayed?: number;
   };
 
   psnData?: {
@@ -56,9 +56,13 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
   // Add Steam games
   if (steamStats) {
     console.log('Fetching IGDB covers for Steam games...');
+    const filteredSteamGames = steamStats.topPlayedGames.filter(
+      (game: SteamGame) => !isExcludedGame(game.name)
+    );
     const steamGames = await Promise.all(
-      steamStats.topPlayedGames.map(async (game: SteamGame): Promise<UnifiedGame> => {
-        const igdbCover = await getIGDBCoverUrl(game.name, 'steam');
+      filteredSteamGames.map(async (game: SteamGame): Promise<UnifiedGame> => {
+        // Pass Steam AppID for exact IGDB matching
+        const igdbCover = await getIGDBCoverUrl(game.name, 'steam', game.appid);
         return {
           id: `steam-${game.appid}`,
           name: game.name,
@@ -68,7 +72,7 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
           steamData: {
             appid: game.appid,
             playtimeMinutes: game.playtime_forever,
-            playtime2Weeks: game.playtime_2weeks,
+            lastPlayed: game.rtime_last_played,
           },
         };
       })
@@ -79,8 +83,11 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
   // Add PSN games
   if (psnGames && psnGames.length > 0) {
     console.log('Fetching IGDB covers for PlayStation games...');
+    const filteredPsnGames = psnGames.filter(
+      (game: PSNGame) => !isExcludedGame(game.name)
+    );
     const psnUnified = await Promise.all(
-      psnGames.map(async (game: PSNGame): Promise<UnifiedGame> => {
+      filteredPsnGames.map(async (game: PSNGame): Promise<UnifiedGame> => {
         const igdbCover = await getIGDBCoverUrl(game.name, 'psn');
         return {
           id: `psn-${game.titleId}`,
@@ -111,8 +118,11 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
   // Add Nintendo games
   if (nintendoStats && nintendoStats.recentGames.length > 0) {
     console.log('Fetching IGDB covers for Nintendo games...');
+    const filteredNintendoGames = nintendoStats.recentGames.filter(
+      (game: NintendoGame) => !isExcludedGame(game.name)
+    );
     const nintendoUnified = await Promise.all(
-      nintendoStats.recentGames.map(async (game: NintendoGame): Promise<UnifiedGame> => {
+      filteredNintendoGames.map(async (game: NintendoGame): Promise<UnifiedGame> => {
         const igdbCover = await getIGDBCoverUrl(game.name, 'nintendo');
         return {
           id: `nintendo-${game.titleId}`,
@@ -133,34 +143,6 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
 
   console.log(`Total games with IGDB covers: ${unifiedGames.filter(g => g.image).length}/${unifiedGames.length}`);
   return unifiedGames;
-}
-
-/**
- * Format playtime for display
- */
-export function formatPlaytime(game: UnifiedGame): string {
-  if (game.steamData) {
-    const hours = Math.floor(game.steamData.playtimeMinutes / 60);
-    if (hours < 1) {
-      return `${game.steamData.playtimeMinutes}m`;
-    }
-    return `${hours}h`;
-  }
-
-  if (game.psnData && game.psnData.playDuration) {
-    return game.psnData.playDuration;
-  }
-
-  if (game.nintendoData) {
-    const hours = Math.floor(game.nintendoData.playtimeSeconds / 3600);
-    if (hours < 1) {
-      const minutes = Math.floor(game.nintendoData.playtimeSeconds / 60);
-      return `${minutes}m`;
-    }
-    return `${hours}h`;
-  }
-
-  return 'N/A';
 }
 
 /**

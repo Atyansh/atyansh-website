@@ -28,6 +28,10 @@ interface IGDBGame {
   id: number;
   name: string;
   cover?: IGDBCover;
+  aggregated_rating?: number; // Critic rating (0-100)
+  rating?: number; // User rating (0-100)
+  rating_count?: number; // Number of user ratings
+  first_release_date?: number; // Unix timestamp
 }
 
 interface CachedCover {
@@ -229,21 +233,225 @@ async function refreshAccessToken(): Promise<boolean> {
   }
 }
 
+// Games that should be excluded from the library (not real games)
+const EXCLUDED_GAMES = new Set([
+  'virtual desktop', // VR software, not a game
+]);
+
+// Name mappings for games with non-standard names
+const NAME_MAPPINGS: Record<string, string> = {
+  'grand theft auto v legacy': 'Grand Theft Auto V',
+  'mega man 11 demo version': 'Mega Man 11',
+};
+
 /**
  * Clean game name for better IGDB search results
  * Removes trademark symbols, suffixes, and other noise
  */
 function cleanGameName(gameName: string): string {
-  return gameName
+  let name = gameName
     // Remove trademark symbols
     .replace(/[®™©]/g, '')
     // Remove "Trophies" suffix (common in PSN data)
     .replace(/\s+Trophies$/i, '')
-    // Remove version numbers at the end
-    .replace(/\s+v?\d+(\.\d+)*$/i, '')
+    // Remove version numbers at the end (requires "v" prefix or decimal like "1.0")
+    // This preserves sequel numbers like "2" in "Left 4 Dead 2"
+    .replace(/\s+v\d+(\.\d+)*$/i, '')
+    .replace(/\s+\d+\.\d+(\.\d+)*$/, '')
     // Clean up extra whitespace
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Apply name mappings
+  const lowerName = name.toLowerCase();
+  if (NAME_MAPPINGS[lowerName]) {
+    name = NAME_MAPPINGS[lowerName];
+  }
+
+  return name;
+}
+
+/**
+ * Check if a game should be excluded from the library
+ */
+export function isExcludedGame(gameName: string): boolean {
+  return EXCLUDED_GAMES.has(gameName.toLowerCase().trim());
+}
+
+/**
+ * Search IGDB by Steam App ID for exact matching
+ * Uses two-step lookup: external_games -> games
+ */
+async function getIGDBCoverBySteamId(steamAppId: number): Promise<string | null> {
+  if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
+    return null;
+  }
+
+  try {
+    // Step 1: Query external_games to find the IGDB game ID
+    // Category 1 = Steam (filters out other platforms with same numeric IDs)
+    const externalGamesUrl = 'https://api.igdb.com/v4/external_games';
+    const externalQuery = `fields game; where uid = "${steamAppId}" & category = 1; limit 1;`;
+
+    await waitForRateLimit();
+
+    const externalResponse = await fetchWithRetry(
+      externalGamesUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Client-ID': IGDB_CLIENT_ID,
+          'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
+          'Content-Type': 'text/plain',
+        },
+        body: externalQuery,
+      },
+      {
+        maxRetries: MAX_RETRIES,
+        initialDelayMs: RETRY_BASE_DELAY,
+        onRetry: (error, attempt) => {
+          console.log(`IGDB external_games lookup retry ${attempt}: ${error.message}`);
+        },
+      }
+    );
+
+    if (!externalResponse.ok) {
+      if (externalResponse.status === 401 || externalResponse.status === 403) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          return getIGDBCoverBySteamId(steamAppId);
+        }
+      }
+      return null;
+    }
+
+    const externalData = await externalResponse.json();
+    if (!externalData.length || !externalData[0].game) {
+      return null;
+    }
+
+    const igdbGameId = externalData[0].game;
+
+    // Step 2: Query games endpoint to get the cover
+    const gamesUrl = 'https://api.igdb.com/v4/games';
+    const gamesQuery = `fields name,cover.image_id; where id = ${igdbGameId}; limit 1;`;
+
+    await waitForRateLimit();
+
+    const gamesResponse = await fetchWithRetry(
+      gamesUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Client-ID': IGDB_CLIENT_ID,
+          'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
+          'Content-Type': 'text/plain',
+        },
+        body: gamesQuery,
+      },
+      {
+        maxRetries: MAX_RETRIES,
+        initialDelayMs: RETRY_BASE_DELAY,
+        onRetry: (error, attempt) => {
+          console.log(`IGDB games lookup retry ${attempt}: ${error.message}`);
+        },
+      }
+    );
+
+    if (!gamesResponse.ok) {
+      return null;
+    }
+
+    const gamesData: IGDBGame[] = await gamesResponse.json();
+
+    if (gamesData.length > 0 && gamesData[0].cover) {
+      const imageId = gamesData[0].cover.image_id;
+      const coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
+      console.log(`✓ Found IGDB cover by Steam ID ${steamAppId}: ${gamesData[0].name}`);
+      return coverUrl;
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`Error fetching IGDB cover by Steam ID ${steamAppId}:`, error);
+    return null;
+  }
+}
+
+// Edition/variant suffixes that should be penalized if not in the search
+const EDITION_SUFFIXES = [
+  'deluxe edition', 'deluxe', 'ultimate edition', 'ultimate',
+  'gold edition', 'gold', 'premium edition', 'premium',
+  'complete edition', 'complete', 'definitive edition', 'definitive',
+  'game of the year edition', 'goty edition', 'goty',
+  'enhanced edition', 'enhanced', 'remastered', 'remake',
+  'digital deluxe', 'collector\'s edition', 'special edition',
+];
+
+/**
+ * Score how well an IGDB result matches our search
+ * Higher score = better match
+ * Returns [nameScore, popularityBonus] where popularityBonus is used to break ties
+ */
+function scoreMatch(searchName: string, game: IGDBGame): { nameScore: number; popularityBonus: number } {
+  const search = searchName.toLowerCase();
+  const result = game.name.toLowerCase();
+
+  // Calculate popularity bonus (0-20 points based on rating count and ratings)
+  let popularityBonus = 0;
+  if (game.rating_count && game.rating_count > 0) {
+    // More ratings = more popular/well-known game
+    popularityBonus += Math.min(10, Math.log10(game.rating_count) * 3);
+  }
+  if (game.aggregated_rating && game.aggregated_rating > 0) {
+    // Higher critic rating = likely the "main" version of a game
+    popularityBonus += (game.aggregated_rating / 100) * 5;
+  }
+  if (game.rating && game.rating > 0) {
+    // Higher user rating
+    popularityBonus += (game.rating / 100) * 5;
+  }
+
+  // Exact match is best
+  if (search === result) return { nameScore: 100, popularityBonus };
+
+  // Check if search contains numbers (sequel indicator)
+  const searchNumbers = search.match(/\d+/g);
+  const resultNumbers = result.match(/\d+/g);
+
+  // If search has numbers, result should have the same numbers
+  if (searchNumbers && searchNumbers.length > 0) {
+    const hasMatchingNumbers = searchNumbers.every(num =>
+      resultNumbers && resultNumbers.includes(num)
+    );
+    if (!hasMatchingNumbers) return { nameScore: 0, popularityBonus: 0 }; // Wrong sequel/version
+  }
+
+  // If search has no numbers but result does, it might be wrong version
+  if (!searchNumbers && resultNumbers) {
+    return { nameScore: 10, popularityBonus }; // Low score for potential version mismatch
+  }
+
+  // Penalize edition variants if search doesn't have them
+  for (const suffix of EDITION_SUFFIXES) {
+    if (result.includes(suffix) && !search.includes(suffix)) {
+      // Result has an edition suffix that search doesn't have
+      // Prefer base game over special editions
+      return { nameScore: 45, popularityBonus }; // Lower than exact substring match (50)
+    }
+  }
+
+  // Check if one contains the other
+  if (result.includes(search) || search.includes(result)) {
+    return { nameScore: 50, popularityBonus };
+  }
+
+  // Basic word overlap
+  const searchWords = search.split(/\s+/);
+  const resultWords = result.split(/\s+/);
+  const matchingWords = searchWords.filter(w => resultWords.includes(w)).length;
+
+  return { nameScore: Math.round((matchingWords / searchWords.length) * 40), popularityBonus };
 }
 
 /**
@@ -251,21 +459,34 @@ function cleanGameName(gameName: string): string {
  * Returns high-quality cover URL (3:4 aspect ratio)
  * Includes retry logic for transient failures
  */
-export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo'): Promise<string | null> {
+export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo', steamAppId?: number): Promise<string | null> {
   // If no API credentials, return null
   if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
     console.log('IGDB API credentials not configured');
     return null;
   }
 
-  // Create cache key
-  const gameKey = `${platform || 'all'}:${gameName.toLowerCase()}`;
+  // Create cache key (include steamAppId for Steam games)
+  const gameKey = steamAppId
+    ? `steam:${steamAppId}`
+    : `${platform || 'all'}:${gameName.toLowerCase()}`;
 
   // Check cache first
   const cachedUrl = await getCachedCover(gameKey);
   if (cachedUrl) {
     console.log(`✓ Using cached IGDB cover for: ${gameName}`);
     return cachedUrl;
+  }
+
+  // For Steam games, try exact ID matching first
+  if (platform === 'steam' && steamAppId) {
+    const coverByIdUrl = await getIGDBCoverBySteamId(steamAppId);
+    if (coverByIdUrl) {
+      await cacheCover(gameKey, coverByIdUrl);
+      return coverByIdUrl;
+    }
+    // Fall through to name-based search if ID lookup fails
+    console.log(`Steam ID lookup failed for ${gameName}, trying name search...`);
   }
 
   try {
@@ -286,12 +507,12 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
     }
 
     // IGDB uses a custom query language
-    // Try search first for better fuzzy matching
+    // Get more results for better matching, include rating info for disambiguation
     const query = `
       search "${cleanedName.replace(/"/g, '\\"')}";
-      fields name,cover.image_id,cover.url;
+      fields name,cover.image_id,cover.url,aggregated_rating,rating,rating_count;
       where cover != null${platformFilter};
-      limit 3;
+      limit 10;
     `;
 
     // Wait for rate limit before request
@@ -338,9 +559,9 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
 
       const queryWithoutPlatform = `
         search "${cleanedName.replace(/"/g, '\\"')}";
-        fields name,cover.image_id,cover.url;
+        fields name,cover.image_id,cover.url,aggregated_rating,rating,rating_count;
         where cover != null;
-        limit 3;
+        limit 10;
       `;
 
       await waitForRateLimit();
@@ -368,18 +589,26 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
       if (response2.ok) {
         const data2: IGDBGame[] = await response2.json();
         if (data2.length > 0) {
-          // Use results from query without platform filter
-          const exactMatch = data2.find(game =>
-            game.name.toLowerCase() === cleanedName.toLowerCase()
-          );
+          // Score all results and pick the best match
+          // Sort by nameScore first, then by popularityBonus for ties
+          const scoredResults = data2
+            .filter(game => game.cover)
+            .map(game => {
+              const scores = scoreMatch(cleanedName, game);
+              return { game, ...scores, totalScore: scores.nameScore + scores.popularityBonus };
+            })
+            .sort((a, b) => {
+              if (a.nameScore !== b.nameScore) return b.nameScore - a.nameScore;
+              return b.popularityBonus - a.popularityBonus;
+            });
 
-          const selectedGame = exactMatch || data2[0];
+          const bestMatch = scoredResults.find(r => r.nameScore > 0);
 
-          if (selectedGame.cover) {
-            const imageId = selectedGame.cover.image_id;
+          if (bestMatch) {
+            const imageId = bestMatch.game.cover!.image_id;
             const coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
             await cacheCover(gameKey, coverUrl);
-            console.log(`✓ Found IGDB cover for: ${gameName} (matched as: ${selectedGame.name}) [no platform filter]`);
+            console.log(`✓ Found IGDB cover for: ${gameName} (matched as: ${bestMatch.game.name}, score: ${bestMatch.nameScore}+${Math.round(bestMatch.popularityBonus)}) [no platform filter]`);
             return coverUrl;
           }
         }
@@ -387,22 +616,31 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
     }
 
     if (data.length > 0) {
-      // Try to find exact match first
-      const exactMatch = data.find(game =>
-        game.name.toLowerCase() === cleanedName.toLowerCase()
-      );
+      // Score all results and pick the best match
+      // Sort by nameScore first, then by popularityBonus for ties
+      const scoredResults = data
+        .filter(game => game.cover)
+        .map(game => {
+          const scores = scoreMatch(cleanedName, game);
+          return { game, ...scores, totalScore: scores.nameScore + scores.popularityBonus };
+        })
+        .sort((a, b) => {
+          if (a.nameScore !== b.nameScore) return b.nameScore - a.nameScore;
+          return b.popularityBonus - a.popularityBonus;
+        });
 
-      const selectedGame = exactMatch || data[0];
+      // Only use results with reasonable scores
+      const bestMatch = scoredResults.find(r => r.nameScore > 0);
 
-      if (selectedGame.cover) {
-        const imageId = selectedGame.cover.image_id;
+      if (bestMatch) {
+        const imageId = bestMatch.game.cover!.image_id;
         // Use cover_big (264x352) or cover_big_2x (528x704) for high quality
         const coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
 
         // Cache the result
         await cacheCover(gameKey, coverUrl);
 
-        console.log(`✓ Found IGDB cover for: ${gameName} (matched as: ${selectedGame.name})`);
+        console.log(`✓ Found IGDB cover for: ${gameName} (matched as: ${bestMatch.game.name}, score: ${bestMatch.nameScore}+${Math.round(bestMatch.popularityBonus)})`);
         return coverUrl;
       }
     }

@@ -7,7 +7,6 @@ export interface NintendoGame {
   name: string;
   imageUri?: string;
   totalPlayTime: number; // in seconds
-  firstPlayedAt?: number; // timestamp
   lastPlayedAt?: number; // timestamp
 }
 
@@ -15,7 +14,6 @@ export interface NintendoStats {
   recentGames: NintendoGame[];
   totalGames: number;
   totalHoursPlayed: number;
-  mostPlayedGame?: NintendoGame;
 }
 
 /**
@@ -59,13 +57,3 @@ export function formatPlayTime(seconds: number): string {
   return `${minutes}m`;
 }
 
-/**
- * Format play time to hours
- */
-export function formatPlayTimeHours(seconds: number): string {
-  const hours = seconds / 3600;
-  if (hours < 1) {
-    return `${Math.round(seconds / 60)}m`;
-  }
-  return `${hours.toFixed(1)}h`;
-}

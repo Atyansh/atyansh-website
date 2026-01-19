@@ -1,0 +1,73 @@
+---
+title: 'Personal Website'
+description: 'A comprehensive personal website featuring bio, projects, research, blog, and real-time activity tracking from 11+ platforms. Built entirely with AI-assisted development.'
+technologies: ['Astro', 'TypeScript', 'React', 'Tailwind CSS', 'Google Cloud', 'Node.js']
+featured: true
+startDate: 2024-11-01
+links:
+  github: 'https://github.com/Atyansh/atyansh-website'
+  website: 'https://atyansh.com'
+---
+
+import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
+
+# Personal Website
+
+A comprehensive personal website that serves as a central hub for my online presence. The entire project was built using [Claude Code](https://claude.com/claude-code) - not a single line of code was manually written.
+
+## Content
+
+- **Bio** - Main landing page with personal introduction
+- **Projects** - Portfolio of technical work
+- **Research** - Academic papers and publications
+- **Blog** - Technical writing and thoughts
+- **Activity** - Real-time tracking of games, music, TV, movies, anime, books, and climbing
+- **Resume** - Professional experience
+- **Pets** - Photos and info about my animals
+- **PGP Key** - For secure communication
+
+## Activity Tracking
+
+The site pulls data from 11+ different platforms to display what I'm currently playing, watching, reading, and climbing:
+
+**Gaming**
+- Steam - PC games with playtime and achievements
+- PlayStation Network - PS4/PS5 games with trophy progress
+- Nintendo Switch - via Exophase integration
+- IGDB - High-quality cover art for all platforms
+
+**Media**
+- Spotify - Recently played tracks
+- Letterboxd - Movie diary and ratings
+- Trakt + TMDB - TV shows with poster images
+- MyAnimeList - Anime watching progress
+- Goodreads - Currently reading and book reviews
+
+**Fitness**
+- Kaya - Bouldering stats, grade pyramid, and send videos
+
+## Self-Healing Infrastructure
+
+One of the key technical challenges was managing OAuth tokens that expire at different intervals (24 hours to 90 days). The solution:
+
+- **Pre-build token refresh** - A script runs before each build to test and refresh expired tokens
+- **Secret Manager SDK** - Refreshed tokens are persisted to Google Cloud Secret Manager
+- **Retry logic** - All API calls include exponential backoff for transient failures
+- **Health monitoring** - Email notifications when any API fails during the daily build
+
+## Architecture
+
+<ArchitectureDiagram />
+
+## Technical Stack
+
+- **Frontend**: Astro 5, React, Tailwind CSS 4, Framer Motion
+- **Build**: TypeScript, Node.js 22
+- **Infrastructure**: Google Cloud Build, Secret Manager, Cloud Storage, Cloud CDN
+- **Monitoring**: Custom health checks with SMTP email notifications
+
+## Key Features
+
+- **Zero manual code** - 100% AI-assisted development via Claude Code
+- **Graceful degradation** - Missing API keys don't break the build
+- **CDN-optimized** - Immutable hashes for assets, automatic cache invalidation

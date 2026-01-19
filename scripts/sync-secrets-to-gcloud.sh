@@ -22,29 +22,12 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-# List of secrets to sync (must match variable names in .env and Secret Manager)
-SECRETS=(
-    "STEAM_API_KEY"
-    "STEAM_ID"
-    "PSN_NPSSO"
-    "IGDB_CLIENT_ID"
-    "IGDB_CLIENT_SECRET"
-    "IGDB_ACCESS_TOKEN"
-    "SPOTIFY_CLIENT_ID"
-    "SPOTIFY_CLIENT_SECRET"
-    "SPOTIFY_REFRESH_TOKEN"
-    "LETTERBOXD_USERNAME"
-    "MAL_CLIENT_ID"
-    "MAL_CLIENT_SECRET"
-    "MAL_ACCESS_TOKEN"
-    "MAL_REFRESH_TOKEN"
-    "GOODREADS_USER_ID"
-    "NOTIFICATION_EMAIL"
-    "SMTP_HOST"
-    "SMTP_PORT"
-    "SMTP_USER"
-    "SMTP_PASS"
-)
+# Dynamically read all secret names from .env file (excluding comments and empty lines)
+# This ensures any new secrets added to .env are automatically synced
+SECRETS=($(grep -v '^#' .env | grep -v '^$' | cut -d'=' -f1))
+
+echo "Found ${#SECRETS[@]} secrets in .env"
+echo ""
 
 # Load .env file
 export $(grep -v '^#' .env | xargs)

@@ -26,13 +26,12 @@ const posts = (await getCollection('blog'))
 
     <div class="space-y-6">
       {posts.map((post) => (
-        <a
-          href={`/blog/${post.slug}`}
-          class="block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700"
-        >
-          <h2 class="text-2xl font-semibold mb-2" style="color: var(--text-primary);">
-            {post.data.title}
-          </h2>
+        <article class="p-6 rounded-lg shadow-md border" style="background-color: var(--bg-secondary); border-color: var(--border);">
+          <a href={`/blog/${post.slug}`} class="block hover:opacity-80 transition-opacity">
+            <h2 class="text-2xl font-semibold mb-2" style="color: var(--text-primary);">
+              {post.data.title}
+            </h2>
+          </a>
           <div class="text-sm mb-3" style="color: var(--text-secondary);">
             <time datetime={post.data.pubDate.toISOString()}>
               {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -55,15 +54,14 @@ const posts = (await getCollection('blog'))
                 <a
                   href={`/blog/tags/${tag}`}
                   class="text-xs px-2 py-1 rounded hover:opacity-80 transition-opacity"
-                  style="background-color: var(--bg-secondary); color: var(--accent);"
-                  onclick="event.stopPropagation();"
+                  style="background-color: var(--bg-primary); color: var(--accent);"
                 >
                   {tag}
                 </a>
               ))}
             </div>
           )}
-        </a>
+        </article>
       ))}
     </div>
   </div>

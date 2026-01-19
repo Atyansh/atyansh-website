@@ -20,29 +20,21 @@ if (process.env.BUILD_ID || process.env.CLOUD_BUILD === 'true') {
   process.exit(0);
 }
 
-// All secrets to sync from Secret Manager
-const SECRETS = [
-  'STEAM_API_KEY',
-  'STEAM_ID',
-  'PSN_NPSSO',
-  'IGDB_CLIENT_ID',
-  'IGDB_CLIENT_SECRET',
-  'IGDB_ACCESS_TOKEN',
-  'SPOTIFY_CLIENT_ID',
-  'SPOTIFY_CLIENT_SECRET',
-  'SPOTIFY_REFRESH_TOKEN',
-  'LETTERBOXD_USERNAME',
-  'MAL_CLIENT_ID',
-  'MAL_CLIENT_SECRET',
-  'MAL_ACCESS_TOKEN',
-  'MAL_REFRESH_TOKEN',
-  'GOODREADS_USER_ID',
-  'NOTIFICATION_EMAIL',
-  'SMTP_HOST',
-  'SMTP_PORT',
-  'SMTP_USER',
-  'SMTP_PASS',
-];
+/**
+ * List all secrets from Secret Manager dynamically
+ */
+function listSecrets() {
+  try {
+    const output = execSync(
+      'gcloud secrets list --format="value(name)"',
+      { stdio: 'pipe', encoding: 'utf-8' }
+    );
+    return output.trim().split('\n').filter(s => s.length > 0);
+  } catch (error) {
+    console.error('Failed to list secrets:', error.message);
+    return [];
+  }
+}
 
 const ENV_FILE = path.join(process.cwd(), '.env');
 
@@ -160,13 +152,22 @@ async function main() {
     process.exit(0);
   }
 
+  // Dynamically list all secrets from Secret Manager
+  const secrets = listSecrets();
+  if (secrets.length === 0) {
+    console.log('No secrets found in Secret Manager.\n');
+    process.exit(0);
+  }
+
+  console.log(`Found ${secrets.length} secrets in Secret Manager\n`);
+
   const existingEnv = parseEnvFile();
   const updatedSecrets = {};
   let syncedCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
 
-  for (const secretName of SECRETS) {
+  for (const secretName of secrets) {
     const value = getSecret(secretName);
 
     if (value !== null) {
@@ -191,9 +192,9 @@ async function main() {
     }
   }
 
-  // Preserve any extra env vars that aren't in our SECRETS list
+  // Preserve any extra env vars that aren't in Secret Manager
   for (const [key, value] of Object.entries(existingEnv)) {
-    if (!SECRETS.includes(key)) {
+    if (!secrets.includes(key)) {
       updatedSecrets[key] = value;
     }
   }

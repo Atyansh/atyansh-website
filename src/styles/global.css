@@ -16,6 +16,19 @@
   --font-primary: 'JetBrains Mono', 'Fira Code', monospace;
   --font-secondary: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --border-radius: 4px;
+
+  /* Astro/Shiki syntax highlighting defaults (light theme) */
+  --astro-code-foreground: #1a1a1a;
+  --astro-code-background: #f8f9fa;
+  --astro-code-token-constant: #0550ae;
+  --astro-code-token-string: #0a3069;
+  --astro-code-token-comment: #6e7781;
+  --astro-code-token-keyword: #cf222e;
+  --astro-code-token-parameter: #953800;
+  --astro-code-token-function: #8250df;
+  --astro-code-token-string-expression: #0a3069;
+  --astro-code-token-punctuation: #1a1a1a;
+  --astro-code-token-link: #0550ae;
 }
 
 [data-theme="minimal-technical"] {
@@ -232,6 +245,65 @@ body {
   box-shadow: 0 8px 32px var(--shadow) !important;
 }
 
+/* Astro Code Theme - Modern Glass (dark with purple accents) */
+[data-theme="modern-glass"] {
+  --astro-code-foreground: #f1f5f9;
+  --astro-code-background: var(--bg-secondary);
+  --astro-code-token-constant: #79c0ff;
+  --astro-code-token-string: #a5d6ff;
+  --astro-code-token-comment: #8b949e;
+  --astro-code-token-keyword: #ff7b72;
+  --astro-code-token-parameter: #ffa657;
+  --astro-code-token-function: #d2a8ff;
+  --astro-code-token-string-expression: #a5d6ff;
+  --astro-code-token-punctuation: #f1f5f9;
+  --astro-code-token-link: #79c0ff;
+}
+
+[data-theme="modern-glass"] .prose pre {
+  border: 1px solid var(--border);
+}
+
+/* Astro Code Theme - Light themes */
+[data-theme="minimal-technical"],
+[data-theme="academic-minimal"] {
+  --astro-code-foreground: #1a1a1a;
+  --astro-code-background: var(--bg-secondary);
+  --astro-code-token-constant: #0550ae;
+  --astro-code-token-string: #0a3069;
+  --astro-code-token-comment: #6e7781;
+  --astro-code-token-keyword: #cf222e;
+  --astro-code-token-parameter: #953800;
+  --astro-code-token-function: #8250df;
+  --astro-code-token-string-expression: #0a3069;
+  --astro-code-token-punctuation: #1a1a1a;
+  --astro-code-token-link: #0550ae;
+}
+
+[data-theme="minimal-technical"] .prose pre,
+[data-theme="academic-minimal"] .prose pre {
+  border: 1px solid var(--border);
+}
+
+/* Brutalist - High contrast black and white, minimal syntax colors */
+[data-theme="brutalist"] {
+  --astro-code-foreground: #000000;
+  --astro-code-background: var(--bg-secondary);
+  --astro-code-token-constant: #000000;
+  --astro-code-token-string: #000000;
+  --astro-code-token-comment: #404040;
+  --astro-code-token-keyword: #ff0000;
+  --astro-code-token-parameter: #000000;
+  --astro-code-token-function: #000000;
+  --astro-code-token-string-expression: #000000;
+  --astro-code-token-punctuation: #000000;
+  --astro-code-token-link: #ff0000;
+}
+
+[data-theme="brutalist"] .prose pre {
+  border: 2px solid #000000;
+}
+
 /* Light theme backgrounds - Border and shadow like work page */
 [data-theme="minimal-technical"] [style*="background-color: var(--bg-secondary)"].mb-12,
 [data-theme="minimal-technical"] [style*="background-color: var(--bg-secondary)"].mt-8,
@@ -272,6 +344,25 @@ body {
 [data-theme="dark-terminal"] code,
 [data-theme="dark-terminal"] pre {
   font-family: var(--font-primary) !important;
+}
+
+/* Astro Code Theme - Dark Terminal (all green, terminal aesthetic) */
+[data-theme="dark-terminal"] {
+  --astro-code-foreground: #00ff41;
+  --astro-code-background: var(--bg-secondary);
+  --astro-code-token-constant: #00ff41;
+  --astro-code-token-string: #00cc33;
+  --astro-code-token-comment: #00aa28;
+  --astro-code-token-keyword: #00ff41;
+  --astro-code-token-parameter: #00ff41;
+  --astro-code-token-function: #00ff41;
+  --astro-code-token-string-expression: #00cc33;
+  --astro-code-token-punctuation: #00ff41;
+  --astro-code-token-link: #00ff41;
+}
+
+[data-theme="dark-terminal"] .prose pre {
+  border: 1px solid var(--accent);
 }
 
 /* Dark Terminal - Better contrast for buttons and badges */
@@ -325,6 +416,167 @@ body {
 
 [data-theme="academic-minimal"] .prose {
   max-width: 70ch;
+}
+
+/* Blog Prose Styling - Theme-aware */
+.prose {
+  line-height: 1.75;
+  color: var(--text-secondary);
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.prose h1 {
+  font-size: 2rem;
+  margin-top: 0;
+}
+
+.prose h2 {
+  font-size: 1.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.prose h3 {
+  font-size: 1.5rem;
+}
+
+.prose h4 {
+  font-size: 1.25rem;
+}
+
+.prose p {
+  color: var(--text-secondary);
+  margin-bottom: 1.25rem;
+  font-size: 1.0625rem;
+}
+
+.prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.prose a:hover {
+  color: var(--accent-hover);
+}
+
+.prose ul,
+.prose ol {
+  margin-bottom: 1.25rem;
+  padding-left: 1.75rem;
+  color: var(--text-secondary);
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+.prose li {
+  margin-bottom: 0.5rem;
+}
+
+.prose li::marker {
+  color: var(--text-secondary);
+}
+
+.prose strong {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.prose em {
+  font-style: italic;
+}
+
+.prose code {
+  background-color: var(--bg-secondary);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--text-primary);
+}
+
+.prose pre {
+  background-color: var(--bg-secondary) !important;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+  color: var(--text-primary);
+}
+
+/* Override Shiki/Astro syntax highlighter backgrounds */
+.prose pre[style],
+.astro-code,
+.shiki {
+  background-color: var(--bg-secondary) !important;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.prose blockquote {
+  border-left: 4px solid var(--accent);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 1.25rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.prose hr {
+  border: none;
+  border-top: 2px solid var(--border);
+  margin: 2rem 0;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.25rem;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--border);
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.prose th {
+  background-color: var(--bg-secondary);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.prose td {
+  color: var(--text-secondary);
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1.5rem 0;
 }
 
 /* Project and Paper Content Styling */

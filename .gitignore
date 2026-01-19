@@ -92,3 +92,4 @@ secrets/
 credentials/
 *.backup
 *.bak
+.env.refresh

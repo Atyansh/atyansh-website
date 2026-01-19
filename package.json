@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "prebuild": "node scripts/pull-secrets.cjs",
+    "prebuild": "node scripts/pull-secrets.cjs && node scripts/refresh-tokens.cjs",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
@@ -13,6 +13,7 @@
     "@astrojs/markdown-remark": "^6.3.8",
     "@astrojs/react": "^4.4.0",
     "@astrojs/sitemap": "^3.6.0",
+    "@google-cloud/secret-manager": "^6.1.1",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.1.14",
     "@types/react": "^19.2.2",

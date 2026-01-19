@@ -4,11 +4,7 @@
 import { fetchWithRetry } from './retry';
 
 const IGDB_CLIENT_ID = import.meta.env.IGDB_CLIENT_ID;
-const IGDB_CLIENT_SECRET = import.meta.env.IGDB_CLIENT_SECRET;
-let IGDB_ACCESS_TOKEN = import.meta.env.IGDB_ACCESS_TOKEN;
-
-// Track if we've already refreshed the token this session
-let tokenRefreshed = false;
+const IGDB_ACCESS_TOKEN = import.meta.env.IGDB_ACCESS_TOKEN;
 
 // Cache configuration
 const CACHE_DIR = '.cache';
@@ -150,89 +146,6 @@ async function sleep(ms: number): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Update a secret in Google Cloud Secret Manager
- */
-async function updateSecretManager(secretName: string, value: string): Promise<boolean> {
-  if (!isNode) return false;
-
-  try {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
-
-    await execAsync(`echo -n "${value}" | gcloud secrets versions add ${secretName} --data-file=-`);
-    console.log(`✓ Updated ${secretName} in Secret Manager`);
-    return true;
-  } catch (error) {
-    console.log(`Note: Could not update Secret Manager (gcloud may not be configured)`);
-    return false;
-  }
-}
-
-/**
- * Refresh the IGDB access token using client credentials
- * Returns true if successful, false otherwise
- * Includes retry logic for transient failures
- */
-async function refreshAccessToken(): Promise<boolean> {
-  if (!IGDB_CLIENT_ID || !IGDB_CLIENT_SECRET) {
-    console.log('Cannot refresh IGDB token: missing client credentials');
-    return false;
-  }
-
-  if (tokenRefreshed) {
-    console.log('Token already refreshed this session, not retrying');
-    return false;
-  }
-
-  try {
-    console.log('Refreshing IGDB access token...');
-
-    const response = await fetchWithRetry(
-      'https://id.twitch.tv/oauth2/token',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          client_id: IGDB_CLIENT_ID,
-          client_secret: IGDB_CLIENT_SECRET,
-          grant_type: 'client_credentials',
-        }),
-      },
-      {
-        maxRetries: 2,
-        initialDelayMs: 1000,
-        onRetry: (error, attempt) => {
-          console.log(`IGDB token refresh retry ${attempt}: ${error.message}`);
-        },
-      }
-    );
-
-    if (!response.ok) {
-      console.error(`Failed to refresh token: ${response.status}`);
-      return false;
-    }
-
-    const data = await response.json();
-    IGDB_ACCESS_TOKEN = data.access_token;
-    tokenRefreshed = true;
-
-    const expiresInDays = Math.round(data.expires_in / 86400);
-    console.log(`IGDB token refreshed successfully (expires in ${expiresInDays} days)`);
-
-    // Try to persist to Secret Manager for future builds
-    await updateSecretManager('IGDB_ACCESS_TOKEN', data.access_token);
-
-    return true;
-  } catch (error) {
-    console.error('Error refreshing IGDB token:', error);
-    return false;
-  }
-}
-
 // Games that should be excluded from the library (not real games)
 const EXCLUDED_GAMES = new Set([
   'virtual desktop', // VR software, not a game
@@ -316,12 +229,6 @@ async function getIGDBCoverBySteamId(steamAppId: number): Promise<string | null>
     );
 
     if (!externalResponse.ok) {
-      if (externalResponse.status === 401 || externalResponse.status === 403) {
-        const refreshed = await refreshAccessToken();
-        if (refreshed) {
-          return getIGDBCoverBySteamId(steamAppId);
-        }
-      }
       return null;
     }
 
@@ -539,14 +446,6 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
     );
 
     if (!response.ok) {
-      // Check if it's an auth error and try to refresh token
-      if (response.status === 401 || response.status === 403) {
-        const refreshed = await refreshAccessToken();
-        if (refreshed) {
-          // Retry with new token (recursive call, but tokenRefreshed prevents infinite loop)
-          return getIGDBCoverUrl(gameName, platform);
-        }
-      }
       console.log(`IGDB API error for "${gameName}": ${response.status}`);
       return null;
     }

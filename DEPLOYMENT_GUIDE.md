@@ -31,13 +31,24 @@ The site is now deployed and accessible at https://atyansh.com
 418072003908-compute@developer.gserviceaccount.com
 ```
 
-This service account must have `roles/secretmanager.secretAccessor` permission to access secrets from Secret Manager.
+This service account requires two Secret Manager permissions:
 
-**If you encounter permission errors**, grant the permission:
+| Role | Purpose |
+|------|---------|
+| `roles/secretmanager.secretAccessor` | Read secrets during build |
+| `roles/secretmanager.secretVersionManager` | Auto-refresh OAuth tokens (Trakt, Spotify, etc.) |
+
+**If you encounter permission errors**, grant both permissions:
 ```bash
+# Read access (required)
 gcloud projects add-iam-policy-binding personal-website-334502 \
   --member="serviceAccount:418072003908-compute@developer.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
+
+# Write access for token auto-refresh (required for self-healing)
+gcloud projects add-iam-policy-binding personal-website-334502 \
+  --member="serviceAccount:418072003908-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretVersionManager"
 ```
 
 ### Node.js Version Requirement

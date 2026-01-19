@@ -6,12 +6,22 @@ steps:
     id: 'install-dependencies'
 
   # Build the site with environment variables from Secret Manager
-  # Install Chrome deps in the same container before building
+  # First refresh OAuth tokens, then install Chrome deps, then build
   - name: 'node:22'
     entrypoint: bash
     args:
       - '-c'
       - |
+        # Pre-build: Refresh OAuth tokens before Astro builds pages in parallel
+        # This avoids race conditions when multiple pages try to refresh concurrently
+        node scripts/refresh-tokens.cjs
+
+        # Source any refreshed tokens (exported by refresh-tokens.cjs)
+        if [ -f .env.refresh ]; then
+          echo "Loading refreshed tokens..."
+          source .env.refresh
+        fi
+
         # Install Chrome dependencies for Puppeteer
         apt-get update && apt-get install -y \
           ca-certificates \
@@ -55,7 +65,7 @@ steps:
         # Clean up apt cache
         rm -rf /var/lib/apt/lists/*
 
-        # Run the build
+        # Run the build (prebuild script is skipped in Cloud Build)
         npm run build
     id: 'build-site'
     env:

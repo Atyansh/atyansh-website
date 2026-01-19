@@ -1,13 +1,11 @@
 // Trakt API integration for TV shows
-// Uses OAuth 2.0 with automatic token refresh
+// Uses OAuth 2.0 (tokens refreshed in pre-build script)
 
 import { fetchWithRetry } from './retry';
 
 const TRAKT_CLIENT_ID = import.meta.env.TRAKT_CLIENT_ID;
-const TRAKT_CLIENT_SECRET = import.meta.env.TRAKT_CLIENT_SECRET;
 const TRAKT_USERNAME = import.meta.env.TRAKT_USERNAME;
-let TRAKT_ACCESS_TOKEN = import.meta.env.TRAKT_ACCESS_TOKEN;
-let TRAKT_REFRESH_TOKEN = import.meta.env.TRAKT_REFRESH_TOKEN;
+const TRAKT_ACCESS_TOKEN = import.meta.env.TRAKT_ACCESS_TOKEN;
 
 const TMDB_API_KEY = import.meta.env.TMDB_API_KEY;
 
@@ -19,8 +17,6 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 // Check if we're in a Node.js environment
 const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
 
-// Track if token was already refreshed this session
-let tokenRefreshed = false;
 
 // Trakt API types
 export interface TraktShow {
@@ -76,95 +72,6 @@ export interface TraktData {
 // In-memory cache
 let memoryCache: TraktData | null = null;
 
-/**
- * Update a secret in Google Cloud Secret Manager
- */
-async function updateSecretManager(secretName: string, value: string): Promise<boolean> {
-  if (!isNode) return false;
-
-  try {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
-
-    await execAsync(`echo -n "${value}" | gcloud secrets versions add ${secretName} --data-file=-`);
-    console.log(`✓ Updated ${secretName} in Secret Manager`);
-    return true;
-  } catch (error) {
-    console.log(`Note: Could not update Secret Manager (gcloud may not be configured)`);
-    return false;
-  }
-}
-
-/**
- * Refresh the Trakt access token using the refresh token
- * Includes retry logic for transient failures
- */
-async function refreshAccessToken(): Promise<boolean> {
-  if (!TRAKT_CLIENT_ID || !TRAKT_CLIENT_SECRET || !TRAKT_REFRESH_TOKEN) {
-    console.log('Cannot refresh Trakt token: missing credentials');
-    return false;
-  }
-
-  if (tokenRefreshed) {
-    console.log('Trakt token already refreshed this session, not retrying');
-    return false;
-  }
-
-  try {
-    console.log('Refreshing Trakt access token...');
-
-    const response = await fetchWithRetry(
-      'https://api.trakt.tv/oauth/token',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-        },
-        body: JSON.stringify({
-          refresh_token: TRAKT_REFRESH_TOKEN,
-          client_id: TRAKT_CLIENT_ID,
-          client_secret: TRAKT_CLIENT_SECRET,
-          redirect_uri: 'urn:ietf:wg:oauth:2.0:oob',
-          grant_type: 'refresh_token',
-        }),
-      },
-      {
-        maxRetries: 2,
-        initialDelayMs: 1000,
-        onRetry: (error, attempt) => {
-          console.log(`Trakt token refresh retry ${attempt}: ${error.message}`);
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Trakt token refresh failed: ${response.status} - ${errorText}`);
-      return false;
-    }
-
-    const data = await response.json();
-
-    // Update tokens in memory
-    TRAKT_ACCESS_TOKEN = data.access_token;
-    TRAKT_REFRESH_TOKEN = data.refresh_token;
-    tokenRefreshed = true;
-
-    const expiresInHours = Math.round(data.expires_in / 3600);
-    console.log(`Trakt token refreshed successfully (expires in ${expiresInHours} hours)`);
-
-    // Try to persist to Secret Manager for future builds
-    await updateSecretManager('TRAKT_ACCESS_TOKEN', data.access_token);
-    await updateSecretManager('TRAKT_REFRESH_TOKEN', data.refresh_token);
-
-    return true;
-  } catch (error) {
-    console.error('Error refreshing Trakt token:', error);
-    return false;
-  }
-}
 
 /**
  * Load Trakt cache from disk
@@ -221,8 +128,9 @@ async function saveCache(data: TraktData): Promise<void> {
 /**
  * Make authenticated request to Trakt API
  * Includes retry logic for transient failures
+ * Note: Token refresh is handled by pre-build script, not here
  */
-async function traktRequest<T>(endpoint: string, retry = true): Promise<T | null> {
+async function traktRequest<T>(endpoint: string): Promise<T | null> {
   if (!TRAKT_ACCESS_TOKEN) {
     console.error('Trakt access token not configured');
     return null;
@@ -248,16 +156,6 @@ async function traktRequest<T>(endpoint: string, retry = true): Promise<T | null
         },
       }
     );
-
-    if (response.status === 401 && retry) {
-      // Token expired, try to refresh (not a transient error)
-      console.log('Trakt token expired, attempting refresh...');
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        return traktRequest<T>(endpoint, false);
-      }
-      return null;
-    }
 
     if (!response.ok) {
       console.error(`Trakt API error: ${response.status} for ${endpoint}`);

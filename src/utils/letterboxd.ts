@@ -114,7 +114,7 @@ async function scrapePage(url: string): Promise<{films: LetterboxdMovie[], maxPa
       try {
         page = await browser.newPage();
 
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForSelector('.poster-list', { timeout: 10000 });
 
         // Scroll down to trigger lazy loading of all images

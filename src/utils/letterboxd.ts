@@ -99,8 +99,10 @@ async function scrapePage(url: string): Promise<{films: LetterboxdMovie[], maxPa
       const puppeteer = await import('puppeteer');
       const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
 
+      let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
+
       try {
-        const page = await browser.newPage();
+        page = await browser.newPage();
 
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
         await page.waitForSelector('.poster-list', { timeout: 10000 });
@@ -240,6 +242,23 @@ async function scrapePage(url: string): Promise<{films: LetterboxdMovie[], maxPa
         });
 
         return { films, maxPage: filmData.maxPage };
+      } catch (error) {
+        // Debug: Log page state on any failure
+        if (page) {
+          try {
+            const pageTitle = await page.title();
+            const pageUrl = page.url();
+            const html = await page.content();
+            console.error(`[Letterboxd Debug] Scrape failed for ${url}`);
+            console.error(`[Letterboxd Debug] Page title: "${pageTitle}"`);
+            console.error(`[Letterboxd Debug] Current URL: ${pageUrl}`);
+            console.error(`[Letterboxd Debug] HTML preview (first 1000 chars):`);
+            console.error(html.substring(0, 1000));
+          } catch (debugError) {
+            console.error(`[Letterboxd Debug] Could not capture page state: ${debugError}`);
+          }
+        }
+        throw error;
       } finally {
         await browser.close().catch(() => {});
       }

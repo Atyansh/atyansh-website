@@ -1,14 +1,14 @@
 ---
-title: 'Building a Personal Website Entirely with AI-Assisted Development'
+title: 'Building a Personal Website Entirely with Claude Code'
 description: 'A deep dive into building a comprehensive personal website with real-time activity tracking from 11+ platforms, self-healing OAuth infrastructure, and automated deployments - all without writing a single line of code manually.'
 pubDate: 2026-01-19
-tags: ['ai', 'web-development', 'infrastructure', 'oauth', 'astro']
+tags: ['claude-code', 'web-development', 'infrastructure', 'oauth', 'astro']
 draft: false
 ---
 
 import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
 
-# Building a Personal Website Entirely with AI-Assisted Development
+# Building a Personal Website Entirely with Claude Code
 
 I'd been procrastinating on building a proper personal website since college. After joining Anthropic, I finally had the push I needed - I wanted to learn [Claude Code](https://claude.com/claude-code) by building something real. What started as an experiment turned into a fully-featured personal website that aggregates real-time data from over 11 different platforms. The most interesting part? Not a single line of code was written manually.
 
@@ -167,7 +167,7 @@ The built site is deployed to Google Cloud Storage with Cloud CDN in front. Stat
 
 This gives the best of both worlds: instant cache invalidation for HTML while leveraging browser caching for assets.
 
-## AI-Assisted Development
+## Claude Code Development Experience
 
 The entire codebase was written using Claude Code. This wasn't just using AI for code completion - every feature, from initial architecture to bug fixes, was developed through conversation with Claude.
 
@@ -187,7 +187,7 @@ Some observations from this approach:
 - Web scraping (Letterboxd) required handling lazy-loaded images and Cloud Build dependencies
 - Initial token refresh approach refreshed during build, but tokens still drifted - had to move to pre-build scripts that persist back to Secret Manager
 
-The experiment proved that AI-assisted development is viable for real-world projects, not just toy examples.
+The experiment proved that building with Claude Code is viable for real-world projects, not just toy examples.
 
 ## Lessons Learned
 
@@ -201,7 +201,7 @@ The experiment proved that AI-assisted development is viable for real-world proj
 
 5. **Graceful degradation matters** - A missing Spotify integration shouldn't break the entire site. Design for partial failures.
 
-6. **AI-assisted development works** - Building this entire site without writing code manually wasn't a gimmick - it was genuinely more productive. The key was acting as a product owner (reviewing, providing feedback) rather than a developer.
+6. **Claude Code works** - Building this entire site without writing code manually wasn't a gimmick - it was genuinely more productive. The key was acting as a product owner (reviewing, providing feedback) rather than a developer.
 
 The codebase is [open source on GitHub](https://github.com/Atyansh/atyansh-website) for anyone curious about the implementation details.
 

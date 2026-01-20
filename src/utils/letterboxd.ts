@@ -95,9 +95,19 @@ async function saveCache(data: LetterboxdData): Promise<void> {
 async function scrapePage(url: string): Promise<{films: LetterboxdMovie[], maxPage: number}> {
   return withRetry(
     async () => {
-      // Use Puppeteer to render the page and extract actual image URLs
-      const puppeteer = await import('puppeteer');
-      const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+      // Use Puppeteer with stealth plugin to bypass Cloudflare detection
+      const puppeteerExtra = await import('puppeteer-extra');
+      const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
+      puppeteerExtra.default.use(StealthPlugin.default());
+
+      const browser = await puppeteerExtra.default.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-blink-features=AutomationControlled',
+        ],
+      });
 
       let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
 

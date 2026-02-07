@@ -1,22 +1,18 @@
 // MyAnimeList integration using official MAL API v2
 // Fetches anime data from the official MyAnimeList API
 
+import { FileCache } from './cache';
+import { createLogger } from './logger';
 import { fetchWithRetry } from './retry';
+
+const log = createLogger('MAL');
 
 const MAL_CLIENT_ID = import.meta.env.MAL_CLIENT_ID;
 const MAL_ACCESS_TOKEN = import.meta.env.MAL_ACCESS_TOKEN;
 
-// Cache configuration
-const CACHE_DIR = '.cache';
-const MAL_CACHE_FILE = '.cache/myanimelist-data.json';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
 // MAL API configuration
 const MAL_API_BASE = 'https://api.myanimelist.net/v2';
 const RATE_LIMIT_DELAY = 100; // 100ms between requests
-
-// Check if we're in a Node.js environment
-const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
 
 export interface MALAnime {
   title: string;
@@ -38,62 +34,7 @@ export interface MALData {
   timestamp: number;
 }
 
-interface CachedMALData extends MALData {}
-
-// In-memory cache
-let memoryCache: CachedMALData | null = null;
-
-/**
- * Load MAL cache from disk
- */
-async function loadCache(): Promise<CachedMALData | null> {
-  if (memoryCache) {
-    return memoryCache;
-  }
-
-  if (!isNode) {
-    return null;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    const cacheData = await fs.readFile(MAL_CACHE_FILE, 'utf-8');
-    const cached: CachedMALData = JSON.parse(cacheData);
-
-    // Check if cache is still valid
-    const age = Date.now() - cached.timestamp;
-    if (age < CACHE_DURATION) {
-      memoryCache = cached;
-      console.log('✓ Using cached MyAnimeList data');
-      return cached;
-    }
-
-    console.log('MyAnimeList cache expired, fetching fresh data...');
-    return null;
-  } catch (error) {
-    // Cache doesn't exist or is invalid
-    return null;
-  }
-}
-
-/**
- * Save MAL cache to disk
- */
-async function saveCache(data: MALData): Promise<void> {
-  if (!isNode) {
-    return;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(MAL_CACHE_FILE, JSON.stringify(data, null, 2));
-    memoryCache = data;
-    console.log('✓ Saved MyAnimeList data to cache');
-  } catch (error) {
-    console.error('Failed to save MyAnimeList cache:', error);
-  }
-}
+const cache = new FileCache<MALData>('myanimelist-data', { ttl: 24 * 60 * 60 * 1000 });
 
 /**
  * Fetch user's animelist from MAL API with pagination
@@ -110,7 +51,7 @@ async function fetchAnimeList(): Promise<MALAnime[]> {
 
   while (hasMore) {
     try {
-      console.log(`Fetching anime (offset ${offset})...`);
+      log.info(`Fetching anime (offset ${offset})...`);
 
       const url = `${MAL_API_BASE}/users/@me/animelist?fields=${fields}&limit=${limit}&offset=${offset}`;
 
@@ -126,7 +67,7 @@ async function fetchAnimeList(): Promise<MALAnime[]> {
           maxRetries: 2,
           initialDelayMs: 1000,
           onRetry: (error, attempt) => {
-            console.log(`MAL animelist retry ${attempt} (offset ${offset}): ${error.message}`);
+            log.info(`MAL animelist retry ${attempt} (offset ${offset}): ${error.message}`);
           },
         }
       );
@@ -222,7 +163,7 @@ async function fetchAnimeList(): Promise<MALAnime[]> {
         hasMore = false;
       }
     } catch (error) {
-      console.error(`Error fetching anime (offset ${offset}):`, error);
+      log.error(`Error fetching anime (offset ${offset}):`, error);
       hasMore = false;
     }
   }
@@ -235,18 +176,18 @@ async function fetchAnimeList(): Promise<MALAnime[]> {
  */
 export async function getMALData(): Promise<MALData | null> {
   // Check cache first
-  const cached = await loadCache();
+  const cached = await cache.get();
   if (cached) {
     return cached;
   }
 
   if (!MAL_CLIENT_ID || !MAL_ACCESS_TOKEN) {
-    console.log('MyAnimeList API credentials not configured, skipping...');
-    console.log('Run: node scripts/get-mal-token.cjs to get credentials');
+    log.info('MyAnimeList API credentials not configured, skipping...');
+    log.info('Run: node scripts/get-mal-token.cjs to get credentials');
     return null;
   }
 
-  console.log('Fetching MyAnimeList data from official API...');
+  log.info('Fetching MyAnimeList data from official API...');
 
   try {
     const anime = await fetchAnimeList();
@@ -257,13 +198,13 @@ export async function getMALData(): Promise<MALData | null> {
     };
 
     // Save to cache
-    await saveCache(data);
+    await cache.set(data);
 
-    console.log(`✓ Fetched ${anime.length} anime from MyAnimeList`);
+    log.info(`Fetched ${anime.length} anime from MyAnimeList`);
 
     return data;
   } catch (error) {
-    console.error('Error fetching MyAnimeList data:', error);
+    log.error('Error fetching MyAnimeList data:', error);
     return null;
   }
 }

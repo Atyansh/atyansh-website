@@ -8,16 +8,13 @@ import {
   type AuthTokensResponse,
 } from 'psn-api';
 import { withRetry } from './retry';
+import { FileCache } from './cache';
+import { createLogger } from './logger';
 
 const PSN_NPSSO = import.meta.env.PSN_NPSSO;
 
-// Cache configuration
-const CACHE_DIR = '.cache';
-const PSN_CACHE_FILE = '.cache/psn-data.json';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
-// Check if we're in a Node.js environment
-const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+const log = createLogger('PSN');
+const cache = new FileCache<PSNData>('psn-data', { ttl: 24 * 60 * 60 * 1000 });
 
 let cachedAuth: AuthTokensResponse | null = null;
 
@@ -53,68 +50,13 @@ interface PSNData {
   timestamp: number;
 }
 
-// In-memory cache
-let memoryCache: PSNData | null = null;
-
-/**
- * Load PSN cache from disk
- */
-async function loadCache(): Promise<PSNData | null> {
-  if (memoryCache) {
-    return memoryCache;
-  }
-
-  if (!isNode) {
-    return null;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    const cacheData = await fs.readFile(PSN_CACHE_FILE, 'utf-8');
-    const cached: PSNData = JSON.parse(cacheData);
-
-    // Check if cache is still valid
-    const age = Date.now() - cached.timestamp;
-    if (age < CACHE_DURATION) {
-      memoryCache = cached;
-      console.log('✓ Using cached PSN data');
-      return cached;
-    }
-
-    console.log('PSN cache expired, fetching fresh data...');
-    return null;
-  } catch (error) {
-    // Cache doesn't exist or is invalid
-    return null;
-  }
-}
-
-/**
- * Save PSN cache to disk
- */
-async function saveCache(data: PSNData): Promise<void> {
-  if (!isNode) {
-    return;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(PSN_CACHE_FILE, JSON.stringify(data, null, 2));
-    memoryCache = data;
-    console.log('✓ Saved PSN data to cache');
-  } catch (error) {
-    console.error('Failed to save PSN cache:', error);
-  }
-}
-
 /**
  * Get PSN authorization tokens
  * Includes retry logic for transient failures
  */
 async function getPSNAuth(): Promise<AuthTokensResponse | null> {
   if (!PSN_NPSSO) {
-    console.error('PSN NPSSO token not configured');
+    log.error('PSN NPSSO token not configured');
     return null;
   }
 
@@ -135,7 +77,7 @@ async function getPSNAuth(): Promise<AuthTokensResponse | null> {
         maxRetries: 2,
         initialDelayMs: 1000,
         onRetry: (error, attempt) => {
-          console.log(`PSN auth retry ${attempt}: ${error.message}`);
+          log.info(`PSN auth retry ${attempt}: ${error.message}`);
         },
       }
     );
@@ -143,7 +85,7 @@ async function getPSNAuth(): Promise<AuthTokensResponse | null> {
     cachedAuth = authorization;
     return authorization;
   } catch (error) {
-    console.error('Error getting PSN authorization:', error);
+    log.error('Error getting PSN authorization:', error);
     return null;
   }
 }
@@ -172,7 +114,7 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
         maxRetries: 2,
         initialDelayMs: 1000,
         onRetry: (error, attempt) => {
-          console.log(`PSN titles retry ${attempt}: ${error.message}`);
+          log.info(`PSN titles retry ${attempt}: ${error.message}`);
         },
       }
     );
@@ -200,7 +142,7 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
 
     return games;
   } catch (error) {
-    console.error('Error fetching PSN titles:', error);
+    log.error('Error fetching PSN titles:', error);
     return [];
   }
 }
@@ -210,25 +152,25 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
  */
 export async function getPSNStats(): Promise<PSNStats | null> {
   // Check cache first
-  const cached = await loadCache();
+  const cached = await cache.get();
   if (cached) {
     return cached.stats;
   }
 
   // Get fresh data from PSN
-  console.log('Fetching PSN data...');
+  log.info('Fetching PSN data...');
 
   try {
     const auth = await getPSNAuth();
     if (!auth) {
-      console.error('Failed to get PSN authorization');
+      log.error('Failed to get PSN authorization');
       return null;
     }
 
     const titles = await getPSNTitles();
 
     if (titles.length === 0) {
-      console.error('No PSN titles found');
+      log.error('No PSN titles found');
       return null;
     }
 
@@ -257,14 +199,13 @@ export async function getPSNStats(): Promise<PSNStats | null> {
       stats,
       timestamp: Date.now(),
     };
-    await saveCache(data);
+    await cache.set(data);
 
-    console.log(`✓ Fetched PSN data: ${stats.totalGames} games, ${totalTrophies.total} trophies`);
+    log.info(`Fetched PSN data: ${stats.totalGames} games, ${totalTrophies.total} trophies`);
 
     return stats;
   } catch (error) {
-    console.error('Error fetching PSN stats:', error);
+    log.error('Error fetching PSN stats:', error);
     return null;
   }
 }
-

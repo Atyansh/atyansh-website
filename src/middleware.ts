@@ -38,8 +38,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   response.headers.set('Content-Security-Policy', csp);
 
-  // HSTS - Force HTTPS (uncomment when deploying to production with HTTPS)
-  // response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  // HSTS - Force HTTPS (omit preload until CDN-level HSTS is configured)
+  if (!isDev) {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
 
   return response;
 });

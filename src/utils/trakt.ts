@@ -2,21 +2,16 @@
 // Uses OAuth 2.0 (tokens refreshed in pre-build script)
 
 import { fetchWithRetry } from './retry';
+import { FileCache } from './cache';
+import { createLogger } from './logger';
+
+const log = createLogger('Trakt');
 
 const TRAKT_CLIENT_ID = import.meta.env.TRAKT_CLIENT_ID;
 const TRAKT_USERNAME = import.meta.env.TRAKT_USERNAME;
 const TRAKT_ACCESS_TOKEN = import.meta.env.TRAKT_ACCESS_TOKEN;
 
 const TMDB_API_KEY = import.meta.env.TMDB_API_KEY;
-
-// Cache configuration
-const CACHE_DIR = '.cache';
-const TRAKT_CACHE_FILE = '.cache/trakt-data.json';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
-// Check if we're in a Node.js environment
-const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
-
 
 // Trakt API types
 export interface TraktShow {
@@ -69,61 +64,7 @@ export interface TraktData {
   timestamp: number;
 }
 
-// In-memory cache
-let memoryCache: TraktData | null = null;
-
-
-/**
- * Load Trakt cache from disk
- */
-async function loadCache(): Promise<TraktData | null> {
-  if (memoryCache) {
-    return memoryCache;
-  }
-
-  if (!isNode) {
-    return null;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    const cacheData = await fs.readFile(TRAKT_CACHE_FILE, 'utf-8');
-    const cached: TraktData = JSON.parse(cacheData);
-
-    // Check if cache is still valid
-    const age = Date.now() - cached.timestamp;
-    if (age < CACHE_DURATION) {
-      memoryCache = cached;
-      console.log('✓ Using cached Trakt data');
-      return cached;
-    }
-
-    console.log('Trakt cache expired, fetching fresh data...');
-    return null;
-  } catch (error) {
-    // Cache doesn't exist or is invalid
-    return null;
-  }
-}
-
-/**
- * Save Trakt cache to disk
- */
-async function saveCache(data: TraktData): Promise<void> {
-  if (!isNode) {
-    return;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(TRAKT_CACHE_FILE, JSON.stringify(data, null, 2));
-    memoryCache = data;
-    console.log('✓ Saved Trakt data to cache');
-  } catch (error) {
-    console.error('Failed to save Trakt cache:', error);
-  }
-}
+const cache = new FileCache<TraktData>('trakt-data', { ttl: 24 * 60 * 60 * 1000 });
 
 /**
  * Make authenticated request to Trakt API
@@ -132,7 +73,7 @@ async function saveCache(data: TraktData): Promise<void> {
  */
 async function traktRequest<T>(endpoint: string): Promise<T | null> {
   if (!TRAKT_ACCESS_TOKEN) {
-    console.error('Trakt access token not configured');
+    log.error('Trakt access token not configured');
     return null;
   }
 
@@ -152,19 +93,19 @@ async function traktRequest<T>(endpoint: string): Promise<T | null> {
         maxRetries: 2,
         initialDelayMs: 1000,
         onRetry: (error, attempt) => {
-          console.log(`Trakt API retry ${attempt} for ${endpoint}: ${error.message}`);
+          log.info(`Trakt API retry ${attempt} for ${endpoint}: ${error.message}`);
         },
       }
     );
 
     if (!response.ok) {
-      console.error(`Trakt API error: ${response.status} for ${endpoint}`);
+      log.error(`Trakt API error: ${response.status} for ${endpoint}`);
       return null;
     }
 
     return await response.json();
   } catch (error) {
-    console.error('Error fetching from Trakt:', error);
+    log.error('Error fetching from Trakt:', error);
     return null;
   }
 }
@@ -186,7 +127,7 @@ async function fetchTMDBDetails(tmdbId: number): Promise<{ posterImage: string; 
         maxRetries: 2,
         initialDelayMs: 500,
         onRetry: (error, attempt) => {
-          console.log(`TMDB retry ${attempt} for show ${tmdbId}: ${error.message}`);
+          log.info(`TMDB retry ${attempt} for show ${tmdbId}: ${error.message}`);
         },
       }
     );
@@ -238,17 +179,17 @@ async function fetchRatings(): Promise<Map<number, number>> {
  */
 export async function getTraktData(): Promise<TraktData | null> {
   // Check cache first
-  const cached = await loadCache();
+  const cached = await cache.get();
   if (cached) {
     return cached;
   }
 
   if (!TRAKT_CLIENT_ID || !TRAKT_ACCESS_TOKEN || !TRAKT_USERNAME) {
-    console.log('Trakt credentials not configured, skipping...');
+    log.info('Trakt credentials not configured, skipping...');
     return null;
   }
 
-  console.log('Fetching Trakt data...');
+  log.info('Fetching Trakt data...');
 
   try {
     // Fetch watched shows and ratings in parallel
@@ -258,11 +199,11 @@ export async function getTraktData(): Promise<TraktData | null> {
     ]);
 
     if (!watchedShows.length) {
-      console.log('No watched shows found on Trakt');
+      log.info('No watched shows found on Trakt');
       return null;
     }
 
-    console.log(`Found ${watchedShows.length} watched shows, fetching posters...`);
+    log.info(`Found ${watchedShows.length} watched shows, fetching posters...`);
 
     // Fetch details from TMDB (with rate limiting)
     const shows: TVShow[] = [];
@@ -312,13 +253,13 @@ export async function getTraktData(): Promise<TraktData | null> {
     };
 
     // Save to cache
-    await saveCache(data);
+    await cache.set(data);
 
-    console.log(`✓ Fetched ${shows.length} shows from Trakt`);
+    log.info(`Fetched ${shows.length} shows from Trakt`);
 
     return data;
   } catch (error) {
-    console.error('Error fetching Trakt data:', error);
+    log.error('Error fetching Trakt data:', error);
     return null;
   }
 }

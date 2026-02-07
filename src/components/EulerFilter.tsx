@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import ErrorBoundary from './ErrorBoundary';
 
 interface Problem {
   problemNumber: number;
@@ -13,7 +14,7 @@ interface EulerFilterProps {
   problems: Problem[];
 }
 
-export default function EulerFilter({ problems }: EulerFilterProps) {
+function EulerFilterInner({ problems }: EulerFilterProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
   const [difficultyRange, setDifficultyRange] = useState<[number, number]>([0, 100]);
@@ -205,4 +206,8 @@ export default function EulerFilter({ problems }: EulerFilterProps) {
       )}
     </div>
   );
+}
+
+export default function EulerFilter(props: EulerFilterProps) {
+  return <ErrorBoundary sectionName="Project Euler"><EulerFilterInner {...props} /></ErrorBoundary>;
 }

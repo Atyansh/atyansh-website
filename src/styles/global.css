@@ -159,6 +159,15 @@ body {
   border-radius: 4px;
 }
 
+/* Navigation link hover styles (replaces inline event handlers) */
+.nav-link:hover {
+  color: var(--accent) !important;
+}
+
+.accent-link:hover {
+  color: var(--accent-hover) !important;
+}
+
 /* Navigation dropdown styles */
 .nav-dropdown-trigger:hover {
   color: var(--accent);

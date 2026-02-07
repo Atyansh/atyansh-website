@@ -2,18 +2,15 @@
 // Uses OAuth 2.0 with refresh token for authentication
 
 import { fetchWithRetry } from './retry';
+import { FileCache } from './cache';
+import { createLogger } from './logger';
 
 const SPOTIFY_CLIENT_ID = import.meta.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = import.meta.env.SPOTIFY_CLIENT_SECRET;
 const SPOTIFY_REFRESH_TOKEN = import.meta.env.SPOTIFY_REFRESH_TOKEN;
 
-// Cache configuration
-const CACHE_DIR = '.cache';
-const SPOTIFY_CACHE_FILE = '.cache/spotify-data.json';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
-// Check if we're in a Node.js environment
-const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+const log = createLogger('Spotify');
+const cache = new FileCache<SpotifyData>('spotify-data', { ttl: 24 * 60 * 60 * 1000 });
 
 // Spotify API types
 export interface SpotifyTrack {
@@ -141,70 +138,13 @@ export interface SpotifyData {
   timestamp: number;
 }
 
-interface CachedSpotifyData extends SpotifyData {}
-
-// In-memory cache
-let memoryCache: CachedSpotifyData | null = null;
-
-/**
- * Load Spotify cache from disk
- */
-async function loadCache(): Promise<CachedSpotifyData | null> {
-  if (memoryCache) {
-    return memoryCache;
-  }
-
-  if (!isNode) {
-    return null;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    const cacheData = await fs.readFile(SPOTIFY_CACHE_FILE, 'utf-8');
-    const cached: CachedSpotifyData = JSON.parse(cacheData);
-
-    // Check if cache is still valid
-    const age = Date.now() - cached.timestamp;
-    if (age < CACHE_DURATION) {
-      memoryCache = cached;
-      console.log('✓ Using cached Spotify data');
-      return cached;
-    }
-
-    console.log('Spotify cache expired, fetching fresh data...');
-    return null;
-  } catch (error) {
-    // Cache doesn't exist or is invalid
-    return null;
-  }
-}
-
-/**
- * Save Spotify cache to disk
- */
-async function saveCache(data: SpotifyData): Promise<void> {
-  if (!isNode) {
-    return;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(SPOTIFY_CACHE_FILE, JSON.stringify(data, null, 2));
-    memoryCache = data;
-    console.log('✓ Saved Spotify data to cache');
-  } catch (error) {
-    console.error('Failed to save Spotify cache:', error);
-  }
-}
-
 /**
  * Get access token using refresh token
  * Includes retry logic for transient failures
  */
 async function getAccessToken(): Promise<string | null> {
   if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET || !SPOTIFY_REFRESH_TOKEN) {
-    console.error('Spotify credentials not configured');
+    log.error('Spotify credentials not configured');
     return null;
   }
 
@@ -228,20 +168,20 @@ async function getAccessToken(): Promise<string | null> {
         maxRetries: 2,
         initialDelayMs: 1000,
         onRetry: (error, attempt) => {
-          console.log(`Spotify auth retry ${attempt}: ${error.message}`);
+          log.info(`Spotify auth retry ${attempt}: ${error.message}`);
         },
       }
     );
 
     if (!response.ok) {
-      console.error(`Spotify auth error: ${response.status}`);
+      log.error(`Spotify auth error: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
     return data.access_token;
   } catch (error) {
-    console.error('Error getting Spotify access token:', error);
+    log.error('Error getting Spotify access token:', error);
     return null;
   }
 }
@@ -263,19 +203,19 @@ async function spotifyFetch<T>(endpoint: string, accessToken: string): Promise<T
         maxRetries: 2,
         initialDelayMs: 1000,
         onRetry: (error, attempt) => {
-          console.log(`Spotify API retry ${attempt} for ${endpoint}: ${error.message}`);
+          log.info(`Spotify API retry ${attempt} for ${endpoint}: ${error.message}`);
         },
       }
     );
 
     if (!response.ok) {
-      console.error(`Spotify API error for ${endpoint}: ${response.status}`);
+      log.error(`Spotify API error for ${endpoint}: ${response.status}`);
       return null;
     }
 
     return await response.json();
   } catch (error) {
-    console.error(`Error fetching from Spotify ${endpoint}:`, error);
+    log.error(`Error fetching from Spotify ${endpoint}:`, error);
     return null;
   }
 }
@@ -367,7 +307,7 @@ async function getPlaylistTracks(accessToken: string, playlistId: string): Promi
  */
 export async function getSpotifyData(): Promise<SpotifyData | null> {
   // Check cache first
-  const cached = await loadCache();
+  const cached = await cache.get();
   if (cached) {
     return cached;
   }
@@ -375,11 +315,11 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
   // Get fresh data from Spotify
   const accessToken = await getAccessToken();
   if (!accessToken) {
-    console.error('Failed to get Spotify access token');
+    log.error('Failed to get Spotify access token');
     return null;
   }
 
-  console.log('Fetching Spotify data...');
+  log.info('Fetching Spotify data...');
 
   try {
     // Fetch all data in parallel
@@ -412,14 +352,14 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
     for (const playlistName of featuredPlaylistNames) {
       const playlist = playlists.find(p => p.name === playlistName);
       if (playlist) {
-        console.log(`Fetching tracks for playlist: ${playlistName}...`);
+        log.info(`Fetching tracks for playlist: ${playlistName}...`);
         const tracks = await getPlaylistTracks(accessToken, playlist.id);
         // Reverse tracks to show most recently added first
         featuredPlaylists.push({
           ...playlist,
           allTracks: tracks.reverse(),
         });
-        console.log(`✓ Fetched ${tracks.length} tracks for ${playlistName}`);
+        log.info(`Fetched ${tracks.length} tracks for ${playlistName}`);
       }
     }
 
@@ -442,13 +382,13 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
     };
 
     // Save to cache
-    await saveCache(data);
+    await cache.set(data);
 
-    console.log(`✓ Fetched Spotify data: ${data.topTracks.long.length} tracks, ${data.topArtists.long.length} artists, ${data.savedAlbums.length} albums, ${data.playlists.length} playlists, ${data.featuredPlaylists.length} featured playlists, ${data.recentlyPlayed.length} recently played`);
+    log.info(`Fetched Spotify data: ${data.topTracks.long.length} tracks, ${data.topArtists.long.length} artists, ${data.savedAlbums.length} albums, ${data.playlists.length} playlists, ${data.featuredPlaylists.length} featured playlists, ${data.recentlyPlayed.length} recently played`);
 
     return data;
   } catch (error) {
-    console.error('Error fetching Spotify data:', error);
+    log.error('Error fetching Spotify data:', error);
     return null;
   }
 }

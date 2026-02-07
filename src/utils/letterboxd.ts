@@ -2,16 +2,14 @@
 // Fetches movie data by scraping Letterboxd profile pages with pagination
 
 import { withRetry, isTransientError } from './retry';
+import { FileCache } from './cache';
+import { createLogger } from './logger';
+import { pLimit } from './concurrency';
 
 const LETTERBOXD_USERNAME = import.meta.env.LETTERBOXD_USERNAME;
 
-// Cache configuration
-const CACHE_DIR = '.cache';
-const LETTERBOXD_CACHE_FILE = '.cache/letterboxd-data.json';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
-// Check if we're in a Node.js environment
-const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+const log = createLogger('Letterboxd');
+const cache = new FileCache<LetterboxdData>('letterboxd-data', { ttl: 24 * 60 * 60 * 1000 });
 
 export interface LetterboxdMovie {
   title: string;
@@ -31,84 +29,14 @@ export interface LetterboxdData {
   timestamp: number;
 }
 
-interface CachedLetterboxdData extends LetterboxdData {}
-
-// In-memory cache
-let memoryCache: CachedLetterboxdData | null = null;
-
-/**
- * Load Letterboxd cache from disk
- */
-async function loadCache(): Promise<CachedLetterboxdData | null> {
-  if (memoryCache) {
-    return memoryCache;
-  }
-
-  if (!isNode) {
-    return null;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    const cacheData = await fs.readFile(LETTERBOXD_CACHE_FILE, 'utf-8');
-    const cached: CachedLetterboxdData = JSON.parse(cacheData);
-
-    // Check if cache is still valid
-    const age = Date.now() - cached.timestamp;
-    if (age < CACHE_DURATION) {
-      memoryCache = cached;
-      console.log('✓ Using cached Letterboxd data');
-      return cached;
-    }
-
-    console.log('Letterboxd cache expired, fetching fresh data...');
-    return null;
-  } catch (error) {
-    // Cache doesn't exist or is invalid
-    return null;
-  }
-}
-
-/**
- * Save Letterboxd cache to disk
- */
-async function saveCache(data: LetterboxdData): Promise<void> {
-  if (!isNode) {
-    return;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(LETTERBOXD_CACHE_FILE, JSON.stringify(data, null, 2));
-    memoryCache = data;
-    console.log('✓ Saved Letterboxd data to cache');
-  } catch (error) {
-    console.error('Failed to save Letterboxd cache:', error);
-  }
-}
-
 /**
  * Scrape films from a single Letterboxd page using Puppeteer for accurate image URLs
  * Includes retry logic for transient failures
+ * Accepts a shared browser instance and creates a new page (tab) per call.
  */
-async function scrapePage(url: string): Promise<{films: LetterboxdMovie[], maxPage: number}> {
+async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('puppeteer-extra')>['default']['launch']>>, url: string): Promise<{films: LetterboxdMovie[], maxPage: number}> {
   return withRetry(
     async () => {
-      // Use Puppeteer with stealth plugin to bypass Cloudflare detection
-      const puppeteerExtra = await import('puppeteer-extra');
-      const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
-      puppeteerExtra.default.use(StealthPlugin.default());
-
-      const browser = await puppeteerExtra.default.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-blink-features=AutomationControlled',
-        ],
-      });
-
       let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
 
       try {
@@ -150,7 +78,7 @@ async function scrapePage(url: string): Promise<{films: LetterboxdMovie[], maxPa
           { timeout: 15000 }
         ).catch(() => {
           // If timeout, continue anyway - some movies might not have posters
-          console.log('Some images may not have loaded, continuing...');
+          log.info('Some images may not have loaded, continuing...');
         });
 
         // Extract film data from rendered page
@@ -224,7 +152,9 @@ async function scrapePage(url: string): Promise<{films: LetterboxdMovie[], maxPa
           return { films, maxPage };
         });
 
-        await browser.close();
+        // Close the tab, not the browser
+        await page.close();
+        page = null;
 
         // Process the extracted data
         const films: LetterboxdMovie[] = filmData.films.map((film: any) => {
@@ -259,25 +189,27 @@ async function scrapePage(url: string): Promise<{films: LetterboxdMovie[], maxPa
             const pageTitle = await page.title();
             const pageUrl = page.url();
             const html = await page.content();
-            console.error(`[Letterboxd Debug] Scrape failed for ${url}`);
-            console.error(`[Letterboxd Debug] Page title: "${pageTitle}"`);
-            console.error(`[Letterboxd Debug] Current URL: ${pageUrl}`);
-            console.error(`[Letterboxd Debug] HTML preview (first 1000 chars):`);
-            console.error(html.substring(0, 1000));
+            log.error(`Scrape failed for ${url}`);
+            log.debug(`Page title: "${pageTitle}"`);
+            log.debug(`Current URL: ${pageUrl}`);
+            log.debug(`HTML preview (first 1000 chars):`);
+            log.debug(html.substring(0, 1000));
           } catch (debugError) {
-            console.error(`[Letterboxd Debug] Could not capture page state: ${debugError}`);
+            log.error(`Could not capture page state: ${debugError}`);
           }
         }
         throw error;
       } finally {
-        await browser.close().catch(() => {});
+        if (page) {
+          await page.close().catch(() => {});
+        }
       }
     },
     {
       maxRetries: 2,
       initialDelayMs: 2000,
       onRetry: (error, attempt) => {
-        console.log(`Letterboxd scrape retry ${attempt}: ${error.message}`);
+        log.info(`Scrape retry ${attempt}: ${error.message}`);
       },
     }
   );
@@ -323,34 +255,48 @@ async function fetchPosterFromFilmPage(filmLink: string): Promise<string | null>
  */
 export async function getLetterboxdData(): Promise<LetterboxdData | null> {
   // Check cache first
-  const cached = await loadCache();
+  const cached = await cache.get();
   if (cached) {
     return cached;
   }
 
   if (!LETTERBOXD_USERNAME) {
-    console.log('Letterboxd username not configured, skipping...');
+    log.info('Letterboxd username not configured, skipping...');
     return null;
   }
 
-  console.log('Fetching Letterboxd data...');
+  log.info('Fetching Letterboxd data...');
+
+  // Launch browser once and share across all page scrapes
+  const puppeteerExtra = await import('puppeteer-extra');
+  const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
+  puppeteerExtra.default.use(StealthPlugin.default());
+
+  const browser = await puppeteerExtra.default.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+    ],
+  });
 
   try {
     const allMovies: LetterboxdMovie[] = [];
 
     // Scrape first page to determine total number of pages
     const firstUrl = `https://letterboxd.com/${LETTERBOXD_USERNAME}/films/`;
-    console.log(`Fetching page 1...`);
-    const { films: firstPageFilms, maxPage } = await scrapePage(firstUrl);
+    log.info('Fetching page 1...');
+    const { films: firstPageFilms, maxPage } = await scrapePage(browser, firstUrl);
     allMovies.push(...firstPageFilms);
 
-    console.log(`Found ${maxPage} total pages`);
+    log.info(`Found ${maxPage} total pages`);
 
     // Scrape remaining pages
     for (let page = 2; page <= maxPage; page++) {
-      console.log(`Fetching page ${page}...`);
+      log.info(`Fetching page ${page}...`);
       const pageUrl = `https://letterboxd.com/${LETTERBOXD_USERNAME}/films/page/${page}/`;
-      const { films } = await scrapePage(pageUrl);
+      const { films } = await scrapePage(browser, pageUrl);
       allMovies.push(...films);
 
       // Add a small delay to be respectful to the server
@@ -361,9 +307,8 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
     const https = await import('https');
     const url = await import('url');
 
-    for (let i = 0; i < allMovies.length; i++) {
-      const movie = allMovies[i];
-
+    const limit = pLimit(10);
+    await Promise.all(allMovies.map((movie, i) => limit(async () => {
       // Check if poster URL looks like it might be inaccessible (constructed /film-poster/ URL)
       if (movie.posterImage.includes('/film-poster/')) {
         // Quick HEAD request to check if URL is accessible
@@ -383,14 +328,14 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
         });
 
         if (!isAccessible && movie.link) {
-          console.log(`Fixing poster for ${movie.title}...`);
+          log.info(`Fixing poster for ${movie.title}...`);
           const fixedPoster = await fetchPosterFromFilmPage(movie.link);
           if (fixedPoster) {
             allMovies[i].posterImage = fixedPoster;
           }
         }
       }
-    }
+    })));
 
     const data: LetterboxdData = {
       movies: allMovies,
@@ -398,13 +343,15 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
     };
 
     // Save to cache
-    await saveCache(data);
+    await cache.set(data);
 
-    console.log(`✓ Fetched ${allMovies.length} movies from Letterboxd across ${maxPage} pages`);
+    log.info(`Fetched ${allMovies.length} movies from Letterboxd across ${maxPage} pages`);
 
     return data;
   } catch (error) {
-    console.error('Error fetching Letterboxd data:', error);
+    log.error('Error fetching Letterboxd data:', error);
     return null;
+  } finally {
+    await browser.close().catch(() => {});
   }
 }

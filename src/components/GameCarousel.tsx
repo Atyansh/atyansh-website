@@ -1,13 +1,14 @@
 import { useState, useRef } from 'react';
 import type { UnifiedGame } from '../utils/unified-games';
 import GameCard from './GameCard';
+import ErrorBoundary from './ErrorBoundary';
 
 interface GameCarouselProps {
   games: UnifiedGame[];
   title: string;
 }
 
-export default function GameCarousel({ games, title }: GameCarouselProps) {
+function GameCarouselInner({ games, title }: GameCarouselProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
@@ -105,4 +106,8 @@ export default function GameCarousel({ games, title }: GameCarouselProps) {
       `}</style>
     </div>
   );
+}
+
+export default function GameCarousel(props: GameCarouselProps) {
+  return <ErrorBoundary sectionName="Games"><GameCarouselInner {...props} /></ErrorBoundary>;
 }

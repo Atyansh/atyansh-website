@@ -1,17 +1,14 @@
 // Goodreads RSS feed integration
 // Fetches book data from Goodreads RSS feeds
 
+import { XMLParser } from 'fast-xml-parser';
+import { FileCache } from './cache';
+import { createLogger } from './logger';
 import { fetchWithRetry } from './retry';
 
+const log = createLogger('Goodreads');
+
 const GOODREADS_USER_ID = import.meta.env.GOODREADS_USER_ID;
-
-// Cache configuration
-const CACHE_DIR = '.cache';
-const GOODREADS_CACHE_FILE = '.cache/goodreads-data.json';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
-// Check if we're in a Node.js environment
-const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
 
 export interface GoodreadsBook {
   title: string;
@@ -31,156 +28,89 @@ export interface GoodreadsData {
   timestamp: number;
 }
 
-interface CachedGoodreadsData extends GoodreadsData {}
-
-// In-memory cache
-let memoryCache: CachedGoodreadsData | null = null;
-
-/**
- * Load Goodreads cache from disk
- */
-async function loadCache(): Promise<CachedGoodreadsData | null> {
-  if (memoryCache) {
-    return memoryCache;
-  }
-
-  if (!isNode) {
-    return null;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    const cacheData = await fs.readFile(GOODREADS_CACHE_FILE, 'utf-8');
-    const cached: CachedGoodreadsData = JSON.parse(cacheData);
-
-    // Convert date strings back to Date objects
-    cached.books = cached.books.map(book => ({
+const cache = new FileCache<GoodreadsData>('goodreads-data', {
+  ttl: 24 * 60 * 60 * 1000,
+  deserialize: (data) => ({
+    ...data,
+    books: data.books.map(book => ({
       ...book,
       dateRead: book.dateRead ? new Date(book.dateRead) : undefined,
       publishedDate: book.publishedDate ? new Date(book.publishedDate) : undefined,
-    }));
+    })),
+  }),
+});
 
-    // Check if cache is still valid
-    const age = Date.now() - cached.timestamp;
-    if (age < CACHE_DURATION) {
-      memoryCache = cached;
-      console.log('✓ Using cached Goodreads data');
-      return cached;
-    }
-
-    console.log('Goodreads cache expired, fetching fresh data...');
-    return null;
-  } catch (error) {
-    // Cache doesn't exist or is invalid
-    return null;
-  }
-}
-
-/**
- * Save Goodreads cache to disk
- */
-async function saveCache(data: GoodreadsData): Promise<void> {
-  if (!isNode) {
-    return;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(GOODREADS_CACHE_FILE, JSON.stringify(data, null, 2));
-    memoryCache = data;
-    console.log('✓ Saved Goodreads data to cache');
-  } catch (error) {
-    console.error('Failed to save Goodreads cache:', error);
-  }
-}
+const xmlParser = new XMLParser({
+  ignoreAttributes: true,
+  isArray: (name) => name === 'item',
+  processEntities: false,
+});
 
 /**
  * Parse Goodreads RSS feed XML
  */
-function parseRSSFeed(xml: string, status: 'reading' | 'finished' | 'want-to-read'): GoodreadsBook[] {
+export function parseRSSFeed(xml: string, status: 'reading' | 'finished' | 'want-to-read'): GoodreadsBook[] {
+  const parsed = xmlParser.parse(xml);
+  const items = parsed?.rss?.channel?.item;
+  if (!items || !Array.isArray(items)) return [];
+
   const books: GoodreadsBook[] = [];
 
-  // Parse XML items
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-  let match;
+  for (const item of items) {
+    const title = item.title;
+    if (!title) continue;
 
-  while ((match = itemRegex.exec(xml)) !== null) {
-    const item = match[1];
-
-    // Extract book data
-    const titleMatch = /<title><!\[CDATA\[(.*?)\]\]><\/title>/.exec(item) || /<title>(.*?)<\/title>/.exec(item);
-    const authorMatch = /<author_name>(.*?)<\/author_name>/.exec(item);
-    const linkMatch = /<link><!\[CDATA\[(.*?)\]\]><\/link>/.exec(item) || /<link>(.*?)<\/link>/.exec(item);
-    const largeImageMatch = /<book_large_image_url><!\[CDATA\[(.*?)\]\]><\/book_large_image_url>/.exec(item);
-    const mediumImageMatch = /<book_medium_image_url><!\[CDATA\[(.*?)\]\]><\/book_medium_image_url>/.exec(item);
-    const imageMatch = /<book_image_url><!\[CDATA\[(.*?)\]\]><\/book_image_url>/.exec(item);
-    const userRatingMatch = /<user_rating>(\d+)<\/user_rating>/.exec(item);
-    const userReadAtMatch = /<user_read_at><!\[CDATA\[(.*?)\]\]><\/user_read_at>/.exec(item) || /<user_read_at>(.*?)<\/user_read_at>/.exec(item);
-    const userDateAddedMatch = /<user_date_added><!\[CDATA\[(.*?)\]\]><\/user_date_added>/.exec(item) || /<user_date_added>(.*?)<\/user_date_added>/.exec(item);
-    const isbnMatch = /<isbn>(.*?)<\/isbn>/.exec(item);
-    const descMatch = /<book_description><!\[CDATA\[(.*?)\]\]><\/book_description>/.exec(item);
-    const publishedYearMatch = /<book_published>(\d+)<\/book_published>/.exec(item);
-    const publicationYearMatch = /<book_publication_year>(\d+)<\/book_publication_year>/.exec(item);
-    const publicationMonthMatch = /<book_publication_month>(\d+)<\/book_publication_month>/.exec(item);
-    const publicationDayMatch = /<book_publication_day>(\d+)<\/book_publication_day>/.exec(item);
-
-    if (!titleMatch) continue;
-
-    const title = titleMatch[1];
-    const author = authorMatch?.[1] || 'Unknown Author';
-    const link = linkMatch?.[1];
+    const author = item.author_name || 'Unknown Author';
+    const link = item.link;
 
     // Use large image if available, fall back to medium, then regular
-    let coverImage = largeImageMatch?.[1] || mediumImageMatch?.[1] || imageMatch?.[1] || '';
+    const coverImage = item.book_large_image_url || item.book_medium_image_url || item.book_image_url || '';
 
     // Extract rating
     let rating: number | undefined;
-    if (userRatingMatch) {
-      const ratingValue = parseInt(userRatingMatch[1], 10);
-      if (ratingValue > 0) {
-        rating = ratingValue;
-      }
+    const ratingValue = typeof item.user_rating === 'number' ? item.user_rating : parseInt(item.user_rating, 10);
+    if (ratingValue > 0) {
+      rating = ratingValue;
     }
 
     // Extract date read
     let dateRead: Date | undefined;
-    const dateStr = userReadAtMatch?.[1] || userDateAddedMatch?.[1];
+    const dateStr = item.user_read_at || item.user_date_added;
     if (dateStr) {
       try {
         dateRead = new Date(dateStr);
-      } catch (e) {
+      } catch {
         // Invalid date, skip
       }
     }
 
-    const isbn = isbnMatch?.[1];
-    const description = descMatch?.[1];
+    const isbn = item.isbn ? String(item.isbn) : undefined;
+    const description = item.book_description ? String(item.book_description) : undefined;
 
     // Extract published date
     let publishedDate: Date | undefined;
-    const year = publishedYearMatch?.[1] || publicationYearMatch?.[1];
+    const year = item.book_published || item.book_publication_year;
     if (year) {
       try {
-        const month = publicationMonthMatch?.[1] || '1';
-        const day = publicationDayMatch?.[1] || '1';
-        publishedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      } catch (e) {
+        const month = item.book_publication_month || 1;
+        const day = item.book_publication_day || 1;
+        publishedDate = new Date(parseInt(String(year)), parseInt(String(month)) - 1, parseInt(String(day)));
+      } catch {
         // Invalid date, skip
       }
     }
 
     books.push({
-      title,
-      author,
-      coverImage,
+      title: String(title),
+      author: String(author),
+      coverImage: String(coverImage),
       rating,
       status,
       dateRead,
       publishedDate,
-      link,
+      link: link ? String(link) : undefined,
       isbn,
-      description: description?.replace(/<[^>]+>/g, '').substring(0, 500), // Strip HTML and limit length
+      description: description?.replace(/<[^>]+>/g, '').substring(0, 500),
     });
   }
 
@@ -194,28 +124,28 @@ function parseRSSFeed(xml: string, status: 'reading' | 'finished' | 'want-to-rea
 async function fetchShelf(userId: string, shelf: string, status: 'reading' | 'finished' | 'want-to-read'): Promise<GoodreadsBook[]> {
   try {
     const url = `https://www.goodreads.com/review/list_rss/${userId}?shelf=${shelf}`;
-    console.log(`Fetching Goodreads ${shelf} shelf...`);
+    log.info(`Fetching Goodreads ${shelf} shelf...`);
 
     const response = await fetchWithRetry(url, undefined, {
       maxRetries: 2,
       initialDelayMs: 1000,
       onRetry: (error, attempt) => {
-        console.log(`Goodreads ${shelf} shelf retry ${attempt}: ${error.message}`);
+        log.info(`Goodreads ${shelf} shelf retry ${attempt}: ${error.message}`);
       },
     });
 
     if (!response.ok) {
-      console.error(`Failed to fetch Goodreads ${shelf} shelf: ${response.status}`);
+      log.error(`Failed to fetch Goodreads ${shelf} shelf: ${response.status}`);
       return [];
     }
 
     const xml = await response.text();
     const books = parseRSSFeed(xml, status);
 
-    console.log(`✓ Fetched ${books.length} books from ${shelf} shelf`);
+    log.info(`Fetched ${books.length} books from ${shelf} shelf`);
     return books;
   } catch (error) {
-    console.error(`Error fetching Goodreads ${shelf} shelf:`, error);
+    log.error(`Error fetching Goodreads ${shelf} shelf:`, error);
     return [];
   }
 }
@@ -225,17 +155,17 @@ async function fetchShelf(userId: string, shelf: string, status: 'reading' | 'fi
  */
 export async function getGoodreadsData(): Promise<GoodreadsData | null> {
   // Check cache first
-  const cached = await loadCache();
+  const cached = await cache.get();
   if (cached) {
     return cached;
   }
 
   if (!GOODREADS_USER_ID) {
-    console.log('Goodreads user ID not configured, skipping...');
+    log.info('Goodreads user ID not configured, skipping...');
     return null;
   }
 
-  console.log('Fetching Goodreads data...');
+  log.info('Fetching Goodreads data...');
 
   try {
     // Fetch all shelves in parallel
@@ -253,16 +183,16 @@ export async function getGoodreadsData(): Promise<GoodreadsData | null> {
     };
 
     // Save to cache
-    await saveCache(data);
+    await cache.set(data);
 
-    console.log(`✓ Fetched ${allBooks.length} total books from Goodreads`);
-    console.log(`  - ${readBooks.length} finished`);
-    console.log(`  - ${currentlyReadingBooks.length} currently reading`);
-    console.log(`  - ${wantToReadBooks.length} want to read`);
+    log.info(`Fetched ${allBooks.length} total books from Goodreads`);
+    log.info(`  - ${readBooks.length} finished`);
+    log.info(`  - ${currentlyReadingBooks.length} currently reading`);
+    log.info(`  - ${wantToReadBooks.length} want to read`);
 
     return data;
   } catch (error) {
-    console.error('Error fetching Goodreads data:', error);
+    log.error('Error fetching Goodreads data:', error);
     return null;
   }
 }

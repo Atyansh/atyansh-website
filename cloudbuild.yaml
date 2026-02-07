@@ -1,13 +1,13 @@
 steps:
   # Install dependencies
-  - name: 'node:22'
+  # Uses custom image with Chrome deps pre-installed (see Dockerfile.cloudbuild)
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
     entrypoint: npm
     args: ['ci']
     id: 'install-dependencies'
 
   # Build the site with environment variables from Secret Manager
-  # First refresh OAuth tokens, then install Chrome deps, then build
-  - name: 'node:22'
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
     entrypoint: bash
     args:
       - '-c'
@@ -21,49 +21,6 @@ steps:
           echo "Loading refreshed tokens..."
           source .env.refresh
         fi
-
-        # Install Chrome dependencies for Puppeteer
-        apt-get update && apt-get install -y \
-          ca-certificates \
-          fonts-liberation \
-          libasound2 \
-          libatk-bridge2.0-0 \
-          libatk1.0-0 \
-          libc6 \
-          libcairo2 \
-          libcups2 \
-          libdbus-1-3 \
-          libexpat1 \
-          libfontconfig1 \
-          libgbm1 \
-          libgcc1 \
-          libglib2.0-0 \
-          libgtk-3-0 \
-          libnspr4 \
-          libnss3 \
-          libpango-1.0-0 \
-          libpangocairo-1.0-0 \
-          libstdc++6 \
-          libx11-6 \
-          libx11-xcb1 \
-          libxcb1 \
-          libxcomposite1 \
-          libxcursor1 \
-          libxdamage1 \
-          libxext6 \
-          libxfixes3 \
-          libxi6 \
-          libxrandr2 \
-          libxrender1 \
-          libxss1 \
-          libxtst6 \
-          lsb-release \
-          wget \
-          xdg-utils \
-          --no-install-recommends
-
-        # Clean up apt cache
-        rm -rf /var/lib/apt/lists/*
 
         # Run the build (prebuild script is skipped in Cloud Build)
         npm run build
@@ -97,7 +54,7 @@ steps:
     waitFor: ['install-dependencies']
 
   # Check API health and send notifications if any failed
-  - name: 'node:22'
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
     entrypoint: node
     args: ['scripts/check-api-health.cjs']
     id: 'check-api-health'

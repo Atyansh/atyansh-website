@@ -67,7 +67,7 @@ export default function WeeklyTimeline({ items }: WeeklyTimelineProps) {
                     >
                       {item.week}
                     </span>
-                    <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white truncate">
+                    <h3 className="text-lg md:text-xl font-bold truncate" style={{ color: 'var(--text-primary)' }}>
                       {item.title}
                     </h3>
                   </div>
@@ -110,7 +110,8 @@ export default function WeeklyTimeline({ items }: WeeklyTimelineProps) {
                   {item.accomplishments.map((accomplishment, i) => (
                     <li
                       key={i}
-                      className="flex items-start gap-3 text-sm md:text-base text-gray-600 dark:text-gray-300"
+                      className="flex items-start gap-3 text-sm md:text-base"
+                      style={{ color: 'var(--text-secondary)' }}
                     >
                       <span className="flex-shrink-0 mt-1" style={{ color: 'var(--accent)' }}>▸</span>
                       <span className="leading-relaxed">{accomplishment}</span>

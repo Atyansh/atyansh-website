@@ -53,7 +53,7 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
 
   return (
     <div className="relative group w-full" onClick={handleTap}>
-      <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden shadow-md border border-gray-200 dark:border-gray-700 bg-gray-800">
+      <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden shadow-md border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         {/* Game Image */}
         {!imageError ? (
           <img
@@ -63,17 +63,17 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
             onError={handleImageError}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900">
+          <div className="w-full h-full flex items-center justify-center" style={{ background: 'linear-gradient(to bottom right, var(--bg-secondary), var(--bg-primary))' }}>
             <div className="text-center p-4">
-              <div className="text-white text-sm font-medium opacity-70">{game.name}</div>
+              <div className="text-sm font-medium opacity-70" style={{ color: 'var(--text-secondary)' }}>{game.name}</div>
             </div>
           </div>
         )}
 
         {/* Platform Badge */}
         <div
-          className="absolute top-2 right-2 px-2 py-1 rounded text-white text-xs font-bold shadow-lg z-20"
-          style={{ backgroundColor: platformColor }}
+          className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-bold shadow-lg z-20"
+          style={{ backgroundColor: platformColor, color: '#ffffff' }}
         >
           {getPlatformName(game.platform)}
         </div>

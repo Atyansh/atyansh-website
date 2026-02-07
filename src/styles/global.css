@@ -12,6 +12,9 @@
   --accent-rgb: 37, 99, 235;
   --accent-hover: #1d4ed8;
   --border: #e5e7eb;
+  --accent-fg: #ffffff;
+  --accent-surface: var(--accent);
+  --accent-surface-fg: var(--accent-fg);
   --shadow: rgba(0, 0, 0, 0.1);
   --font-primary: 'JetBrains Mono', 'Fira Code', monospace;
   --font-secondary: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -40,6 +43,9 @@
   --accent: #2563eb;
   --accent-rgb: 37, 99, 235;
   --accent-hover: #1d4ed8;
+  --accent-fg: #ffffff;
+  --accent-surface: var(--accent);
+  --accent-surface-fg: var(--accent-fg);
   --border: #e5e7eb;
   --shadow: rgba(0, 0, 0, 0.1);
   --font-primary: 'JetBrains Mono', 'Fira Code', monospace;
@@ -56,6 +62,9 @@
   --accent: #6366f1;
   --accent-rgb: 99, 102, 241;
   --accent-hover: #818cf8;
+  --accent-fg: #ffffff;
+  --accent-surface: var(--accent);
+  --accent-surface-fg: var(--accent-fg);
   --border: rgba(148, 163, 184, 0.2);
   --shadow: rgba(99, 102, 241, 0.2);
   --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -72,6 +81,9 @@
   --accent: #ff0000;
   --accent-rgb: 255, 0, 0;
   --accent-hover: #cc0000;
+  --accent-fg: #ffffff;
+  --accent-surface: var(--accent);
+  --accent-surface-fg: var(--accent-fg);
   --border: #000000;
   --shadow: rgba(0, 0, 0, 0.25);
   --font-primary: 'Arial Black', 'Arial Bold', sans-serif;
@@ -88,6 +100,9 @@
   --accent: #00ff41;
   --accent-rgb: 0, 255, 65;
   --accent-hover: #00cc33;
+  --accent-fg: #0a0a0a;
+  --accent-surface: transparent;
+  --accent-surface-fg: var(--accent);
   --border: #00ff41;
   --shadow: rgba(0, 255, 65, 0.2);
   --font-primary: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
@@ -104,6 +119,9 @@
   --accent: #0c4a6e;
   --accent-rgb: 12, 74, 110;
   --accent-hover: #075985;
+  --accent-fg: #ffffff;
+  --accent-surface: var(--accent);
+  --accent-surface-fg: var(--accent-fg);
   --border: #e7e5e4;
   --shadow: rgba(0, 0, 0, 0.05);
   --font-primary: 'Georgia', 'Cambria', 'Times New Roman', serif;
@@ -144,15 +162,6 @@ body {
 }
 
 /* Accessibility - Focus indicators */
-*:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-*:focus:not(:focus-visible) {
-  outline: none;
-}
-
 *:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -310,7 +319,7 @@ body {
 }
 
 [data-theme="brutalist"] .prose pre {
-  border: 2px solid #000000;
+  border: 2px solid var(--border);
 }
 
 /* Light theme backgrounds - Border and shadow like work page */
@@ -374,42 +383,6 @@ body {
   border: 1px solid var(--accent);
 }
 
-/* Dark Terminal - Better contrast for buttons and badges */
-[data-theme="dark-terminal"] .social-link,
-[data-theme="dark-terminal"] .action-button-primary {
-  background-color: transparent !important;
-  color: var(--accent) !important;
-  border: 2px solid var(--accent) !important;
-}
-
-[data-theme="dark-terminal"] .social-link:hover,
-[data-theme="dark-terminal"] .action-button-primary:hover {
-  background-color: var(--accent) !important;
-  color: #0a0a0a !important;
-}
-
-/* Dark Terminal - Fix white-on-green badges/tags for better readability */
-[data-theme="dark-terminal"] span[style*="background-color: var(--accent)"],
-[data-theme="dark-terminal"] a[style*="background-color: var(--accent)"] {
-  background-color: transparent !important;
-  color: var(--accent) !important;
-  border: 2px solid var(--accent) !important;
-  box-shadow: none !important;
-}
-
-/* Dark Terminal - Skip-to-content link */
-[data-theme="dark-terminal"] .skip-link {
-  background-color: transparent !important;
-  color: var(--accent) !important;
-  border: 2px solid var(--accent) !important;
-}
-
-/* Dark Terminal - Problem badges (Euler problem numbers) */
-[data-theme="dark-terminal"] .problem-badge {
-  background-color: transparent !important;
-  color: var(--accent) !important;
-  border: 2px solid var(--accent) !important;
-}
 
 /* Academic Minimal theme specifics */
 [data-theme="academic-minimal"] {
@@ -718,32 +691,28 @@ body {
 
 /* Social Links - Theme-aware */
 .social-link {
-  background-color: var(--accent);
-  color: white;
+  background-color: var(--accent-surface);
+  color: var(--accent-surface-fg);
+  border: 2px solid var(--accent);
 }
 
 .social-link:hover {
-  background-color: var(--accent-hover);
+  background-color: var(--accent);
+  color: var(--accent-fg);
 }
 
 /* Action Buttons - Theme-aware */
 .action-button-primary {
-  background-color: var(--accent);
+  background-color: var(--accent-surface);
+  color: var(--accent-surface-fg);
+  border: 2px solid var(--accent);
 }
 
 .action-button-primary:hover {
-  background-color: var(--accent-hover);
-}
-
-.action-button-secondary {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.action-button-secondary:hover {
   background-color: var(--accent);
-  color: white;
+  color: var(--accent-fg);
 }
+
 
 /* Theme-aware Range Slider */
 .theme-slider {

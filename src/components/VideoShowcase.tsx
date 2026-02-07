@@ -40,7 +40,7 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
             <svg className="w-5 h-5" style={{ color: 'var(--accent)' }} fill="currentColor" viewBox="0 0 24 24">
               <path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
             </svg>
-            <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+            <span className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
               Video {activeVideo + 1} of {videos.length}
             </span>
           </div>
@@ -69,14 +69,14 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
         </div>
 
         {/* Video Info Bar */}
-        <div className="video-info-bar relative bg-gray-100 dark:bg-gradient-to-r dark:from-gray-900 dark:to-gray-800 p-6 border-t border-gray-200 dark:border-gray-700/50">
+        <div className="video-info-bar relative p-6 border-t" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <h3 className="text-gray-900 dark:text-white text-xl font-bold mb-2 leading-tight">
+              <h3 className="text-xl font-bold mb-2 leading-tight" style={{ color: 'var(--text-primary)' }}>
                 {videos[activeVideo].title}
               </h3>
               {videos[activeVideo].description && (
-                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed">
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                   {videos[activeVideo].description}
                 </p>
               )}
@@ -93,7 +93,7 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
       {/* Thumbnails Grid */}
       {videos.length > 1 && (
         <div>
-          <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+          <h4 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
             All Videos
           </h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -163,7 +163,7 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
                       {/* Active Indicator */}
                       {isActive && (
                         <div className="absolute bottom-2 left-2 right-2">
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm shadow-lg">
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg backdrop-blur-sm shadow-lg" style={{ backgroundColor: 'var(--bg-card)' }}>
                             <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }}></div>
                             <span className="text-xs font-bold" style={{ color: 'var(--accent)' }}>
                               Now Playing
@@ -183,13 +183,10 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
                         : 'var(--card-bg)'
                     }}
                   >
-                    <p className={`
-                      text-xs font-medium text-left line-clamp-2 leading-snug
-                      ${isActive
-                        ? 'text-gray-900 dark:text-white font-semibold'
-                        : 'text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200'
-                      }
-                    `}>
+                    <p
+                      className="text-xs font-medium text-left line-clamp-2 leading-snug"
+                      style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+                    >
                       {video.title}
                     </p>
                   </div>
@@ -213,7 +210,7 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
           content: '';
           position: absolute;
           inset: -2px;
-          background: linear-gradient(45deg, var(--accent), #ec4899, var(--accent));
+          background: linear-gradient(45deg, var(--accent), var(--accent-hover), var(--accent));
           border-radius: 1rem;
           opacity: 0.15;
           z-index: -1;

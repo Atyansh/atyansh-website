@@ -44,7 +44,8 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
       >
         <a
           href={href}
-          className={`block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 transition-transform hover:scale-[1.02] hover:-translate-y-1 overflow-hidden md:overflow-visible ${className}`}
+          className={`block p-6 rounded-lg shadow-md border transition-transform hover:scale-[1.02] hover:-translate-y-1 overflow-hidden md:overflow-visible ${className}`}
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
         >
           {children}
         </a>
@@ -54,7 +55,8 @@ export default function AnimatedCard({ children, href, className = '', delay = 0
 
   return (
     <motion.div
-      className={`block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden md:overflow-visible ${className}`}
+      className={`block p-6 rounded-lg shadow-md border overflow-hidden md:overflow-visible ${className}`}
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
       initial="hidden"
       whileInView="visible"
       viewport={{ once: true, margin: '-100px' }}

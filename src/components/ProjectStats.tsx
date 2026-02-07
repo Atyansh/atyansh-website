@@ -112,7 +112,7 @@ export default function ProjectStats({ stats }: ProjectStatsProps) {
             </div>
 
             {/* Label */}
-            <div className="text-sm md:text-base font-medium text-gray-600 dark:text-gray-400 relative z-10">
+            <div className="text-sm md:text-base font-medium relative z-10" style={{ color: 'var(--text-secondary)' }}>
               {stat.label}
             </div>
           </div>

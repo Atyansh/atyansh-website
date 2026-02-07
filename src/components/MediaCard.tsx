@@ -61,7 +61,7 @@ export default function MediaCard({
       variants={cardVariants}
     >
       {/* Image Container */}
-      <div className="relative aspect-[2/3] overflow-hidden bg-gray-200 dark:bg-gray-700">
+      <div className="relative aspect-[2/3] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
         <motion.img
           src={image}
           alt={title}

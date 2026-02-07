@@ -39,7 +39,7 @@ const papers = (await getCollection('papers'))
                 {project.data.title}
               </h3>
               {project.data.featured && (
-                <span class="text-xs px-2 py-1 rounded-full font-medium" style="background-color: var(--accent); color: white;">
+                <span class="text-xs px-2 py-1 rounded-full font-medium" style="background-color: var(--accent-surface); color: var(--accent-surface-fg); border: 2px solid var(--accent);">
                   Featured
                 </span>
               )}
@@ -80,7 +80,7 @@ const papers = (await getCollection('papers'))
                 {paper.data.title}
               </h3>
               {paper.data.featured && (
-                <span class="text-xs px-2 py-1 rounded-full font-medium flex-shrink-0" style="background-color: var(--accent); color: white;">
+                <span class="text-xs px-2 py-1 rounded-full font-medium flex-shrink-0" style="background-color: var(--accent-surface); color: var(--accent-surface-fg); border: 2px solid var(--accent);">
                   Featured
                 </span>
               )}

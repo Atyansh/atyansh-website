@@ -68,7 +68,7 @@ function EulerFilterInner({ problems }: EulerFilterProps) {
   return (
     <div className="mb-8">
       {/* Filters Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 mb-6">
+      <div className="rounded-lg shadow-md border p-6 mb-6" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         <h3 className="text-xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
           Filter & Search
         </h3>
@@ -164,7 +164,8 @@ function EulerFilterInner({ problems }: EulerFilterProps) {
           <motion.a
             key={problem.problemNumber}
             href={`/euler/${problem.problemNumber}`}
-            className="block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700"
+            className="block p-6 rounded-lg shadow-md border"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: index * 0.05 }}

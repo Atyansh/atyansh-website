@@ -26,7 +26,7 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
 ### Technical Features
 - 🛡️ Security-first approach with CSP, HSTS, and other security headers
 - 🎨 Responsive design with Tailwind CSS 4
-- 🌙 Dark mode support
+- 🌙 5 built-in themes (Minimal Technical, Modern Glass, Brutalist, Dark Terminal, Academic Minimal) with fully CSS custom property-driven styling
 - ⚡ Fast static site generation with Astro 5
 - 🖼️ Dynamic OG image generation
 - 🔍 SEO optimized with sitemap generation

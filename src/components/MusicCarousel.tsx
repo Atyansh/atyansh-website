@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import type { SpotifyTrack } from '../utils/spotify';
 import MediaCard from './MediaCard';
+import ErrorBoundary from './ErrorBoundary';
 
 interface MusicCarouselProps {
   tracks: SpotifyTrack[];
@@ -8,7 +9,7 @@ interface MusicCarouselProps {
   playlistUrl?: string;
 }
 
-export default function MusicCarousel({ tracks, title, playlistUrl }: MusicCarouselProps) {
+function MusicCarouselInner({ tracks, title, playlistUrl }: MusicCarouselProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
@@ -141,4 +142,8 @@ export default function MusicCarousel({ tracks, title, playlistUrl }: MusicCarou
       `}</style>
     </div>
   );
+}
+
+export default function MusicCarousel(props: MusicCarouselProps) {
+  return <ErrorBoundary sectionName="Music"><MusicCarouselInner {...props} /></ErrorBoundary>;
 }

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaCard from './MediaCard';
+import ErrorBoundary from './ErrorBoundary';
 
 interface ShowData {
   title: string;
@@ -21,7 +22,7 @@ interface TVFilterProps {
   shows: Show[];
 }
 
-export default function TVFilter({ shows }: TVFilterProps) {
+function TVFilterInner({ shows }: TVFilterProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRating, setSelectedRating] = useState<string>('all');
   const [selectedDecade, setSelectedDecade] = useState<string>('all');
@@ -251,4 +252,8 @@ export default function TVFilter({ shows }: TVFilterProps) {
       )}
     </div>
   );
+}
+
+export default function TVFilter(props: TVFilterProps) {
+  return <ErrorBoundary sectionName="TV Shows"><TVFilterInner {...props} /></ErrorBoundary>;
 }

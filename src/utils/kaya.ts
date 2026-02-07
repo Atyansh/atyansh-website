@@ -2,17 +2,13 @@
 // Uses their internal GraphQL API to fetch climbing data
 
 import { fetchWithRetry } from './retry';
+import { FileCache } from './cache';
+import { createLogger } from './logger';
+
+const log = createLogger('Kaya');
 
 const KAYA_USERNAME = import.meta.env.KAYA_USERNAME;
 const KAYA_GRAPHQL_ENDPOINT = 'https://kaya-beta.kayaclimb.com/graphql';
-
-// Cache configuration
-const CACHE_DIR = '.cache';
-const KAYA_CACHE_FILE = '.cache/kaya-data.json';
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-
-// Check if we're in a Node.js environment
-const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
 
 // Kaya API types
 export interface KayaGrade {
@@ -90,8 +86,7 @@ export interface KayaData {
   timestamp: number;
 }
 
-// In-memory cache
-let memoryCache: KayaData | null = null;
+const cache = new FileCache<KayaData>('kaya-data', { ttl: 24 * 60 * 60 * 1000 });
 
 // GraphQL request headers
 const GRAPHQL_HEADERS = {
@@ -101,58 +96,6 @@ const GRAPHQL_HEADERS = {
   'Referer': 'https://kaya-app.kayaclimb.com/',
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
 };
-
-/**
- * Load Kaya cache from disk
- */
-async function loadCache(): Promise<KayaData | null> {
-  if (memoryCache) {
-    return memoryCache;
-  }
-
-  if (!isNode) {
-    return null;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    const cacheData = await fs.readFile(KAYA_CACHE_FILE, 'utf-8');
-    const cached: KayaData = JSON.parse(cacheData);
-
-    // Check if cache is still valid
-    const age = Date.now() - cached.timestamp;
-    if (age < CACHE_DURATION) {
-      memoryCache = cached;
-      console.log('✓ Using cached Kaya data');
-      return cached;
-    }
-
-    console.log('Kaya cache expired, fetching fresh data...');
-    return null;
-  } catch (error) {
-    // Cache doesn't exist or is invalid
-    return null;
-  }
-}
-
-/**
- * Save Kaya cache to disk
- */
-async function saveCache(data: KayaData): Promise<void> {
-  if (!isNode) {
-    return;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(KAYA_CACHE_FILE, JSON.stringify(data, null, 2));
-    memoryCache = data;
-    console.log('✓ Saved Kaya data to cache');
-  } catch (error) {
-    console.error('Failed to save Kaya cache:', error);
-  }
-}
 
 /**
  * Execute GraphQL query against Kaya API
@@ -171,26 +114,26 @@ async function kayaGraphQL<T>(query: string, variables: Record<string, any>): Pr
         maxRetries: 2,
         initialDelayMs: 1000,
         onRetry: (error, attempt) => {
-          console.log(`Kaya API retry ${attempt}: ${error.message}`);
+          log.info(`Kaya API retry ${attempt}: ${error.message}`);
         },
       }
     );
 
     if (!response.ok) {
-      console.error(`Kaya API error: ${response.status}`);
+      log.error(`Kaya API error: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
 
     if (data.errors) {
-      console.error('Kaya GraphQL errors:', data.errors);
+      log.error('Kaya GraphQL errors:', data.errors);
       return null;
     }
 
     return data.data;
   } catch (error) {
-    console.error('Error fetching from Kaya:', error);
+    log.error('Error fetching from Kaya:', error);
     return null;
   }
 }
@@ -352,27 +295,27 @@ export function getGradeOrdering(gradeName: string): number {
  */
 export async function getKayaData(): Promise<KayaData | null> {
   // Check cache first
-  const cached = await loadCache();
+  const cached = await cache.get();
   if (cached) {
     return cached;
   }
 
-  console.log('Fetching Kaya data...');
+  log.info('Fetching Kaya data...');
 
   try {
     // Get profile first to get user ID
     const profile = await getProfile(KAYA_USERNAME);
     if (!profile) {
-      console.error('Failed to get Kaya profile');
+      log.error('Failed to get Kaya profile');
       return null;
     }
 
     if (profile.is_private) {
-      console.error('Kaya profile is private');
+      log.error('Kaya profile is private');
       return null;
     }
 
-    console.log(`Found Kaya user: ${profile.fname} (ID: ${profile.id})`);
+    log.info(`Found Kaya user: ${profile.fname} (ID: ${profile.id})`);
 
     // Fetch pyramid and ascents in parallel
     const [pyramid, ascents] = await Promise.all([
@@ -416,13 +359,13 @@ export async function getKayaData(): Promise<KayaData | null> {
     };
 
     // Save to cache
-    await saveCache(data);
+    await cache.set(data);
 
-    console.log(`✓ Fetched Kaya data: ${totalSends} sends, ${ascentsWithVideos.length} videos, max grade ${maxGrade}`);
+    log.info(`Fetched Kaya data: ${totalSends} sends, ${ascentsWithVideos.length} videos, max grade ${maxGrade}`);
 
     return data;
   } catch (error) {
-    console.error('Error fetching Kaya data:', error);
+    log.error('Error fetching Kaya data:', error);
     return null;
   }
 }

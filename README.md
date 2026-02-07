@@ -24,7 +24,7 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
 - 🧗 **Climbing** - Display bouldering stats, grade pyramid, and send videos from Kaya
 
 ### Technical Features
-- 🛡️ Security-first approach with CSP, X-Frame-Options, and other security headers
+- 🛡️ Security-first approach with CSP, HSTS, and other security headers
 - 🎨 Responsive design with Tailwind CSS 4
 - 🌙 Dark mode support
 - ⚡ Fast static site generation with Astro 5
@@ -414,6 +414,15 @@ npm run preview
 
 Preview the production build locally before deployment.
 
+### Run Tests
+
+```bash
+npm test          # Run all tests once
+npm run test:watch  # Run tests in watch mode
+```
+
+Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS parsing, and utility functions.
+
 ## Project Structure
 
 ```
@@ -437,6 +446,7 @@ Preview the production build locally before deployment.
 │   └── invalidate-cache.sh     # CDN cache invalidation
 ├── src/
 │   ├── components/             # React/Astro components
+│   │   ├── ErrorBoundary.tsx  # React error boundary
 │   │   ├── GameCard.tsx
 │   │   ├── MediaCard.tsx
 │   │   ├── MusicCarousel.tsx
@@ -465,19 +475,26 @@ Preview the production build locally before deployment.
 │   ├── styles/
 │   │   └── global.css         # Global styles
 │   ├── utils/                  # Utility functions
+│   │   ├── cache.ts           # Generic FileCache<T> utility
+│   │   ├── logger.ts          # Structured logger utility
+│   │   ├── concurrency.ts     # pLimit concurrency helper
+│   │   ├── retry.ts           # Retry logic with backoff
 │   │   ├── steam.ts           # Steam API integration
 │   │   ├── spotify.ts         # Spotify API integration
 │   │   ├── trakt.ts           # Trakt API integration
 │   │   ├── kaya.ts            # Kaya climbing API
 │   │   ├── letterboxd.ts      # Letterboxd scraper
+│   │   ├── __tests__/         # Unit tests (Vitest)
 │   │   └── ...
 │   └── middleware.ts          # Security headers
 ├── .env                        # Your secrets (not committed)
 ├── .env.example               # Template for secrets
 ├── .gitignore                 # Git ignore rules
 ├── astro.config.mjs           # Astro configuration
-├── tailwind.config.mjs        # Tailwind configuration
+├── vitest.config.ts           # Test configuration
 ├── tsconfig.json              # TypeScript configuration
+├── Dockerfile.cloudbuild      # Custom Cloud Build image
+├── cloudbuild-image.yaml      # Build config for Docker image
 └── package.json               # Dependencies
 ```
 
@@ -544,11 +561,20 @@ This site is currently deployed to Google Cloud Storage with automated daily bui
 ```
 
 **Automated Daily Builds:**
-- Cloud Build runs daily at 2 AM UTC
+- Cloud Build runs daily at 2 AM UTC using a [custom Docker image](#cloud-build-docker-image) with Chrome dependencies pre-installed
 - Fetches latest code and API data
 - Deploys automatically to gs://atyansh.com/
 
 See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for full setup instructions.
+
+#### Cloud Build Docker Image
+
+Cloud Build uses a custom Docker image (`gcr.io/personal-website-334502/node-puppeteer:22`) with Chrome dependencies pre-installed. This avoids reinstalling ~25 packages on every build.
+
+To rebuild the image (only needed for Node.js major version bumps or Puppeteer upgrades):
+```bash
+gcloud builds submit --config=cloudbuild-image.yaml .
+```
 
 ### Vercel (Alternative)
 
@@ -577,16 +603,16 @@ See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for full setup instructions.
 
 ### Important for Production
 
-1. **Security headers**: In `src/middleware.ts`, uncomment the HSTS header for HTTPS
+1. **Security headers**: HSTS is enabled in `src/middleware.ts` for non-dev environments. For static hosting (e.g., GCS), configure security headers at the CDN/load balancer level.
 2. **Environment variables**: Add all your API keys to your hosting platform's environment variable settings
-3. **Rate limiting**: Consider implementing caching for API-heavy pages to avoid rate limits
+3. **Caching**: All API integrations use file-based caching (24-hour TTL) to minimize external requests during builds
 
 ## Security Best Practices
 
 This site implements security best practices:
 
 - ✅ **Content Security Policy (CSP)** - Prevents XSS attacks
-- ✅ **X-Frame-Options** - Prevents clickjacking
+- ✅ **HSTS** - Enforces HTTPS connections
 - ✅ **X-Content-Type-Options** - Prevents MIME sniffing
 - ✅ **Referrer Policy** - Controls referrer information
 - ✅ **Permissions Policy** - Restricts browser features
@@ -664,10 +690,11 @@ npm run dev
 
 ## Performance Tips
 
-1. **Caching**: Consider implementing Redis or file-based caching for API responses
-2. **Build time**: The site with all integrations can take 2-5 minutes to build
+1. **Caching**: All API integrations use a generic `FileCache<T>` with 24-hour TTL, reducing redundant API calls across builds
+2. **Build time**: Cloud Build uses a custom Docker image with Chrome dependencies pre-installed, and Letterboxd scraping reuses a single Puppeteer browser instance across pages
 3. **Image optimization**: Pet photos and other images are automatically optimized by Astro
 4. **Lazy loading**: Activity sections use client-side rendering for faster initial loads
+5. **Error resilience**: React components are wrapped with ErrorBoundary to isolate failures
 
 ## Contributing
 
@@ -689,6 +716,8 @@ This project is open source and available for personal use. Please replace all p
 - [Framer Motion](https://www.framer.com/motion/) - Animations
 - [Satori](https://github.com/vercel/satori) - OG image generation
 - [Shiki](https://shiki.matsu.io/) - Syntax highlighting
+- [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) - XML/RSS parsing
+- [Vitest](https://vitest.dev/) - Unit testing
 
 ## Resources
 

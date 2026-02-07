@@ -1,6 +1,7 @@
 // IGDB (Internet Game Database) API integration
 // Provides high-quality game cover art for all platforms
 
+import { pLimit } from './concurrency';
 import { fetchWithRetry } from './retry';
 
 const IGDB_CLIENT_ID = import.meta.env.IGDB_CLIENT_ID;
@@ -118,32 +119,47 @@ async function cacheCover(gameKey: string, url: string): Promise<void> {
   await saveCache(cache);
 }
 
-// Rate limiting
+// Rate limiting — pLimit(1) serializes all IGDB API calls so that
+// the timestamp check actually works across concurrent callers.
+const igdbLimit = pLimit(1);
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 250; // 250ms between requests (4 requests per second)
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY = 2000; // Start with 2 second delay
 
 /**
- * Wait to respect rate limits
+ * Rate-limited IGDB API fetch. Serializes requests so only one is in-flight
+ * at a time, with 250ms minimum spacing to stay under IGDB's 4 req/s limit.
  */
-async function waitForRateLimit(): Promise<void> {
-  const now = Date.now();
-  const timeSinceLastRequest = now - lastRequestTime;
+async function igdbFetch(url: string, body: string, retryLabel: string): Promise<Response> {
+  return igdbLimit(async () => {
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+    }
+    lastRequestTime = Date.now();
 
-  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-    const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-    await new Promise(resolve => setTimeout(resolve, waitTime));
-  }
-
-  lastRequestTime = Date.now();
-}
-
-/**
- * Sleep for specified milliseconds
- */
-async function sleep(ms: number): Promise<void> {
-  await new Promise(resolve => setTimeout(resolve, ms));
+    return fetchWithRetry(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Client-ID': IGDB_CLIENT_ID!,
+          'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
+          'Content-Type': 'text/plain',
+        },
+        body,
+      },
+      {
+        maxRetries: MAX_RETRIES,
+        initialDelayMs: RETRY_BASE_DELAY,
+        onRetry: (error, attempt) => {
+          console.log(`${retryLabel} retry ${attempt}: ${error.message}`);
+        },
+      }
+    );
+  });
 }
 
 // Games that should be excluded from the library (not real games)
@@ -189,100 +205,6 @@ function cleanGameName(gameName: string): string {
  */
 export function isExcludedGame(gameName: string): boolean {
   return EXCLUDED_GAMES.has(gameName.toLowerCase().trim());
-}
-
-/**
- * Search IGDB by Steam App ID for exact matching
- * Uses two-step lookup: external_games -> games
- */
-async function getIGDBCoverBySteamId(steamAppId: number): Promise<string | null> {
-  if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
-    return null;
-  }
-
-  try {
-    // Step 1: Query external_games to find the IGDB game ID
-    // Category 1 = Steam (filters out other platforms with same numeric IDs)
-    const externalGamesUrl = 'https://api.igdb.com/v4/external_games';
-    const externalQuery = `fields game; where uid = "${steamAppId}" & category = 1; limit 1;`;
-
-    await waitForRateLimit();
-
-    const externalResponse = await fetchWithRetry(
-      externalGamesUrl,
-      {
-        method: 'POST',
-        headers: {
-          'Client-ID': IGDB_CLIENT_ID,
-          'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
-          'Content-Type': 'text/plain',
-        },
-        body: externalQuery,
-      },
-      {
-        maxRetries: MAX_RETRIES,
-        initialDelayMs: RETRY_BASE_DELAY,
-        onRetry: (error, attempt) => {
-          console.log(`IGDB external_games lookup retry ${attempt}: ${error.message}`);
-        },
-      }
-    );
-
-    if (!externalResponse.ok) {
-      return null;
-    }
-
-    const externalData = await externalResponse.json();
-    if (!externalData.length || !externalData[0].game) {
-      return null;
-    }
-
-    const igdbGameId = externalData[0].game;
-
-    // Step 2: Query games endpoint to get the cover
-    const gamesUrl = 'https://api.igdb.com/v4/games';
-    const gamesQuery = `fields name,cover.image_id; where id = ${igdbGameId}; limit 1;`;
-
-    await waitForRateLimit();
-
-    const gamesResponse = await fetchWithRetry(
-      gamesUrl,
-      {
-        method: 'POST',
-        headers: {
-          'Client-ID': IGDB_CLIENT_ID,
-          'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
-          'Content-Type': 'text/plain',
-        },
-        body: gamesQuery,
-      },
-      {
-        maxRetries: MAX_RETRIES,
-        initialDelayMs: RETRY_BASE_DELAY,
-        onRetry: (error, attempt) => {
-          console.log(`IGDB games lookup retry ${attempt}: ${error.message}`);
-        },
-      }
-    );
-
-    if (!gamesResponse.ok) {
-      return null;
-    }
-
-    const gamesData: IGDBGame[] = await gamesResponse.json();
-
-    if (gamesData.length > 0 && gamesData[0].cover) {
-      const imageId = gamesData[0].cover.image_id;
-      const coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
-      console.log(`✓ Found IGDB cover by Steam ID ${steamAppId}: ${gamesData[0].name}`);
-      return coverUrl;
-    }
-
-    return null;
-  } catch (error) {
-    console.error(`Error fetching IGDB cover by Steam ID ${steamAppId}:`, error);
-    return null;
-  }
 }
 
 // Edition/variant suffixes that should be penalized if not in the search
@@ -366,34 +288,21 @@ function scoreMatch(searchName: string, game: IGDBGame): { nameScore: number; po
  * Returns high-quality cover URL (3:4 aspect ratio)
  * Includes retry logic for transient failures
  */
-export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo', steamAppId?: number): Promise<string | null> {
+export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo'): Promise<string | null> {
   // If no API credentials, return null
   if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
     console.log('IGDB API credentials not configured');
     return null;
   }
 
-  // Create cache key (include steamAppId for Steam games)
-  const gameKey = steamAppId
-    ? `steam:${steamAppId}`
-    : `${platform || 'all'}:${gameName.toLowerCase()}`;
+  // Create cache key
+  const gameKey = `${platform || 'all'}:${gameName.toLowerCase()}`;
 
   // Check cache first
   const cachedUrl = await getCachedCover(gameKey);
   if (cachedUrl) {
     console.log(`✓ Using cached IGDB cover for: ${gameName}`);
     return cachedUrl;
-  }
-
-  // For Steam games, try exact ID matching first
-  if (platform === 'steam' && steamAppId) {
-    const coverByIdUrl = await getIGDBCoverBySteamId(steamAppId);
-    if (coverByIdUrl) {
-      await cacheCover(gameKey, coverByIdUrl);
-      return coverByIdUrl;
-    }
-    // Fall through to name-based search if ID lookup fails
-    console.log(`Steam ID lookup failed for ${gameName}, trying name search...`);
   }
 
   try {
@@ -422,27 +331,10 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
       limit 10;
     `;
 
-    // Wait for rate limit before request
-    await waitForRateLimit();
-
-    const response = await fetchWithRetry(
+    const response = await igdbFetch(
       apiUrl,
-      {
-        method: 'POST',
-        headers: {
-          'Client-ID': IGDB_CLIENT_ID,
-          'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
-          'Content-Type': 'text/plain',
-        },
-        body: query,
-      },
-      {
-        maxRetries: MAX_RETRIES,
-        initialDelayMs: RETRY_BASE_DELAY,
-        onRetry: (error, attempt) => {
-          console.log(`IGDB retry ${attempt} for "${gameName}": ${error.message}`);
-        },
-      }
+      query,
+      `IGDB search for "${gameName}"`
     );
 
     if (!response.ok) {
@@ -463,26 +355,10 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
         limit 10;
       `;
 
-      await waitForRateLimit();
-
-      const response2 = await fetchWithRetry(
+      const response2 = await igdbFetch(
         apiUrl,
-        {
-          method: 'POST',
-          headers: {
-            'Client-ID': IGDB_CLIENT_ID,
-            'Authorization': `Bearer ${IGDB_ACCESS_TOKEN}`,
-            'Content-Type': 'text/plain',
-          },
-          body: queryWithoutPlatform,
-        },
-        {
-          maxRetries: MAX_RETRIES,
-          initialDelayMs: RETRY_BASE_DELAY,
-          onRetry: (error, attempt) => {
-            console.log(`IGDB retry ${attempt} for "${gameName}" (no filter): ${error.message}`);
-          },
-        }
+        queryWithoutPlatform,
+        `IGDB search for "${gameName}" (no platform filter)`
       );
 
       if (response2.ok) {

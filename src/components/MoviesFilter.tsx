@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaCard from './MediaCard';
+import ErrorBoundary from './ErrorBoundary';
 
 interface MovieData {
   title: string;
@@ -23,7 +24,7 @@ interface MoviesFilterProps {
   movies: Movie[];
 }
 
-export default function MoviesFilter({ movies }: MoviesFilterProps) {
+function MoviesFilterInner({ movies }: MoviesFilterProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRating, setSelectedRating] = useState<string>('all');
   const [selectedDecade, setSelectedDecade] = useState<string>('all');
@@ -263,4 +264,8 @@ export default function MoviesFilter({ movies }: MoviesFilterProps) {
       )}
     </div>
   );
+}
+
+export default function MoviesFilter(props: MoviesFilterProps) {
+  return <ErrorBoundary sectionName="Movies"><MoviesFilterInner {...props} /></ErrorBoundary>;
 }

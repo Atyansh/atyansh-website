@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaCard from './MediaCard';
+import ErrorBoundary from './ErrorBoundary';
 
 interface BookData {
   title: string;
@@ -20,7 +21,7 @@ interface BooksFilterProps {
   books: Book[];
 }
 
-export default function BooksFilter({ books }: BooksFilterProps) {
+function BooksFilterInner({ books }: BooksFilterProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedRating, setSelectedRating] = useState<string>('all');
@@ -243,4 +244,8 @@ export default function BooksFilter({ books }: BooksFilterProps) {
       )}
     </div>
   );
+}
+
+export default function BooksFilter(props: BooksFilterProps) {
+  return <ErrorBoundary sectionName="Books"><BooksFilterInner {...props} /></ErrorBoundary>;
 }

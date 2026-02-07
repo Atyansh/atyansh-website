@@ -1,0 +1,8 @@
+# Build the custom Cloud Build image with Chrome dependencies pre-installed.
+# Run: gcloud builds submit --config=cloudbuild-image.yaml .
+# Rebuild when: Chrome deps change, Node.js major version bumps, or Puppeteer upgrades.
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/personal-website-334502/node-puppeteer:22', '-f', 'Dockerfile.cloudbuild', '.']
+images:
+  - 'gcr.io/personal-website-334502/node-puppeteer:22'

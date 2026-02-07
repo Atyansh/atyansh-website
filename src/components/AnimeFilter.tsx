@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MediaCard from './MediaCard';
+import ErrorBoundary from './ErrorBoundary';
 
 interface AnimeData {
   title: string;
@@ -25,7 +26,7 @@ interface AnimeFilterProps {
   anime: Anime[];
 }
 
-export default function AnimeFilter({ anime }: AnimeFilterProps) {
+function AnimeFilterInner({ anime }: AnimeFilterProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('completed');
   const [selectedType, setSelectedType] = useState<string>('all');
@@ -299,4 +300,8 @@ export default function AnimeFilter({ anime }: AnimeFilterProps) {
       )}
     </div>
   );
+}
+
+export default function AnimeFilter(props: AnimeFilterProps) {
+  return <ErrorBoundary sectionName="Anime"><AnimeFilterInner {...props} /></ErrorBoundary>;
 }

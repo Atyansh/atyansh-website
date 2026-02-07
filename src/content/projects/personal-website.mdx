@@ -52,7 +52,8 @@ One of the key technical challenges was managing OAuth tokens that expire at dif
 
 - **Pre-build token refresh** - A script runs before each build to test and refresh expired tokens
 - **Secret Manager SDK** - Refreshed tokens are persisted to Google Cloud Secret Manager
-- **Retry logic** - All API calls include exponential backoff for transient failures
+- **Retry logic** - All API calls include exponential backoff and serialized rate limiting for transient failures
+- **File-based caching** - Generic `FileCache<T>` with 24-hour TTL minimizes redundant API calls across builds
 - **Health monitoring** - Email notifications when any API fails during the daily build
 
 ## Architecture
@@ -62,12 +63,12 @@ One of the key technical challenges was managing OAuth tokens that expire at dif
 ## Technical Stack
 
 - **Frontend**: Astro 5, React, Tailwind CSS 4, Framer Motion
-- **Build**: TypeScript, Node.js 22
-- **Infrastructure**: Google Cloud Build, Secret Manager, Cloud Storage, Cloud CDN
+- **Build**: TypeScript, Node.js 22, Vitest
+- **Infrastructure**: Google Cloud Build (custom Docker image), Secret Manager, Cloud Storage, Cloud CDN
 - **Monitoring**: Custom health checks with SMTP email notifications
 
 ## Key Features
 
 - **Zero manual code** - 100% AI-assisted development via Claude Code
-- **Graceful degradation** - Missing API keys don't break the build
+- **Graceful degradation** - Missing API keys don't break the build; React ErrorBoundaries isolate component failures
 - **CDN-optimized** - Immutable hashes for assets, automatic cache invalidation

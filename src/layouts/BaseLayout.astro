@@ -43,7 +43,6 @@ if (image) {
 
     <!-- Security headers -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
     <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=()" />
 
@@ -131,15 +130,15 @@ if (image) {
     <header class="header-no-backdrop bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700" role="banner">
       <nav class="container mx-auto px-4 py-4" role="navigation" aria-label="Main navigation">
         <div class="flex items-center justify-between">
-          <a href="/" class="text-2xl font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded whitespace-nowrap" style="color: var(--accent); outline-color: var(--accent);" onmouseover="this.style.color='var(--accent-hover)'" onmouseout="this.style.color='var(--accent)'" aria-label="Atyansh Jaiswal - Home">
+          <a href="/" class="accent-link text-2xl font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded whitespace-nowrap" style="color: var(--accent); outline-color: var(--accent);" aria-label="Atyansh Jaiswal - Home">
             Atyansh Jaiswal
           </a>
 
           <!-- Desktop Navigation -->
           <div class="hidden lg:flex items-center gap-6">
             <ul class="flex items-center gap-5 text-sm font-medium" role="list">
-              <li><a href="/" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to home page">Home</a></li>
-              <li><a href="/work" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to projects page">Projects</a></li>
+              <li><a href="/" class="nav-link transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" aria-label="Navigate to home page">Home</a></li>
+              <li><a href="/work" class="nav-link transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" aria-label="Navigate to projects page">Projects</a></li>
 
               <!-- Media Dropdown -->
               <li class="nav-dropdown relative">
@@ -150,18 +149,18 @@ if (image) {
                   </svg>
                 </button>
                 <ul class="nav-dropdown-menu absolute left-0 top-full mt-1 py-2 rounded-lg shadow-lg border min-w-[140px] opacity-0 invisible transition-all duration-200 z-50" style="background-color: var(--bg-primary); border-color: var(--border);">
-                  <li><a href="/books" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">Books</a></li>
-                  <li><a href="/music" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">Music</a></li>
-                  <li><a href="/movies" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">Movies</a></li>
-                  <li><a href="/tv" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">TV</a></li>
-                  <li><a href="/anime" class="block px-4 py-2 transition-colors" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">Anime</a></li>
+                  <li><a href="/books" class="nav-link block px-4 py-2 transition-colors">Books</a></li>
+                  <li><a href="/music" class="nav-link block px-4 py-2 transition-colors">Music</a></li>
+                  <li><a href="/movies" class="nav-link block px-4 py-2 transition-colors">Movies</a></li>
+                  <li><a href="/tv" class="nav-link block px-4 py-2 transition-colors">TV</a></li>
+                  <li><a href="/anime" class="nav-link block px-4 py-2 transition-colors">Anime</a></li>
                 </ul>
               </li>
 
-              <li><a href="/games" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to games page">Games</a></li>
-              <li><a href="/climbing" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to climbing page">Climbing</a></li>
-              <li><a href="/pets" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to pets page">Pets</a></li>
-              <li><a href="/blog" class="transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to blog">Blog</a></li>
+              <li><a href="/games" class="nav-link transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" aria-label="Navigate to games page">Games</a></li>
+              <li><a href="/climbing" class="nav-link transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" aria-label="Navigate to climbing page">Climbing</a></li>
+              <li><a href="/pets" class="nav-link transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" aria-label="Navigate to pets page">Pets</a></li>
+              <li><a href="/blog" class="nav-link transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-1" style="outline-color: var(--accent);" aria-label="Navigate to blog">Blog</a></li>
             </ul>
           </div>
 
@@ -179,20 +178,20 @@ if (image) {
         <!-- Mobile Navigation -->
         <div id="mobile-menu" class="hidden lg:hidden mt-4">
           <ul class="flex flex-col gap-1 text-sm font-medium" role="list">
-            <li><a href="/" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to home page">Home</a></li>
-            <li><a href="/work" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to projects page">Projects</a></li>
+            <li><a href="/" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" aria-label="Navigate to home page">Home</a></li>
+            <li><a href="/work" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" aria-label="Navigate to projects page">Projects</a></li>
             <!-- Media section -->
             <li class="pt-2 pb-1 px-2 text-xs uppercase tracking-wider" style="color: var(--text-secondary);">Media</li>
-            <li><a href="/books" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to books page">Books</a></li>
-            <li><a href="/music" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to music page">Music</a></li>
-            <li><a href="/movies" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to movies page">Movies</a></li>
-            <li><a href="/tv" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to TV shows page">TV</a></li>
-            <li><a href="/anime" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to anime page">Anime</a></li>
+            <li><a href="/books" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" aria-label="Navigate to books page">Books</a></li>
+            <li><a href="/music" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" aria-label="Navigate to music page">Music</a></li>
+            <li><a href="/movies" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" aria-label="Navigate to movies page">Movies</a></li>
+            <li><a href="/tv" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" aria-label="Navigate to TV shows page">TV</a></li>
+            <li><a href="/anime" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-4 py-2" style="outline-color: var(--accent);" aria-label="Navigate to anime page">Anime</a></li>
             <!-- Other pages -->
-            <li class="pt-2"><a href="/games" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to games page">Games</a></li>
-            <li><a href="/climbing" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to climbing page">Climbing</a></li>
-            <li><a href="/pets" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to pets page">Pets</a></li>
-            <li><a href="/blog" class="block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''" aria-label="Navigate to blog">Blog</a></li>
+            <li class="pt-2"><a href="/games" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" aria-label="Navigate to games page">Games</a></li>
+            <li><a href="/climbing" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" aria-label="Navigate to climbing page">Climbing</a></li>
+            <li><a href="/pets" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" aria-label="Navigate to pets page">Pets</a></li>
+            <li><a href="/blog" class="nav-link block transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 rounded px-2 py-2" style="outline-color: var(--accent);" aria-label="Navigate to blog">Blog</a></li>
           </ul>
         </div>
       </nav>

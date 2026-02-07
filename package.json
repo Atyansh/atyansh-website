@@ -7,7 +7,9 @@
     "prebuild": "node scripts/pull-secrets.cjs && node scripts/refresh-tokens.cjs",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^6.3.8",
@@ -17,9 +19,9 @@
     "@google-cloud/secret-manager": "^6.1.1",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.1.14",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.1",
     "astro": "^5.14.4",
+    "dotenv": "^16.4.5",
+    "fast-xml-parser": "^4.5.0",
     "framer-motion": "^12.23.24",
     "nxapi": "^1.6.1",
     "psn-api": "^2.15.0",
@@ -30,11 +32,12 @@
     "react-dom": "^19.2.0",
     "satori": "^0.18.3",
     "shiki": "^3.13.0",
+    "nodemailer": "^7.0.10",
     "tailwindcss": "^4.1.14"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.19",
-    "dotenv": "^16.4.5",
-    "nodemailer": "^7.0.10"
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.1",
+    "vitest": "^3.0.0"
   }
 }

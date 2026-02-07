@@ -9,11 +9,11 @@
 5. ✅ Created 26 secrets in Google Secret Manager (20 API keys + 6 email notification settings)
 6. ✅ Granted IAM permissions to Cloud Build service accounts
 7. ✅ Configured Cloud Storage bucket (`gs://atyansh.com/`)
-8. ✅ Updated Cloud Build to use Node.js 22 (matches local environment)
+8. ✅ Updated Cloud Build to use custom Docker image (`gcr.io/personal-website-334502/node-puppeteer:22`) with Chrome dependencies pre-installed
 9. ✅ Granted Secret Manager access to Compute Engine service account
 10. ✅ Successfully deployed site via Cloud Build
 11. ✅ Configured API health monitoring with email notifications
-12. ✅ Added file-based caching to all API integrations
+12. ✅ Added file-based caching to all API integrations (generic `FileCache<T>` utility)
 13. ✅ Added TV shows page with Trakt/TMDB integration
 14. ✅ Added climbing page with Kaya integration
 
@@ -51,6 +51,22 @@ gcloud projects add-iam-policy-binding personal-website-334502 \
   --role="roles/secretmanager.secretVersionManager"
 ```
 
+### Custom Docker Image
+
+Cloud Build uses a custom Docker image (`gcr.io/personal-website-334502/node-puppeteer:22`) based on Node.js 22 with Chrome/Puppeteer dependencies pre-installed. This eliminates the need to `apt-get install` ~25 packages on every build.
+
+**When to rebuild the image:**
+- Node.js major version bumps (e.g., 22 → 24)
+- Puppeteer upgrades that require new system dependencies
+- Chrome dependency changes
+
+**How to rebuild:**
+```bash
+gcloud builds submit --config=cloudbuild-image.yaml .
+```
+
+The image is defined in `Dockerfile.cloudbuild` and built via `cloudbuild-image.yaml`.
+
 ### Node.js Version Requirement
 
 **IMPORTANT:** Cloud Build must use **Node.js 22** to match the local development environment.
@@ -59,7 +75,7 @@ The `psn-api` package (v2.15.0) requires Node.js >=20 and provides backwards-com
 - `exchangeNpssoForCode` (older, still supported)
 - `exchangeCodeForAccessToken` (older, still supported)
 
-These function names work correctly on Node.js 22. The `cloudbuild.yaml` is configured to use `node:22` images.
+These function names work correctly on Node.js 22. The `cloudbuild.yaml` is configured to use the custom `node-puppeteer:22` image.
 
 ## Troubleshooting Steps
 
@@ -314,11 +330,12 @@ echo -n "AQC..." | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file
 
 ### Build Times Out
 - Increase timeout in `cloudbuild.yaml` (currently 1800s = 30 min)
-- Some API calls (especially Letterboxd scraping) can be slow
+- Letterboxd scraping reuses a single Puppeteer browser instance across all pages, and poster URL validation runs in parallel (concurrency of 10), which significantly reduces build time
+- The custom Docker image eliminates ~30-60 seconds of Chrome dependency installation
 
 ### API Rate Limits
-- **IGDB API (Game Covers)**: The build fetches game covers from IGDB for Steam, PlayStation, and Nintendo games. If you see 429 errors in build logs, the retry logic with exponential backoff (2s, 4s, 8s delays) should automatically handle it. The IGDB API typically allows 4 requests per second.
-- Add caching to API utility functions
+- **IGDB API (Game Covers)**: All IGDB API calls are serialized (one at a time) with automatic rate limiting to stay under the 4 req/s limit. Retry logic with exponential backoff handles any transient 429 errors. Most game covers are cached (7-day TTL per entry), so repeat builds make minimal API calls.
+- All API integrations use `FileCache<T>` with 24-hour TTL to minimize redundant requests
 - Reduce build frequency if hitting limits
 
 ### Secrets Expired
@@ -413,6 +430,8 @@ For 10,000 visitors/month × 250KB per page = ~2.5GB = **~$0.20/month**
 ## Files Created
 
 - `cloudbuild.yaml` - Cloud Build configuration with health monitoring
+- `cloudbuild-image.yaml` - Build config for the custom Docker image
+- `Dockerfile.cloudbuild` - Custom Docker image with Chrome dependencies
 - `create-secrets.sh` - Script to create/update secrets interactively
 - `scripts/sync-secrets-to-gcloud.sh` - Sync all secrets from .env to Google Cloud
 - `scripts/pull-secrets.cjs` - Sync secrets from Google Cloud to .env (runs automatically before builds)

@@ -53,7 +53,8 @@ function GameCarouselInner({ games, title }: GameCarouselProps) {
         {showLeftArrow && (
           <button
             onClick={() => scroll('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black bg-opacity-70 hover:bg-opacity-90 text-white transition-all opacity-0 flex items-center justify-center -ml-6"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full shadow-lg transition-all duration-200 hover:scale-110 opacity-0 flex items-center justify-center -ml-6"
+            style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)' }}
             aria-label="Scroll left"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,7 +86,8 @@ function GameCarouselInner({ games, title }: GameCarouselProps) {
         {showRightArrow && (
           <button
             onClick={() => scroll('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black bg-opacity-70 hover:bg-opacity-90 text-white transition-all opacity-0 flex items-center justify-center -mr-6"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full shadow-lg transition-all duration-200 hover:scale-110 opacity-0 flex items-center justify-center -mr-6"
+            style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)' }}
             aria-label="Scroll right"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

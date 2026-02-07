@@ -51,7 +51,7 @@ export default function TechStackGrid({ technologies }: TechStackGridProps) {
           {/* Category Header */}
           <div className="flex items-center gap-3 mb-4">
             <span className="text-3xl">{getCategoryIcon(category)}</span>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h3 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               {category}
             </h3>
             <div className="flex-1 h-0.5 ml-4" style={{ backgroundColor: 'var(--accent)', opacity: 0.2 }} />
@@ -90,7 +90,7 @@ export default function TechStackGrid({ technologies }: TechStackGridProps) {
                     {/* Icon & Name */}
                     <div className="flex items-center gap-3 mb-2">
                       {tech.icon && <span className="text-2xl">{tech.icon}</span>}
-                      <h4 className="font-bold text-lg text-gray-900 dark:text-white">
+                      <h4 className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>
                         {tech.name}
                       </h4>
                     </div>
@@ -99,11 +99,12 @@ export default function TechStackGrid({ technologies }: TechStackGridProps) {
                     {tech.description && (
                       <p
                         className={`
-                          text-sm text-gray-600 dark:text-gray-400
+                          text-sm
                           transition-all duration-300
                           ${isHovered ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}
                           overflow-hidden
                         `}
+                        style={{ color: 'var(--text-secondary)' }}
                       >
                         {tech.description}
                       </p>

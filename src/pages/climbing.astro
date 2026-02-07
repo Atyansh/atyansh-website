@@ -73,7 +73,7 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
                       </span>
                     )}
                     {kayaData.stats.maxGrade && (
-                      <span class="px-3 py-1 rounded-full font-medium" style="background-color: var(--accent); color: white;">
+                      <span class="px-3 py-1 rounded-full font-medium" style="background-color: var(--accent-surface); color: var(--accent-surface-fg); border: 2px solid var(--accent);">
                         Max: {kayaData.stats.maxGrade}
                       </span>
                     )}
@@ -180,7 +180,7 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
               {sortedGrades.map((grade) => (
                 <div class="mb-8 last:mb-0">
                   <h3 class="text-xl font-bold mb-4 flex items-center gap-3" style="color: var(--text-primary);">
-                    <span class="px-3 py-1 rounded-lg text-sm font-mono" style="background-color: var(--accent); color: white;">
+                    <span class="px-3 py-1 rounded-lg text-sm font-mono" style="background-color: var(--accent-surface); color: var(--accent-surface-fg); border: 2px solid var(--accent);">
                       {grade}
                     </span>
                     <span class="text-sm font-normal" style="color: var(--text-secondary);">
@@ -236,7 +236,8 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
         <div id="video-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 p-4">
           <button
             id="close-modal"
-            class="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors z-10"
+            class="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-all z-10 shadow-lg"
+            style="background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);"
             aria-label="Close video"
           >
             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -297,8 +298,9 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
             function showError(message: string) {
               if (!errorMsg) {
                 errorMsg = document.createElement('div');
-                errorMsg.className = 'absolute inset-0 flex items-center justify-center text-white text-center p-4';
-                errorMsg.style.backgroundColor = 'rgba(0,0,0,0.8)';
+                errorMsg.className = 'absolute inset-0 flex items-center justify-center text-center p-4';
+                errorMsg.style.backgroundColor = 'var(--bg-card)';
+                errorMsg.style.color = 'var(--text-primary)';
               }
               errorMsg.textContent = message;
               video.parentElement?.appendChild(errorMsg);

@@ -8,24 +8,25 @@ const projects = (await getCollection('projects'))
 
 <BaseLayout title="Projects - Your Name" description="A collection of my security and privacy projects">
   <div class="max-w-4xl mx-auto">
-    <h1 class="text-4xl font-bold mb-8 text-gray-900 dark:text-white">Projects</h1>
+    <h1 class="text-4xl font-bold mb-8" style="color: var(--text-primary);">Projects</h1>
 
     <div class="grid md:grid-cols-2 gap-6">
       {projects.map((project) => (
         <a
           href={`/projects/${project.slug}`}
-          class="block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700"
+          class="block p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow border"
+          style="background-color: var(--bg-card); border-color: var(--border);"
         >
-          <h2 class="text-2xl font-semibold mb-2 text-gray-900 dark:text-white">
+          <h2 class="text-2xl font-semibold mb-2" style="color: var(--text-primary);">
             {project.data.title}
           </h2>
-          <p class="text-gray-600 dark:text-gray-300 mb-4">
+          <p class="mb-4" style="color: var(--text-secondary);">
             {project.data.description}
           </p>
           {project.data.technologies && project.data.technologies.length > 0 && (
             <div class="flex flex-wrap gap-2 mb-4">
               {project.data.technologies.map((tech) => (
-                <span class="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
+                <span class="text-xs px-2 py-1 rounded" style="background-color: rgba(var(--accent-rgb), 0.15); color: var(--accent);">
                   {tech}
                 </span>
               ))}
@@ -34,13 +35,13 @@ const projects = (await getCollection('projects'))
           {project.data.links && (
             <div class="flex gap-3 text-sm">
               {project.data.links.github && (
-                <span class="text-blue-600 dark:text-blue-400">GitHub →</span>
+                <span style="color: var(--accent);">GitHub →</span>
               )}
               {project.data.links.demo && (
-                <span class="text-blue-600 dark:text-blue-400">Demo →</span>
+                <span style="color: var(--accent);">Demo →</span>
               )}
               {project.data.links.website && (
-                <span class="text-blue-600 dark:text-blue-400">Website →</span>
+                <span style="color: var(--accent);">Website →</span>
               )}
             </div>
           )}

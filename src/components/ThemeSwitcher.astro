@@ -10,25 +10,25 @@
     <span id="current-theme-name" class="hidden lg:inline">Theme</span>
   </button>
   <div id="theme-dropdown" class="theme-dropdown hidden">
-    <button class="theme-option" data-theme="minimal-technical">
+    <button class="theme-option" data-theme="minimal-technical" style="background-color: #f8f9fa; color: #1a1a1a; font-family: 'JetBrains Mono', 'Fira Code', monospace;" data-accent="#2563eb">
       <span class="theme-name">Minimal Technical</span>
-      <span class="theme-desc">Clean monospace design</span>
+      <span class="theme-desc" style="color: #6b7280;">Clean monospace design</span>
     </button>
-    <button class="theme-option" data-theme="modern-glass">
+    <button class="theme-option" data-theme="modern-glass" style="background-color: #1e293b; color: #f1f5f9; font-family: 'Inter', -apple-system, sans-serif;" data-accent="#6366f1">
       <span class="theme-name">Modern Glass</span>
-      <span class="theme-desc">Glassmorphism with gradients</span>
+      <span class="theme-desc" style="color: #94a3b8;">Glassmorphism with gradients</span>
     </button>
-    <button class="theme-option" data-theme="brutalist">
+    <button class="theme-option" data-theme="brutalist" style="background-color: #f0f0f0; color: #000000; font-family: 'Arial Black', 'Arial Bold', sans-serif;" data-accent="#ff0000">
       <span class="theme-name">Brutalist</span>
-      <span class="theme-desc">Bold and raw design</span>
+      <span class="theme-desc" style="color: #404040;">Bold and raw design</span>
     </button>
-    <button class="theme-option" data-theme="dark-terminal">
+    <button class="theme-option" data-theme="dark-terminal" style="background-color: #1a1a1a; color: #00ff41; font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;" data-accent="#00ff41">
       <span class="theme-name">Dark Terminal</span>
-      <span class="theme-desc">Hacker aesthetic</span>
+      <span class="theme-desc" style="color: #00cc33;">Hacker aesthetic</span>
     </button>
-    <button class="theme-option" data-theme="academic-minimal">
+    <button class="theme-option" data-theme="academic-minimal" style="background-color: #f5f5f4; color: #1c1917; font-family: 'Georgia', 'Cambria', 'Times New Roman', serif;" data-accent="#0c4a6e">
       <span class="theme-name">Academic Minimal</span>
-      <span class="theme-desc">Clean scholarly look</span>
+      <span class="theme-desc" style="color: #78716c;">Clean scholarly look</span>
     </button>
   </div>
 </div>
@@ -64,10 +64,14 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--border-radius);
-    box-shadow: 0 4px 12px var(--shadow);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 9999;
     overflow: hidden;
     pointer-events: auto;
+    padding: 0.375rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
   }
 
   .theme-dropdown.hidden {
@@ -80,30 +84,24 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    padding: 0.75rem 1rem;
+    padding: 0.625rem 0.75rem;
     border: none;
-    background: transparent;
-    color: var(--text-primary);
     cursor: pointer;
     text-align: left;
-    transition: background 0.2s ease;
-    border-bottom: 1px solid var(--border);
+    transition: opacity 0.2s ease;
+    border-left: 4px solid transparent;
+    border-radius: 6px;
     pointer-events: auto;
     position: relative;
     z-index: 1;
   }
 
-  .theme-option:last-child {
-    border-bottom: none;
-  }
-
   .theme-option:hover {
-    background: var(--bg-secondary);
+    opacity: 0.85;
   }
 
   .theme-option.active {
-    background: var(--accent);
-    color: white;
+    border-left-color: var(--active-accent);
   }
 
   .theme-name {
@@ -113,12 +111,7 @@
 
   .theme-desc {
     font-size: 0.75rem;
-    color: var(--text-secondary);
     margin-top: 0.125rem;
-  }
-
-  .theme-option.active .theme-desc {
-    color: rgba(255, 255, 255, 0.8);
   }
 </style>
 
@@ -149,8 +142,10 @@
       themeOptions.forEach(option => {
         if (option.dataset.theme === theme) {
           option.classList.add('active');
+          option.style.setProperty('--active-accent', option.dataset.accent || 'transparent');
         } else {
           option.classList.remove('active');
+          option.style.setProperty('--active-accent', 'transparent');
         }
       });
     }

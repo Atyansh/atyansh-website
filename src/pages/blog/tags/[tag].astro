@@ -54,7 +54,8 @@ const { tag, posts } = Astro.props;
       {posts.map((post) => (
         <a
           href={`/blog/${post.slug}`}
-          class="block p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700"
+          class="block p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow border"
+          style="background-color: var(--bg-card); border-color: var(--border);"
         >
           <h2 class="text-2xl font-semibold mb-2" style="color: var(--text-primary);">
             {post.data.title}
@@ -73,7 +74,7 @@ const { tag, posts } = Astro.props;
           {post.data.tags && post.data.tags.length > 0 && (
             <div class="flex flex-wrap gap-2">
               {post.data.tags.map((t) => (
-                <span class={`text-xs px-2 py-1 rounded ${t === tag ? 'font-bold' : ''}`} style={t === tag ? "background-color: var(--accent); color: white;" : "background-color: var(--bg-secondary); color: var(--accent);"}>
+                <span class={`text-xs px-2 py-1 rounded ${t === tag ? 'font-bold' : ''}`} style={t === tag ? "background-color: var(--accent-surface); color: var(--accent-surface-fg); border: 2px solid var(--accent);" : "background-color: var(--bg-secondary); color: var(--accent);"}>
                   {t}
                 </span>
               ))}

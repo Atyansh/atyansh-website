@@ -61,8 +61,7 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
     );
     const steamGames = await Promise.all(
       filteredSteamGames.map(async (game: SteamGame): Promise<UnifiedGame> => {
-        // Pass Steam AppID for exact IGDB matching
-        const igdbCover = await getIGDBCoverUrl(game.name, 'steam', game.appid);
+        const igdbCover = await getIGDBCoverUrl(game.name, 'steam');
         return {
           id: `steam-${game.appid}`,
           name: game.name,

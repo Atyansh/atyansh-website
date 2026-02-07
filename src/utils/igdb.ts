@@ -207,68 +207,6 @@ export function isExcludedGame(gameName: string): boolean {
   return EXCLUDED_GAMES.has(gameName.toLowerCase().trim());
 }
 
-/**
- * Search IGDB by Steam App ID for exact matching
- * Uses two-step lookup: external_games -> games
- */
-async function getIGDBCoverBySteamId(steamAppId: number): Promise<string | null> {
-  if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
-    return null;
-  }
-
-  try {
-    // Step 1: Query external_games to find the IGDB game ID
-    // Category 1 = Steam (filters out other platforms with same numeric IDs)
-    const externalGamesUrl = 'https://api.igdb.com/v4/external_games';
-    const externalQuery = `fields game; where uid = "${steamAppId}" & category = 1; limit 1;`;
-
-    const externalResponse = await igdbFetch(
-      externalGamesUrl,
-      externalQuery,
-      `IGDB external_games lookup for Steam ID ${steamAppId}`
-    );
-
-    if (!externalResponse.ok) {
-      return null;
-    }
-
-    const externalData = await externalResponse.json();
-    if (!externalData.length || !externalData[0].game) {
-      return null;
-    }
-
-    const igdbGameId = externalData[0].game;
-
-    // Step 2: Query games endpoint to get the cover
-    const gamesUrl = 'https://api.igdb.com/v4/games';
-    const gamesQuery = `fields name,cover.image_id; where id = ${igdbGameId}; limit 1;`;
-
-    const gamesResponse = await igdbFetch(
-      gamesUrl,
-      gamesQuery,
-      `IGDB games lookup for Steam ID ${steamAppId}`
-    );
-
-    if (!gamesResponse.ok) {
-      return null;
-    }
-
-    const gamesData: IGDBGame[] = await gamesResponse.json();
-
-    if (gamesData.length > 0 && gamesData[0].cover) {
-      const imageId = gamesData[0].cover.image_id;
-      const coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
-      console.log(`✓ Found IGDB cover by Steam ID ${steamAppId}: ${gamesData[0].name}`);
-      return coverUrl;
-    }
-
-    return null;
-  } catch (error) {
-    console.error(`Error fetching IGDB cover by Steam ID ${steamAppId}:`, error);
-    return null;
-  }
-}
-
 // Edition/variant suffixes that should be penalized if not in the search
 const EDITION_SUFFIXES = [
   'deluxe edition', 'deluxe', 'ultimate edition', 'ultimate',
@@ -350,34 +288,21 @@ function scoreMatch(searchName: string, game: IGDBGame): { nameScore: number; po
  * Returns high-quality cover URL (3:4 aspect ratio)
  * Includes retry logic for transient failures
  */
-export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo', steamAppId?: number): Promise<string | null> {
+export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo'): Promise<string | null> {
   // If no API credentials, return null
   if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
     console.log('IGDB API credentials not configured');
     return null;
   }
 
-  // Create cache key (include steamAppId for Steam games)
-  const gameKey = steamAppId
-    ? `steam:${steamAppId}`
-    : `${platform || 'all'}:${gameName.toLowerCase()}`;
+  // Create cache key
+  const gameKey = `${platform || 'all'}:${gameName.toLowerCase()}`;
 
   // Check cache first
   const cachedUrl = await getCachedCover(gameKey);
   if (cachedUrl) {
     console.log(`✓ Using cached IGDB cover for: ${gameName}`);
     return cachedUrl;
-  }
-
-  // For Steam games, try exact ID matching first
-  if (platform === 'steam' && steamAppId) {
-    const coverByIdUrl = await getIGDBCoverBySteamId(steamAppId);
-    if (coverByIdUrl) {
-      await cacheCover(gameKey, coverByIdUrl);
-      return coverByIdUrl;
-    }
-    // Fall through to name-based search if ID lookup fails
-    console.log(`Steam ID lookup failed for ${gameName}, trying name search...`);
   }
 
   try {

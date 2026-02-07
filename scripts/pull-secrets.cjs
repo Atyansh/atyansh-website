@@ -6,11 +6,14 @@
  * This script syncs secrets from Secret Manager (single source of truth)
  * to the local .env file before builds. Only runs locally, not in Cloud Build.
  *
+ * Fetches all secret values in parallel using async exec instead of
+ * sequential execSync.
+ *
  * Usage:
  *   node scripts/pull-secrets.cjs
  */
 
-const { execSync } = require('child_process');
+const { execSync, exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -20,23 +23,22 @@ if (process.env.BUILD_ID || process.env.CLOUD_BUILD === 'true') {
   process.exit(0);
 }
 
-/**
- * List all secrets from Secret Manager dynamically
- */
-function listSecrets() {
-  try {
-    const output = execSync(
-      'gcloud secrets list --format="value(name)"',
-      { stdio: 'pipe', encoding: 'utf-8' }
-    );
-    return output.trim().split('\n').filter(s => s.length > 0);
-  } catch (error) {
-    console.error('Failed to list secrets:', error.message);
-    return [];
-  }
-}
-
 const ENV_FILE = path.join(process.cwd(), '.env');
+
+/**
+ * Run a command asynchronously and return stdout
+ */
+function execAsync(command) {
+  return new Promise((resolve, reject) => {
+    exec(command, { encoding: 'utf-8', maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
 
 /**
  * Check if gcloud is available and authenticated
@@ -51,17 +53,18 @@ function checkGcloud() {
 }
 
 /**
- * Get a secret value from Secret Manager
+ * List all secrets from Secret Manager
  */
-function getSecret(secretName) {
+function listSecrets() {
   try {
-    const value = execSync(
-      `gcloud secrets versions access latest --secret=${secretName}`,
+    const output = execSync(
+      'gcloud secrets list --format="value(name)"',
       { stdio: 'pipe', encoding: 'utf-8' }
     );
-    return value;
+    return output.trim().split('\n').filter(s => s.length > 0);
   } catch (error) {
-    return null;
+    console.error('Failed to list secrets:', error.message);
+    return [];
   }
 }
 
@@ -153,13 +156,13 @@ async function main() {
   }
 
   // Dynamically list all secrets from Secret Manager
-  const secrets = listSecrets();
-  if (secrets.length === 0) {
+  const secretNames = listSecrets();
+  if (secretNames.length === 0) {
     console.log('No secrets found in Secret Manager.\n');
     process.exit(0);
   }
 
-  console.log(`Found ${secrets.length} secrets in Secret Manager\n`);
+  console.log(`Found ${secretNames.length} secrets, fetching in parallel...\n`);
 
   const existingEnv = parseEnvFile();
   const updatedSecrets = {};
@@ -167,24 +170,32 @@ async function main() {
   let skippedCount = 0;
   let failedCount = 0;
 
-  for (const secretName of secrets) {
-    const value = getSecret(secretName);
+  // Fetch all secret values in parallel
+  const results = await Promise.allSettled(
+    secretNames.map(async (secretName) => {
+      const value = await execAsync(
+        `gcloud secrets versions access latest --secret=${secretName}`
+      );
+      return { secretName, value: value.trim() };
+    })
+  );
 
-    if (value !== null) {
-      const trimmedValue = value.trim();
-      if (existingEnv[secretName] !== trimmedValue) {
-        updatedSecrets[secretName] = trimmedValue;
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const secretName = secretNames[i];
+
+    if (result.status === 'fulfilled') {
+      const { value } = result.value;
+      if (existingEnv[secretName] !== value) {
         console.log(`  ✓ ${secretName} (updated)`);
         syncedCount++;
       } else {
         console.log(`  - ${secretName} (unchanged)`);
         skippedCount++;
       }
-      // Always include in the final set
-      updatedSecrets[secretName] = trimmedValue;
+      updatedSecrets[secretName] = value;
     } else {
-      console.log(`  ✗ ${secretName} (not found in Secret Manager)`);
-      // Keep existing value if secret not in Secret Manager
+      console.log(`  ✗ ${secretName} (failed)`);
       if (existingEnv[secretName]) {
         updatedSecrets[secretName] = existingEnv[secretName];
       }
@@ -194,14 +205,14 @@ async function main() {
 
   // Preserve any extra env vars that aren't in Secret Manager
   for (const [key, value] of Object.entries(existingEnv)) {
-    if (!secrets.includes(key)) {
+    if (!secretNames.includes(key)) {
       updatedSecrets[key] = value;
     }
   }
 
   writeEnvFile(updatedSecrets);
 
-  console.log(`\nSync complete: ${syncedCount} updated, ${skippedCount} unchanged, ${failedCount} not found\n`);
+  console.log(`\nSync complete: ${syncedCount} updated, ${skippedCount} unchanged, ${failedCount} failed\n`);
 }
 
 main().catch((error) => {

@@ -164,9 +164,10 @@ async function refreshTrakt() {
     return null;
   }
 
-  // Test if current token works
+  // Test if current token works using the same endpoint the build hits
+  const username = process.env.TRAKT_USERNAME || 'me';
   try {
-    const testResponse = await fetchWithRetry('https://api.trakt.tv/users/settings', {
+    const testResponse = await fetchWithRetry(`https://api.trakt.tv/users/${username}/watched/shows?limit=1`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'trakt-api-version': '2',

@@ -164,23 +164,20 @@ async function refreshTrakt() {
     return null;
   }
 
-  // Test if current token works using the same endpoint the build hits
-  const username = process.env.TRAKT_USERNAME || 'me';
-  try {
-    const testResponse = await fetchWithRetry(`https://api.trakt.tv/users/${username}/watched/shows?limit=1`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'trakt-api-version': '2',
-        'trakt-api-key': clientId,
-      },
-    });
+  // Check if token needs refresh based on expiry time (not API call, to avoid grace-window false positives)
+  const expiresAt = Number(process.env.TRAKT_TOKEN_EXPIRES_AT || '0');
+  const nowSecs = Math.floor(Date.now() / 1000);
+  const hoursUntilExpiry = (expiresAt - nowSecs) / 3600;
 
-    if (testResponse.ok) {
-      console.log('  Trakt: token valid, no refresh needed');
-      return null;
-    }
-  } catch (e) {
-    // Token test failed, proceed with refresh
+  if (expiresAt > 0 && hoursUntilExpiry > 24) {
+    console.log(`  Trakt: token valid (expires in ${Math.round(hoursUntilExpiry)}h), no refresh needed`);
+    return null;
+  }
+
+  if (expiresAt > 0) {
+    console.log(`  Trakt: token expires in ${Math.round(hoursUntilExpiry)}h, refreshing proactively...`);
+  } else {
+    console.log('  Trakt: no expiry info, refreshing to be safe...');
   }
 
   // Refresh the token
@@ -210,17 +207,23 @@ async function refreshTrakt() {
     const expiresInHours = Math.round(data.expires_in / 3600);
     console.log(`  ✓ Trakt token refreshed (expires in ${expiresInHours} hours)`);
 
+    // Compute and store expiry timestamp
+    const expiresAtNew = Math.floor(Date.now() / 1000) + data.expires_in;
+
     // Update Secret Manager
     await updateSecretManager('TRAKT_ACCESS_TOKEN', data.access_token);
     await updateSecretManager('TRAKT_REFRESH_TOKEN', data.refresh_token);
+    await updateSecretManager('TRAKT_TOKEN_EXPIRES_AT', String(expiresAtNew));
 
     // Track for .env update
     envUpdates.TRAKT_ACCESS_TOKEN = data.access_token;
     envUpdates.TRAKT_REFRESH_TOKEN = data.refresh_token;
+    envUpdates.TRAKT_TOKEN_EXPIRES_AT = String(expiresAtNew);
 
     // Update process.env for this build
     process.env.TRAKT_ACCESS_TOKEN = data.access_token;
     process.env.TRAKT_REFRESH_TOKEN = data.refresh_token;
+    process.env.TRAKT_TOKEN_EXPIRES_AT = String(expiresAtNew);
 
     return data;
   } catch (error) {

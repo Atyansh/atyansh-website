@@ -6,7 +6,7 @@
 2. ✅ Set project to `personal-website-334502`
 3. ✅ Enabled required APIs (Cloud Build, Secret Manager, Cloud Scheduler, Cloud Storage)
 4. ✅ Created `cloudbuild.yaml` configuration
-5. ✅ Created 26 secrets in Google Secret Manager (20 API keys + 6 email notification settings)
+5. ✅ Created 27 secrets in Google Secret Manager (20 API keys + 1 token metadata + 6 email notification settings)
 6. ✅ Granted IAM permissions to Cloud Build service accounts
 7. ✅ Configured Cloud Storage bucket (`gs://atyansh.com/`)
 8. ✅ Updated Cloud Build to use custom Docker image (`gcr.io/personal-website-334502/node-puppeteer:22`) with Chrome dependencies pre-installed
@@ -284,7 +284,7 @@ This script will:
 - Gaming: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`, `EXOPHASE_USERNAME`
 - Spotify: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
-- TV Shows: `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET`, `TRAKT_USERNAME`, `TRAKT_ACCESS_TOKEN`, `TRAKT_REFRESH_TOKEN`, `TMDB_API_KEY`
+- TV Shows: `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET`, `TRAKT_USERNAME`, `TRAKT_ACCESS_TOKEN`, `TRAKT_REFRESH_TOKEN`, `TRAKT_TOKEN_EXPIRES_AT`, `TMDB_API_KEY`
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`, `KAYA_USERNAME`
 - Email Notifications: `NOTIFICATION_EMAIL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
 
@@ -298,7 +298,7 @@ node scripts/pull-secrets.cjs
 
 This runs automatically before `npm run build` (via the `prebuild` hook), so your local builds always use the latest secrets from Secret Manager.
 
-**Secret Manager is the single source of truth.** When tokens are auto-refreshed during a build (IGDB, MAL), they're updated in Secret Manager. The next local build will pull the fresh tokens automatically.
+**Secret Manager is the single source of truth.** When tokens are auto-refreshed during a build (IGDB, MAL, Trakt), they're updated in Secret Manager. The next local build will pull the fresh tokens automatically.
 
 ### Option 2: Update Individual Secrets
 
@@ -345,7 +345,7 @@ echo -n "AQC..." | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file
 **Manual renewal:**
 - **Spotify**: Re-run `scripts/get-spotify-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
 - **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
-- **Trakt**: Re-run `scripts/get-trakt-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
+- **Trakt**: Re-run `scripts/get-trakt-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh` (tokens expire every 7 days, auto-refresh when <24h remain)
 - **PSN**: Get new NPSSO token (expires every ~60 days), update `.env`, then sync
 - **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then sync
 

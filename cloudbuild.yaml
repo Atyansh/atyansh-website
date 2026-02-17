@@ -50,6 +50,7 @@ steps:
       - 'TRAKT_USERNAME'
       - 'TRAKT_ACCESS_TOKEN'
       - 'TRAKT_REFRESH_TOKEN'
+      - 'TRAKT_TOKEN_EXPIRES_AT'
       - 'TMDB_API_KEY'
     waitFor: ['install-dependencies']
 
@@ -158,6 +159,8 @@ availableSecrets:
       env: 'TRAKT_ACCESS_TOKEN'
     - versionName: projects/personal-website-334502/secrets/TRAKT_REFRESH_TOKEN/versions/latest
       env: 'TRAKT_REFRESH_TOKEN'
+    - versionName: projects/personal-website-334502/secrets/TRAKT_TOKEN_EXPIRES_AT/versions/latest
+      env: 'TRAKT_TOKEN_EXPIRES_AT'
     # TMDB API secrets
     - versionName: projects/personal-website-334502/secrets/TMDB_API_KEY/versions/latest
       env: 'TMDB_API_KEY'

@@ -321,9 +321,10 @@ Trakt uses OAuth2. Use the included helper script.
    TRAKT_USERNAME=your_trakt_username
    TRAKT_ACCESS_TOKEN=generated_access_token
    TRAKT_REFRESH_TOKEN=generated_refresh_token
+   TRAKT_TOKEN_EXPIRES_AT=0
    ```
 
-**Note:** Access tokens expire every 24 hours but auto-refresh during builds.
+**Note:** Access tokens expire every 7 days and are proactively refreshed during builds when <24 hours remain.
 
 ### 10. TMDB (TV Show Poster Images)
 
@@ -642,7 +643,7 @@ If you accidentally commit secrets:
 **IGDB, MyAnimeList, and Trakt tokens auto-refresh during builds** if you have the required credentials:
 - IGDB: Requires `IGDB_CLIENT_SECRET` to auto-refresh
 - MyAnimeList: Uses `MAL_REFRESH_TOKEN` to auto-refresh
-- Trakt: Uses `TRAKT_REFRESH_TOKEN` to auto-refresh (expires every 24 hours)
+- Trakt: Uses `TRAKT_REFRESH_TOKEN` to auto-refresh (expires every 7 days, proactively refreshed when <24h remain)
 - Refreshed tokens are automatically saved to Secret Manager for future builds
 
 **Spotify tokens expire periodically:**

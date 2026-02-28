@@ -1,18 +1,10 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import GameCarousel from '../components/GameCarousel';
-import { getSteamStats } from '../utils/steam';
-import { getPSNStats } from '../utils/psn';
-import { getNintendoStats } from '../utils/nintendo';
 import { getAllGames } from '../utils/unified-games';
 
-// Fetch gaming stats at build time
-const steamStats = await getSteamStats();
-const psnStats = await getPSNStats();
-const nintendoStats = await getNintendoStats();
-
-// Fetch all games from all platforms
-const allGames = await getAllGames();
+// Fetch all games and stats from all platforms in a single call
+const { games: allGames, steamStats, psnStats, nintendoStats } = await getAllGames();
 ---
 
 <BaseLayout

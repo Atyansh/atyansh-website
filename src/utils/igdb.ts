@@ -42,6 +42,7 @@ interface IGDBCache {
 
 // In-memory cache for the current build
 let memoryCache: IGDBCache | null = null;
+let cacheDirty = false;
 
 /**
  * Load IGDB cache from disk
@@ -70,26 +71,6 @@ async function loadCache(): Promise<IGDBCache> {
 }
 
 /**
- * Save IGDB cache to disk
- */
-async function saveCache(cache: IGDBCache): Promise<void> {
-  // Only save cache in Node.js environment
-  if (!isNode) {
-    return;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    // Ensure cache directory exists
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(IGDB_CACHE_FILE, JSON.stringify(cache, null, 2));
-    memoryCache = cache;
-  } catch (error) {
-    console.error('Failed to save IGDB cache:', error);
-  }
-}
-
-/**
  * Get cached cover URL if available and not expired
  */
 async function getCachedCover(gameKey: string): Promise<string | null> {
@@ -108,7 +89,7 @@ async function getCachedCover(gameKey: string): Promise<string | null> {
 }
 
 /**
- * Cache a cover URL
+ * Cache a cover URL (memory only; call flushIGDBCache to persist)
  */
 async function cacheCover(gameKey: string, url: string): Promise<void> {
   const cache = await loadCache();
@@ -116,7 +97,23 @@ async function cacheCover(gameKey: string, url: string): Promise<void> {
     url,
     timestamp: Date.now(),
   };
-  await saveCache(cache);
+  cacheDirty = true;
+}
+
+/**
+ * Flush IGDB cache to disk (batched write — call once after all covers are fetched)
+ */
+export async function flushIGDBCache(): Promise<void> {
+  if (!cacheDirty || !isNode || !memoryCache) return;
+
+  try {
+    const { promises: fs } = await import('fs');
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    await fs.writeFile(IGDB_CACHE_FILE, JSON.stringify(memoryCache, null, 2));
+    cacheDirty = false;
+  } catch (error) {
+    console.error('Failed to save IGDB cache:', error);
+  }
 }
 
 // Rate limiting — pLimit(1) serializes all IGDB API calls so that

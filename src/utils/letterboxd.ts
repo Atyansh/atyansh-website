@@ -218,32 +218,20 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
  */
 async function fetchPosterFromFilmPage(filmLink: string): Promise<string | null> {
   try {
-    const https = await import('https');
     const url = filmLink.startsWith('http') ? filmLink : `https://letterboxd.com${filmLink}`;
-
-    return new Promise((resolve) => {
-      https.get(url, (res) => {
-        let html = '';
-        res.on('data', (chunk) => { html += chunk; });
-        res.on('end', () => {
-          // Extract poster URL from JSON-LD structured data
-          const jsonLdMatch = /"image":"([^"]+)"/.exec(html);
-          if (jsonLdMatch && jsonLdMatch[1]) {
-            // Ensure it's a 230x345 poster
-            let posterUrl = jsonLdMatch[1];
-            if (!posterUrl.includes('-0-230-0-345-crop')) {
-              posterUrl = posterUrl.replace(/- 0-\d+-0-\d+-crop/, '-0-230-0-345-crop');
-            }
-            resolve(posterUrl);
-          } else {
-            resolve(null);
-          }
-        });
-      }).on('error', () => {
-        resolve(null);
-      });
-    });
-  } catch (error) {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const html = await res.text();
+    const jsonLdMatch = /"image":"([^"]+)"/.exec(html);
+    if (jsonLdMatch?.[1]) {
+      let posterUrl = jsonLdMatch[1];
+      if (!posterUrl.includes('-0-230-0-345-crop')) {
+        posterUrl = posterUrl.replace(/-0-\d+-0-\d+-crop/, '-0-230-0-345-crop');
+      }
+      return posterUrl;
+    }
+    return null;
+  } catch {
     return null;
   }
 }
@@ -302,28 +290,14 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
     }
 
     // Fix poster URLs that might not work (e.g., movies using /sm/upload/ pattern)
-    const https = await import('https');
-    const url = await import('url');
-
     const limit = pLimit(10);
     await Promise.all(allMovies.map((movie, i) => limit(async () => {
       // Check if poster URL looks like it might be inaccessible (constructed /film-poster/ URL)
       if (movie.posterImage.includes('/film-poster/')) {
         // Quick HEAD request to check if URL is accessible
-        const isAccessible = await new Promise<boolean>((resolve) => {
-          const parsedUrl = new url.URL(movie.posterImage);
-          const options = {
-            hostname: parsedUrl.hostname,
-            path: parsedUrl.pathname + parsedUrl.search,
-            method: 'HEAD'
-          };
-
-          const req = https.request(options, (res) => {
-            resolve(res.statusCode !== undefined && res.statusCode < 400);
-          });
-          req.on('error', () => resolve(false));
-          req.end();
-        });
+        const isAccessible = await fetch(movie.posterImage, { method: 'HEAD' })
+          .then(res => res.ok)
+          .catch(() => false);
 
         if (!isAccessible && movie.link) {
           log.info(`Fixing poster for ${movie.title}...`);

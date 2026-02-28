@@ -85,13 +85,22 @@ async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
   throw lastError;
 }
 
+// Lazy singleton for SecretManagerServiceClient (avoids creating multiple gRPC clients)
+let _secretManagerClient = null;
+function getSecretManagerClient() {
+  if (!_secretManagerClient) {
+    const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+    _secretManagerClient = new SecretManagerServiceClient();
+  }
+  return _secretManagerClient;
+}
+
 /**
  * Update a secret in Google Cloud Secret Manager using the SDK
  */
 async function updateSecretManager(secretName, value) {
   try {
-    const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
-    const client = new SecretManagerServiceClient();
+    const client = getSecretManagerClient();
 
     const parent = `projects/${PROJECT_ID}/secrets/${secretName}`;
 
@@ -368,14 +377,20 @@ async function refreshIGDB() {
 async function main() {
   console.log('🔄 Pre-build token refresh\n');
 
-  console.log('Checking Trakt...');
-  await refreshTrakt();
+  // Refresh all tokens in parallel
+  const results = await Promise.allSettled([
+    refreshTrakt().then(r => { console.log('  Trakt: done'); return r; }),
+    refreshMAL().then(r => { console.log('  MAL: done'); return r; }),
+    refreshIGDB().then(r => { console.log('  IGDB: done'); return r; }),
+  ]);
 
-  console.log('\nChecking MyAnimeList...');
-  await refreshMAL();
-
-  console.log('\nChecking IGDB...');
-  await refreshIGDB();
+  // Log any unexpected rejections
+  results.forEach((result, i) => {
+    if (result.status === 'rejected') {
+      const names = ['Trakt', 'MAL', 'IGDB'];
+      console.log(`  ✗ ${names[i]} unexpected error: ${result.reason?.message || result.reason}`);
+    }
+  });
 
   // Update .env file with any changes
   console.log('');

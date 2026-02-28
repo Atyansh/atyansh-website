@@ -1,10 +1,11 @@
 // Letterboxd web scraping integration
 // Fetches movie data by scraping Letterboxd profile pages with pagination
 
-import { withRetry, isTransientError } from './retry';
+import { withRetry } from './retry';
 import { FileCache } from './cache';
 import { createLogger } from './logger';
 import { pLimit } from './concurrency';
+import { launchStealthBrowser } from './browser';
 
 const LETTERBOXD_USERNAME = import.meta.env.LETTERBOXD_USERNAME;
 
@@ -268,18 +269,9 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
   log.info('Fetching Letterboxd data...');
 
   // Launch browser once and share across all page scrapes
-  const puppeteerExtra = await import('puppeteer-extra');
-  const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
-  puppeteerExtra.default.use(StealthPlugin.default());
-
-  const browser = await puppeteerExtra.default.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled',
-    ],
-  });
+  const browser = await launchStealthBrowser([
+    '--disable-blink-features=AutomationControlled',
+  ]);
 
   try {
     const allMovies: LetterboxdMovie[] = [];

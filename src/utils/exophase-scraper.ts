@@ -134,7 +134,7 @@ export async function scrapeExophaseNintendoStats(): Promise<NintendoStats | nul
                 lastPlayed: game.lastplayed_utc ? new Date(game.lastplayed_utc * 1000).toISOString() : undefined,
               }));
             } catch (e) {
-              log.error('Failed to parse playerGames JSON:', e);
+              console.error('Failed to parse playerGames JSON:', e);
               return [];
             }
           });

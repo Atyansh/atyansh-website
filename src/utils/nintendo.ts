@@ -48,16 +48,4 @@ export async function getNintendoStats(): Promise<NintendoStats | null> {
   }
 }
 
-/**
- * Format play time from seconds to human-readable format
- */
-export function formatPlayTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
-}
 

@@ -416,20 +416,3 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
   }
 }
 
-/**
- * Get multiple IGDB cover URLs in parallel
- */
-export async function getIGDBCoversForGames(
-  games: Array<{ name: string; platform?: 'steam' | 'psn' | 'nintendo' }>
-): Promise<Map<string, string | null>> {
-  const results = new Map<string, string | null>();
-
-  await Promise.all(
-    games.map(async (game) => {
-      const coverUrl = await getIGDBCoverUrl(game.name, game.platform);
-      results.set(game.name, coverUrl);
-    })
-  );
-
-  return results;
-}

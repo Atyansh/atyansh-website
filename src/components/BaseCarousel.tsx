@@ -2,8 +2,8 @@ import { useState, useRef, type ReactNode } from 'react';
 
 interface BaseCarouselProps {
   itemCount: number;
-  itemNoun: string;
-  title: string;
+  itemNoun?: string;
+  title?: string;
   headerActions?: ReactNode;
   arrowZClass?: string;
   children: ReactNode;
@@ -38,17 +38,21 @@ export default function BaseCarousel({
 
   return (
     <div className="relative carousel-container">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-          {title}
-        </h3>
-        <div className="flex items-center gap-4">
-          <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {itemCount} {itemCount === 1 ? itemNoun : `${itemNoun}s`}
-          </span>
-          {headerActions}
+      {title && (
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            {title}
+          </h3>
+          <div className="flex items-center gap-4">
+            {itemNoun && (
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                {itemCount} {itemCount === 1 ? itemNoun : `${itemNoun}s`}
+              </span>
+            )}
+            {headerActions}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="relative carousel-wrapper">
         {showLeftArrow && (
@@ -68,7 +72,6 @@ export default function BaseCarousel({
           ref={scrollContainerRef}
           className="overflow-x-auto scrollbar-hide"
           onScroll={handleScroll}
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <div className="flex gap-4 pb-4">
             {children}
@@ -90,9 +93,6 @@ export default function BaseCarousel({
       </div>
 
       <style>{`
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
         .carousel-wrapper:hover button {
           opacity: 1;
         }

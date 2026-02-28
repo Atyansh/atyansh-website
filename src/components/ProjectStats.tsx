@@ -36,6 +36,7 @@ export default function ProjectStats({ stats }: ProjectStatsProps) {
   useEffect(() => {
     if (!isVisible) return;
 
+    const timers: ReturnType<typeof setInterval>[] = [];
     const durations = stats.map(() => 2000); // 2 seconds for each
     const steps = 60;
 
@@ -64,7 +65,10 @@ export default function ProjectStats({ stats }: ProjectStatsProps) {
           });
         }
       }, stepTime);
+      timers.push(timer);
     });
+
+    return () => timers.forEach(t => clearInterval(t));
   }, [isVisible, stats]);
 
   const formatNumber = (num: number) => {

@@ -1,6 +1,10 @@
 // Retry utility for handling transient failures in scrapers
 // Provides exponential backoff retry logic that distinguishes between transient and permanent failures
 
+import { createLogger } from './logger';
+
+const log = createLogger('Retry');
+
 export interface RetryOptions {
   maxRetries?: number;
   initialDelayMs?: number;
@@ -132,13 +136,13 @@ export async function withRetry<T>(
 
       // Only retry transient errors
       if (!isTransientError(error)) {
-        console.log(`Non-transient error detected, not retrying: ${lastError.message}`);
+        log.info(`Non-transient error detected, not retrying: ${lastError.message}`);
         throw lastError;
       }
 
       // Log retry attempt
-      console.log(`Transient error on attempt ${attempt}/${config.maxRetries + 1}: ${lastError.message}`);
-      console.log(`Retrying in ${delay}ms...`);
+      log.info(`Transient error on attempt ${attempt}/${config.maxRetries + 1}: ${lastError.message}`);
+      log.info(`Retrying in ${delay}ms...`);
 
       if (options.onRetry) {
         options.onRetry(lastError, attempt);

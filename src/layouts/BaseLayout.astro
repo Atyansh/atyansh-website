@@ -198,18 +198,24 @@ if (image) {
     </header>
 
     <script>
-      function initMobileMenu() {
+      let navAbort: AbortController | null = null;
+
+      function initNavHandlers() {
+        if (navAbort) navAbort.abort();
+        navAbort = new AbortController();
+        const { signal } = navAbort;
+
+        // --- Mobile Menu ---
         const button = document.getElementById('mobile-menu-button');
-        const menu = document.getElementById('mobile-menu');
+        const mobileMenu = document.getElementById('mobile-menu');
 
-        if (!button || !menu) return;
+        if (button && mobileMenu) {
+          button.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+          }, { signal });
+        }
 
-        button.addEventListener('click', () => {
-          menu.classList.toggle('hidden');
-        });
-      }
-
-      function initNavDropdowns() {
+        // --- Nav Dropdowns ---
         const dropdowns = document.querySelectorAll('.nav-dropdown');
 
         dropdowns.forEach(dropdown => {
@@ -239,8 +245,8 @@ if (image) {
           };
 
           // Hover events
-          dropdown.addEventListener('mouseenter', showMenu);
-          dropdown.addEventListener('mouseleave', hideMenu);
+          dropdown.addEventListener('mouseenter', showMenu, { signal });
+          dropdown.addEventListener('mouseleave', hideMenu, { signal });
 
           // Click for accessibility/touch
           trigger.addEventListener('click', (e) => {
@@ -251,7 +257,7 @@ if (image) {
             } else {
               showMenu();
             }
-          });
+          }, { signal });
 
           // Keyboard navigation
           trigger.addEventListener('keydown', (e) => {
@@ -267,7 +273,7 @@ if (image) {
               hideMenu();
               trigger.focus();
             }
-          });
+          }, { signal });
         });
 
         // Close dropdowns when clicking outside
@@ -284,18 +290,14 @@ if (image) {
               if (arrow) (arrow as HTMLElement).style.transform = '';
             });
           }
-        });
+        }, { signal });
       }
 
       // Initialize on page load
-      initMobileMenu();
-      initNavDropdowns();
+      initNavHandlers();
 
       // Re-initialize after View Transitions
-      document.addEventListener('astro:after-swap', () => {
-        initMobileMenu();
-        initNavDropdowns();
-      });
+      document.addEventListener('astro:after-swap', initNavHandlers);
     </script>
 
     <main id="main-content" class="flex-1 container mx-auto px-4 py-8" role="main">

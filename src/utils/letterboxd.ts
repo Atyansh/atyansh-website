@@ -319,7 +319,7 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
           };
 
           const req = https.request(options, (res) => {
-            resolve(res.statusCode === 200);
+            resolve(res.statusCode !== undefined && res.statusCode < 400);
           });
           req.on('error', () => resolve(false));
           req.end();

@@ -1,13 +1,32 @@
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 
+let cachedProfileSrc: string | null = null;
+let cachedFonts: ArrayBuffer[] | null = null;
+
+async function getProfileImage(): Promise<string> {
+  if (cachedProfileSrc) return cachedProfileSrc;
+  const res = await fetch('https://www.gravatar.com/avatar/7e16fc57778ed552f69eb809ce567b38?s=512');
+  const buf = await res.arrayBuffer();
+  cachedProfileSrc = `data:image/png;base64,${Buffer.from(buf).toString('base64')}`;
+  return cachedProfileSrc;
+}
+
+async function getFonts(): Promise<ArrayBuffer[]> {
+  if (cachedFonts) return cachedFonts;
+  cachedFonts = await Promise.all([
+    fetch('https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-400-normal.woff').then(r => r.arrayBuffer()),
+    fetch('https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-600-normal.woff').then(r => r.arrayBuffer()),
+    fetch('https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-700-normal.woff').then(r => r.arrayBuffer()),
+  ]);
+  return cachedFonts;
+}
+
 export async function generateOGImage(): Promise<Buffer> {
-  // Fetch profile image and convert to base64
-  const profileImageUrl = 'https://www.gravatar.com/avatar/7e16fc57778ed552f69eb809ce567b38?s=512';
-  const profileImageResponse = await fetch(profileImageUrl);
-  const profileImageBuffer = await profileImageResponse.arrayBuffer();
-  const base64Image = Buffer.from(profileImageBuffer).toString('base64');
-  const profileImageSrc = `data:image/png;base64,${base64Image}`;
+  const [profileImageSrc, fonts] = await Promise.all([
+    getProfileImage(),
+    getFonts(),
+  ]);
 
   // satori uses a React-like virtual DOM format that TypeScript doesn't fully understand
   const svg = await satori(
@@ -99,30 +118,9 @@ export async function generateOGImage(): Promise<Buffer> {
       width: 1200,
       height: 630,
       fonts: [
-        {
-          name: 'Inter',
-          data: await fetch(
-            'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-400-normal.woff'
-          ).then((res) => res.arrayBuffer()),
-          weight: 400,
-          style: 'normal',
-        },
-        {
-          name: 'Inter',
-          data: await fetch(
-            'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-600-normal.woff'
-          ).then((res) => res.arrayBuffer()),
-          weight: 600,
-          style: 'normal',
-        },
-        {
-          name: 'Inter',
-          data: await fetch(
-            'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-700-normal.woff'
-          ).then((res) => res.arrayBuffer()),
-          weight: 700,
-          style: 'normal',
-        },
+        { name: 'Inter', data: fonts[0], weight: 400, style: 'normal' as const },
+        { name: 'Inter', data: fonts[1], weight: 600, style: 'normal' as const },
+        { name: 'Inter', data: fonts[2], weight: 700, style: 'normal' as const },
       ],
     }
   );

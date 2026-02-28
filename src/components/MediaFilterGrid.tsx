@@ -10,9 +10,14 @@ interface FilterOption {
 export interface FilterDef<T> {
   id: string;
   label: string;
+  type?: 'select' | 'range';
   options: FilterOption[] | ((items: T[]) => FilterOption[]);
   defaultValue?: string;
   match: (item: T, value: string) => boolean;
+  // Range-specific props
+  min?: number;
+  max?: number;
+  formatLabel?: (value: number) => string;
 }
 
 export interface SortDef<T> {
@@ -36,6 +41,8 @@ export interface MediaFilterGridConfig<T> {
     getImage: (item: T) => string;
     getRating?: (item: T) => number | undefined;
   };
+  renderItem?: (item: T, index: number) => React.ReactNode;
+  gridClassName?: string;
   filterColumnClass: string;
   itemNounPlural: string;
 }
@@ -83,6 +90,8 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
     setFilterValues(prev => ({ ...prev, [id]: value }));
   };
 
+  const gridClassName = config.gridClassName ?? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6';
+
   return (
     <div className="w-full">
       <motion.div
@@ -112,19 +121,33 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
           {resolvedFilters.map(filter => (
             <div key={filter.id}>
               <label htmlFor={filter.id} className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                {filter.label}
+                {filter.type === 'range' && filter.formatLabel
+                  ? `${filter.label}: ${filter.formatLabel(parseInt(filterValues[filter.id]))}`
+                  : filter.label}
               </label>
-              <select
-                id={filter.id}
-                value={filterValues[filter.id]}
-                onChange={(e) => setFilter(filter.id, e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border transition-colors"
-                style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
-              >
-                {filter.resolvedOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+              {filter.type === 'range' ? (
+                <input
+                  id={filter.id}
+                  type="range"
+                  min={filter.min ?? 0}
+                  max={filter.max ?? 100}
+                  value={filterValues[filter.id]}
+                  onChange={(e) => setFilter(filter.id, e.target.value)}
+                  className="w-full theme-slider"
+                />
+              ) : (
+                <select
+                  id={filter.id}
+                  value={filterValues[filter.id]}
+                  onChange={(e) => setFilter(filter.id, e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border transition-colors"
+                  style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
+                >
+                  {filter.resolvedOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              )}
             </div>
           ))}
 
@@ -153,7 +176,7 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
       </motion.div>
 
       <AnimatePresence mode="popLayout">
-        <motion.div layout className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+        <motion.div layout className={gridClassName}>
           {filteredAndSorted.map((item, index) => (
             <motion.div
               key={config.card.getKey(item)}
@@ -163,13 +186,15 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.5) }}
             >
-              <MediaCard
-                title={config.card.getTitle(item)}
-                subtitle={config.card.getSubtitle(item)}
-                image={config.card.getImage(item)}
-                rating={config.card.getRating?.(item)}
-                delay={0}
-              />
+              {config.renderItem ? config.renderItem(item, index) : (
+                <MediaCard
+                  title={config.card.getTitle(item)}
+                  subtitle={config.card.getSubtitle(item)}
+                  image={config.card.getImage(item)}
+                  rating={config.card.getRating?.(item)}
+                  delay={0}
+                />
+              )}
             </motion.div>
           ))}
         </motion.div>

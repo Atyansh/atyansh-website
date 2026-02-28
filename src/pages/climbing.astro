@@ -263,15 +263,22 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
         </style>
 
         <script>
-          function initPyramidTooltips() {
+          let climbingAbort: AbortController | null = null;
+
+          function initClimbingHandlers() {
+            if (climbingAbort) climbingAbort.abort();
+            climbingAbort = new AbortController();
+            const { signal } = climbingAbort;
+
+            // --- Pyramid Tooltips ---
             // Handle touch events for mobile
             document.querySelectorAll('.pyramid-bar').forEach(bar => {
-              bar.addEventListener('touchstart', (e) => {
+              bar.addEventListener('touchstart', () => {
                 // Hide all other tooltips first
                 document.querySelectorAll('.pyramid-bar').forEach(b => b.classList.remove('tooltip-active'));
                 // Show this tooltip
                 bar.classList.add('tooltip-active');
-              });
+              }, { signal });
             });
 
             // Hide tooltips when touching elsewhere
@@ -280,14 +287,9 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
               if (!target.closest('.pyramid-bar')) {
                 document.querySelectorAll('.pyramid-bar').forEach(b => b.classList.remove('tooltip-active'));
               }
-            });
-          }
+            }, { signal });
 
-          // Initialize pyramid tooltips
-          initPyramidTooltips();
-          document.addEventListener('astro:after-swap', initPyramidTooltips);
-
-          function initVideoModal() {
+            // --- Video Modal ---
             const modal = document.getElementById('video-modal');
             const video = document.getElementById('modal-video') as HTMLVideoElement;
             const closeBtn = document.getElementById('close-modal');
@@ -311,9 +313,9 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
             }
 
             // Handle video errors
-            video.addEventListener('error', () => {
+            video?.addEventListener('error', () => {
               showError('Video unavailable - may be restricted by Kaya');
-            });
+            }, { signal });
 
             // Track current blob URL to revoke it later
             let currentBlobUrl: string | null = null;
@@ -353,7 +355,7 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
                     showError('Video unavailable - may be restricted by Kaya');
                   }
                 }
-              });
+              }, { signal });
             });
 
             // Close modal
@@ -373,22 +375,22 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
               }
             }
 
-            closeBtn?.addEventListener('click', closeModal);
+            closeBtn?.addEventListener('click', closeModal, { signal });
             modal?.addEventListener('click', (e) => {
               if (e.target === modal) closeModal();
-            });
+            }, { signal });
 
             // Close on escape key
             document.addEventListener('keydown', (e) => {
               if (e.key === 'Escape') closeModal();
-            });
+            }, { signal });
           }
 
           // Initialize on page load
-          initVideoModal();
+          initClimbingHandlers();
 
           // Re-initialize after View Transitions
-          document.addEventListener('astro:after-swap', initVideoModal);
+          document.addEventListener('astro:after-swap', initClimbingHandlers);
         </script>
       </>
     ) : (

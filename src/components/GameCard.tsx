@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { useState } from 'react';
 import type { UnifiedGame } from '../utils/unified-games';
 import { getPlatformName, getPlatformColor } from '../utils/unified-games';
@@ -6,10 +5,9 @@ import { getGameCapsuleFallbacks } from '../utils/steam';
 
 interface GameCardProps {
   game: UnifiedGame;
-  delay?: number;
 }
 
-export default function GameCard({ game, delay = 0 }: GameCardProps) {
+export default function GameCard({ game }: GameCardProps) {
   const [imageError, setImageError] = useState(false);
   const [imageSrc, setImageSrc] = useState(game.image);
   const [fallbackIndex, setFallbackIndex] = useState(0);
@@ -19,19 +17,6 @@ export default function GameCard({ game, delay = 0 }: GameCardProps) {
     // Only toggle on touch devices (no hover capability)
     if (window.matchMedia('(hover: none)').matches) {
       setIsExpanded(!isExpanded);
-    }
-  };
-
-  const cardVariants = {
-    hidden: { opacity: 0, scale: 0.9 },
-    visible: {
-      opacity: 1,
-      scale: 1,
-      transition: {
-        duration: 0.3,
-        delay: delay,
-        ease: 'easeOut'
-      }
     }
   };
 

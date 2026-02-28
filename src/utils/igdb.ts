@@ -75,8 +75,9 @@ async function loadCache(): Promise<IGDBCache> {
 
 /**
  * Get cached cover URL if available and not expired
+ * Returns: string = positive hit, null = negative hit (not found), undefined = cache miss
  */
-async function getCachedCover(gameKey: string): Promise<string | null> {
+async function getCachedCover(gameKey: string): Promise<string | null | undefined> {
   const cache = await loadCache();
   const cached = cache[gameKey];
 
@@ -88,7 +89,7 @@ async function getCachedCover(gameKey: string): Promise<string | null> {
     }
   }
 
-  return null;
+  return undefined;
 }
 
 /**
@@ -322,10 +323,10 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
   const gameKey = `${platform || 'all'}:${gameName.toLowerCase()}`;
 
   // Check cache first
-  const cachedUrl = await getCachedCover(gameKey);
-  if (cachedUrl) {
-    log.info(`Using cached IGDB cover for: ${gameName}`);
-    return cachedUrl;
+  const cached = await getCachedCover(gameKey);
+  if (cached !== undefined) {
+    if (cached) log.info(`Using cached IGDB cover for: ${gameName}`);
+    return cached;
   }
 
   try {
@@ -416,20 +417,3 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
   }
 }
 
-/**
- * Get multiple IGDB cover URLs in parallel
- */
-export async function getIGDBCoversForGames(
-  games: Array<{ name: string; platform?: 'steam' | 'psn' | 'nintendo' }>
-): Promise<Map<string, string | null>> {
-  const results = new Map<string, string | null>();
-
-  await Promise.all(
-    games.map(async (game) => {
-      const coverUrl = await getIGDBCoverUrl(game.name, game.platform);
-      results.set(game.name, coverUrl);
-    })
-  );
-
-  return results;
-}

@@ -13,7 +13,7 @@ function GameCarouselInner({ games, title }: GameCarouselProps) {
     <BaseCarousel itemCount={games.length} itemNoun="game" title={title} arrowZClass="z-30">
       {games.map((game) => (
         <div key={game.id} className="flex-shrink-0 w-56">
-          <GameCard game={game} delay={0} />
+          <GameCard game={game} />
         </div>
       ))}
     </BaseCarousel>

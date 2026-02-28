@@ -71,36 +71,6 @@ const books = defineCollection({
   }),
 });
 
-const music = defineCollection({
-  type: 'content',
-  schema: z.object({
-    artist: z.string(),
-    album: z.string(),
-    coverImage: z.string(),
-    releaseYear: z.number().optional(),
-    genre: z.array(z.string()).optional().default([]),
-    rating: z.number().min(1).max(5).optional(),
-    notes: z.string().optional(),
-    featured: z.boolean().optional().default(false),
-  }),
-});
-
-const games = defineCollection({
-  type: 'content',
-  schema: z.object({
-    title: z.string(),
-    platform: z.array(z.string()).optional().default([]),
-    coverImage: z.string(),
-    releaseYear: z.number().optional(),
-    genre: z.array(z.string()).optional().default([]),
-    hoursPlayed: z.number().optional(),
-    status: z.enum(['playing', 'completed', 'backlog', 'abandoned']).default('completed'),
-    rating: z.number().min(1).max(5).optional(),
-    thoughts: z.string().optional(),
-    featured: z.boolean().optional().default(false),
-  }),
-});
-
 const pets = defineCollection({
   type: 'content',
   schema: z.object({
@@ -131,8 +101,6 @@ export const collections = {
   projects,
   papers,
   books,
-  music,
-  games,
   pets,
   eulerProblems,
 };

@@ -34,6 +34,15 @@ const INITIAL_DELAY_MS = 1000;
 const envUpdates = {};
 
 /**
+ * Persist a refreshed token to Secret Manager, envUpdates, and process.env
+ */
+async function persistTokenUpdate(key, value) {
+  await updateSecretManager(key, value);
+  envUpdates[key] = value;
+  process.env[key] = value;
+}
+
+/**
  * Sleep for specified milliseconds
  */
 function sleep(ms) {
@@ -174,14 +183,13 @@ async function refreshTrakt() {
     return null;
   }
 
-  if (expiresAt > 0) {
+  if (expiresAt === 0) {
+    console.log('  Trakt: no expiry info, refreshing to be safe...');
+  } else if (hoursUntilExpiry > 0) {
     console.log(`  Trakt: token expires in ${Math.round(hoursUntilExpiry)}h, refreshing proactively...`);
   } else {
-    console.log('  Trakt: no expiry info, refreshing to be safe...');
+    console.log(`  Trakt: token expired ${Math.round(-hoursUntilExpiry)}h ago, refreshing...`);
   }
-
-  // Refresh the token
-  console.log('  Trakt: refreshing token...');
   try {
     const response = await fetchWithRetry('https://api.trakt.tv/oauth/token', {
       method: 'POST',
@@ -207,23 +215,15 @@ async function refreshTrakt() {
     const expiresInHours = Math.round(data.expires_in / 3600);
     console.log(`  ✓ Trakt token refreshed (expires in ${expiresInHours} hours)`);
 
-    // Compute and store expiry timestamp
-    const expiresAtNew = Math.floor(Date.now() / 1000) + data.expires_in;
+    // Compute expiry timestamp
+    const expiresAtStr = String(Math.floor(Date.now() / 1000) + data.expires_in);
 
-    // Update Secret Manager
-    await updateSecretManager('TRAKT_ACCESS_TOKEN', data.access_token);
-    await updateSecretManager('TRAKT_REFRESH_TOKEN', data.refresh_token);
-    await updateSecretManager('TRAKT_TOKEN_EXPIRES_AT', String(expiresAtNew));
-
-    // Track for .env update
-    envUpdates.TRAKT_ACCESS_TOKEN = data.access_token;
-    envUpdates.TRAKT_REFRESH_TOKEN = data.refresh_token;
-    envUpdates.TRAKT_TOKEN_EXPIRES_AT = String(expiresAtNew);
-
-    // Update process.env for this build
-    process.env.TRAKT_ACCESS_TOKEN = data.access_token;
-    process.env.TRAKT_REFRESH_TOKEN = data.refresh_token;
-    process.env.TRAKT_TOKEN_EXPIRES_AT = String(expiresAtNew);
+    // Persist all tokens in parallel
+    await Promise.all([
+      persistTokenUpdate('TRAKT_ACCESS_TOKEN', data.access_token),
+      persistTokenUpdate('TRAKT_REFRESH_TOKEN', data.refresh_token),
+      persistTokenUpdate('TRAKT_TOKEN_EXPIRES_AT', expiresAtStr),
+    ]);
 
     return data;
   } catch (error) {
@@ -287,17 +287,11 @@ async function refreshMAL() {
     const expiresInDays = Math.round(data.expires_in / 86400);
     console.log(`  ✓ MAL token refreshed (expires in ${expiresInDays} days)`);
 
-    // Update Secret Manager
-    await updateSecretManager('MAL_ACCESS_TOKEN', data.access_token);
-    await updateSecretManager('MAL_REFRESH_TOKEN', data.refresh_token);
-
-    // Track for .env update
-    envUpdates.MAL_ACCESS_TOKEN = data.access_token;
-    envUpdates.MAL_REFRESH_TOKEN = data.refresh_token;
-
-    // Update process.env for this build
-    process.env.MAL_ACCESS_TOKEN = data.access_token;
-    process.env.MAL_REFRESH_TOKEN = data.refresh_token;
+    // Persist all tokens in parallel
+    await Promise.all([
+      persistTokenUpdate('MAL_ACCESS_TOKEN', data.access_token),
+      persistTokenUpdate('MAL_REFRESH_TOKEN', data.refresh_token),
+    ]);
 
     return data;
   } catch (error) {
@@ -362,14 +356,7 @@ async function refreshIGDB() {
     const expiresInDays = Math.round(data.expires_in / 86400);
     console.log(`  ✓ IGDB token refreshed (expires in ${expiresInDays} days)`);
 
-    // Update Secret Manager
-    await updateSecretManager('IGDB_ACCESS_TOKEN', data.access_token);
-
-    // Track for .env update
-    envUpdates.IGDB_ACCESS_TOKEN = data.access_token;
-
-    // Update process.env for this build
-    process.env.IGDB_ACCESS_TOKEN = data.access_token;
+    await persistTokenUpdate('IGDB_ACCESS_TOKEN', data.access_token);
 
     return data;
   } catch (error) {

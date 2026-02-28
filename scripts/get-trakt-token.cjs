@@ -169,16 +169,19 @@ async function main() {
 
     console.log('\n\n✅ Authorization successful!\n');
     console.log('━'.repeat(60));
+    const expiresAtUnix = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+
     console.log('\nAdd these to your .env file:\n');
     console.log(`TRAKT_ACCESS_TOKEN=${tokenData.access_token}`);
     console.log(`TRAKT_REFRESH_TOKEN=${tokenData.refresh_token}`);
+    console.log(`TRAKT_TOKEN_EXPIRES_AT=${expiresAtUnix}`);
     console.log('\n━'.repeat(60));
 
-    console.log('\n⚠️  Important: Access tokens expire in 24 hours.');
-    console.log('The app will automatically refresh tokens during builds.\n');
+    console.log('\n⚠️  Important: Access tokens expire every 7 days.');
+    console.log('The app will automatically refresh tokens during builds when <24h remain.\n');
 
     // Show token expiry info
-    const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
+    const expiresAt = new Date(expiresAtUnix * 1000);
     console.log(`Token expires at: ${expiresAt.toLocaleString()}`);
 
   } catch (error) {

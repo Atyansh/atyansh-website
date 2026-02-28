@@ -393,13 +393,8 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
 
 /**
  * Get the best image URL from Spotify images array
+ * Spotify API returns images sorted largest-first, so just take the first one
  */
 export function getBestImage(images: Array<{ url: string; height: number; width: number }>): string | undefined {
-  if (!images || images.length === 0) {
-    return undefined;
-  }
-
-  // Sort by size (prefer larger images) and return the first one
-  const sorted = [...images].sort((a, b) => (b.height || 0) - (a.height || 0));
-  return sorted[0]?.url;
+  return images?.[0]?.url;
 }

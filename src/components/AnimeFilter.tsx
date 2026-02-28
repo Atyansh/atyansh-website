@@ -1,12 +1,13 @@
 import MediaFilterGrid, { type MediaFilterGridConfig } from './MediaFilterGrid';
 import ErrorBoundary from './ErrorBoundary';
+import type { AnimeStatus } from '../content/config';
 
 interface AnimeData {
   title: string;
   englishTitle?: string;
   imageUrl: string;
   score?: number;
-  status: 'watching' | 'completed' | 'on_hold' | 'dropped' | 'plan_to_watch';
+  status: AnimeStatus;
   episodes?: number;
   episodesWatched?: number;
   type?: string;

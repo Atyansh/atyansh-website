@@ -3,6 +3,7 @@
 
 import { FileCache } from './cache';
 import { createLogger } from './logger';
+import type { AnimeStatus } from '../content/config';
 import { fetchWithRetry } from './retry';
 
 const log = createLogger('MAL');
@@ -19,7 +20,7 @@ export interface MALAnime {
   englishTitle?: string;
   imageUrl: string;
   score?: number; // User's rating (1-10)
-  status: 'watching' | 'completed' | 'on_hold' | 'dropped' | 'plan_to_watch';
+  status: AnimeStatus;
   episodes?: number;
   episodesWatched?: number;
   type?: string; // TV, Movie, OVA, etc.
@@ -119,20 +120,14 @@ async function fetchAnimeList(): Promise<MALAnime[]> {
         let endDate: Date | undefined;
 
         if (node.start_date) {
-          try {
-            startDate = new Date(node.start_date);
-          } catch (e) {
-            // Invalid date
-          }
+          const d = new Date(node.start_date);
+          if (!isNaN(d.getTime())) startDate = d;
         }
 
         // Use user's finish date for endDate
         if (listStatus.finish_date) {
-          try {
-            endDate = new Date(listStatus.finish_date);
-          } catch (e) {
-            // Invalid date
-          }
+          const d = new Date(listStatus.finish_date);
+          if (!isNaN(d.getTime())) endDate = d;
         }
 
         // Get year from start_season

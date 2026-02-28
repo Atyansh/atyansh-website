@@ -175,7 +175,6 @@ async function refreshTrakt() {
   const clientId = process.env.TRAKT_CLIENT_ID;
   const clientSecret = process.env.TRAKT_CLIENT_SECRET;
   const refreshToken = process.env.TRAKT_REFRESH_TOKEN;
-  const accessToken = process.env.TRAKT_ACCESS_TOKEN;
 
   if (!clientId || !clientSecret || !refreshToken) {
     console.log('  Skipping Trakt: missing credentials');

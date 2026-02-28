@@ -1,12 +1,13 @@
 import MediaFilterGrid, { type MediaFilterGridConfig } from './MediaFilterGrid';
 import ErrorBoundary from './ErrorBoundary';
+import type { BookStatus } from '../content/config';
 
 interface BookData {
   title: string;
   author: string;
   coverImage: string;
   rating?: number;
-  status: 'reading' | 'finished' | 'want-to-read';
+  status: BookStatus;
   dateRead?: Date;
   publishedDate?: Date;
 }

@@ -161,11 +161,8 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
         const films: LetterboxdMovie[] = filmData.films.map((film: any) => {
           let releaseDate: Date | undefined;
           if (film.year) {
-            try {
-              releaseDate = new Date(film.year, 0, 1);
-            } catch (e) {
-              // Invalid date
-            }
+            const d = new Date(film.year, 0, 1);
+            if (!isNaN(d.getTime())) releaseDate = d;
           }
 
           // Upgrade poster image to higher resolution (230x345 instead of 70x105)

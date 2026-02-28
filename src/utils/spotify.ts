@@ -375,7 +375,7 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
         long: topArtistsLong,
       },
       savedAlbums,
-      playlists: playlists.filter(p => p.public || p.id), // Only include accessible playlists
+      playlists,
       featuredPlaylists,
       recentlyPlayed,
       timestamp: Date.now(),

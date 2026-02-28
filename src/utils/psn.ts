@@ -120,25 +120,19 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
     );
 
     // Transform the response to our format
-    const games: PSNGame[] = response.trophyTitles.map((title: any) => {
-      // PSN API doesn't provide playtime in trophy data
-      // We'll leave it undefined for now
-      let playDuration: string | undefined = undefined;
-
-      return {
-        titleId: title.npCommunicationId,
-        name: title.trophyTitleName,
-        category: title.trophyTitlePlatform || 'Unknown',
-        lastPlayedDateTime: title.lastUpdatedDateTime,
-        earnedTrophies: title.earnedTrophies ? {
-          bronze: title.earnedTrophies.bronze || 0,
-          silver: title.earnedTrophies.silver || 0,
-          gold: title.earnedTrophies.gold || 0,
-          platinum: title.earnedTrophies.platinum || 0,
-        } : undefined,
-        playDuration,
-      };
-    });
+    const games: PSNGame[] = response.trophyTitles.map((title: any) => ({
+      titleId: title.npCommunicationId,
+      name: title.trophyTitleName,
+      category: title.trophyTitlePlatform || 'Unknown',
+      lastPlayedDateTime: title.lastUpdatedDateTime,
+      earnedTrophies: title.earnedTrophies ? {
+        bronze: title.earnedTrophies.bronze || 0,
+        silver: title.earnedTrophies.silver || 0,
+        gold: title.earnedTrophies.gold || 0,
+        platinum: title.earnedTrophies.platinum || 0,
+      } : undefined,
+      playDuration: undefined,
+    }));
 
     return games;
   } catch (error) {

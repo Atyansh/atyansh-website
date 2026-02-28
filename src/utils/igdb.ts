@@ -281,6 +281,29 @@ function scoreMatch(searchName: string, game: IGDBGame): { nameScore: number; po
 }
 
 /**
+ * Pick the best matching game from IGDB results based on name similarity and popularity.
+ * Returns the cover URL of the best match, or null if no good match found.
+ */
+function pickBestMatch(games: IGDBGame[], cleanedName: string): string | null {
+  const scoredResults = games
+    .filter(game => game.cover)
+    .map(game => {
+      const scores = scoreMatch(cleanedName, game);
+      return { game, ...scores };
+    })
+    .sort((a, b) => {
+      if (a.nameScore !== b.nameScore) return b.nameScore - a.nameScore;
+      return b.popularityBonus - a.popularityBonus;
+    });
+
+  const bestMatch = scoredResults.find(r => r.nameScore > 0);
+  if (!bestMatch) return null;
+
+  const imageId = bestMatch.game.cover!.image_id;
+  return `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
+}
+
+/**
  * Search IGDB for a game and get its cover art
  * Returns high-quality cover URL (3:4 aspect ratio)
  * Includes retry logic for transient failures
@@ -360,59 +383,20 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
 
       if (response2.ok) {
         const data2: IGDBGame[] = await response2.json();
-        if (data2.length > 0) {
-          // Score all results and pick the best match
-          // Sort by nameScore first, then by popularityBonus for ties
-          const scoredResults = data2
-            .filter(game => game.cover)
-            .map(game => {
-              const scores = scoreMatch(cleanedName, game);
-              return { game, ...scores, totalScore: scores.nameScore + scores.popularityBonus };
-            })
-            .sort((a, b) => {
-              if (a.nameScore !== b.nameScore) return b.nameScore - a.nameScore;
-              return b.popularityBonus - a.popularityBonus;
-            });
-
-          const bestMatch = scoredResults.find(r => r.nameScore > 0);
-
-          if (bestMatch) {
-            const imageId = bestMatch.game.cover!.image_id;
-            const coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
-            await cacheCover(gameKey, coverUrl);
-            console.log(`✓ Found IGDB cover for: ${gameName} (matched as: ${bestMatch.game.name}, score: ${bestMatch.nameScore}+${Math.round(bestMatch.popularityBonus)}) [no platform filter]`);
-            return coverUrl;
-          }
+        const coverUrl = data2.length > 0 ? pickBestMatch(data2, cleanedName) : null;
+        if (coverUrl) {
+          await cacheCover(gameKey, coverUrl);
+          console.log(`✓ Found IGDB cover for: ${gameName} [no platform filter]`);
+          return coverUrl;
         }
       }
     }
 
     if (data.length > 0) {
-      // Score all results and pick the best match
-      // Sort by nameScore first, then by popularityBonus for ties
-      const scoredResults = data
-        .filter(game => game.cover)
-        .map(game => {
-          const scores = scoreMatch(cleanedName, game);
-          return { game, ...scores, totalScore: scores.nameScore + scores.popularityBonus };
-        })
-        .sort((a, b) => {
-          if (a.nameScore !== b.nameScore) return b.nameScore - a.nameScore;
-          return b.popularityBonus - a.popularityBonus;
-        });
-
-      // Only use results with reasonable scores
-      const bestMatch = scoredResults.find(r => r.nameScore > 0);
-
-      if (bestMatch) {
-        const imageId = bestMatch.game.cover!.image_id;
-        // Use cover_big (264x352) or cover_big_2x (528x704) for high quality
-        const coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
-
-        // Cache the result
+      const coverUrl = pickBestMatch(data, cleanedName);
+      if (coverUrl) {
         await cacheCover(gameKey, coverUrl);
-
-        console.log(`✓ Found IGDB cover for: ${gameName} (matched as: ${bestMatch.game.name}, score: ${bestMatch.nameScore}+${Math.round(bestMatch.popularityBonus)})`);
+        console.log(`✓ Found IGDB cover for: ${gameName}`);
         return coverUrl;
       }
     }

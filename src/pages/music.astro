@@ -36,7 +36,7 @@ const podcastShows = recentPodcasts.length > 0
       new Map(
         recentPodcasts
           .map(item => item.episode!)
-          .map(episode => [episode.show.id, episode.show])
+          .map(episode => [episode.show.id, { ...episode.show, images: episode.images }])
       ).values()
     )
   : [];
@@ -234,6 +234,7 @@ const podcastShows = recentPodcasts.length > 0
                     client:load
                     title={show.name}
                     subtitle={show.publisher}
+                    image={getBestImage(show.images)}
                     delay={index * 0.05}
                   />
                 </div>

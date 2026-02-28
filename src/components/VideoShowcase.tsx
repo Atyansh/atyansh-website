@@ -180,7 +180,7 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
                     style={{
                       backgroundColor: isActive
                         ? 'rgba(var(--accent-rgb), 0.1)'
-                        : 'var(--card-bg)'
+                        : 'var(--bg-card)'
                     }}
                   >
                     <p

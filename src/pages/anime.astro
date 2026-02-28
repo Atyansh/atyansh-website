@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AnimeFilter from '../components/AnimeFilter';
+import StatGrid from '../components/StatGrid.astro';
 import { getMALData } from '../utils/myanimelist';
 
 // Fetch MyAnimeList data at build time
@@ -60,37 +61,12 @@ const top10Count = anime.filter(a => a.data.score === 10).length;
 
         <AnimeFilter client:load anime={anime} />
 
-        <div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
-          <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
-            Viewing Stats
-          </h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {completedCount}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Completed</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {watchingCount}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Watching</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {scoredCount}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Scored</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {top10Count}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Perfect 10s</div>
-            </div>
-          </div>
-        </div>
+        <StatGrid title="Viewing Stats" stats={[
+          { value: completedCount, label: 'Completed' },
+          { value: watchingCount, label: 'Watching' },
+          { value: scoredCount, label: 'Scored' },
+          { value: top10Count, label: 'Perfect 10s' },
+        ]} />
       </section>
     )}
 

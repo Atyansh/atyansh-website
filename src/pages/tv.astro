@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import TVFilter from '../components/TVFilter';
+import StatGrid from '../components/StatGrid.astro';
 import { getTraktData } from '../utils/trakt';
 
 // Fetch Trakt data at build time
@@ -47,37 +48,12 @@ if (traktData && traktData.shows.length > 0) {
 
         <TVFilter client:load shows={shows} />
 
-        <div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
-          <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
-            Viewing Stats
-          </h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {traktData?.stats.totalShows || 0}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Total Shows</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {traktData?.stats.totalPlays || 0}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Episodes Watched</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {traktData?.stats.rated || 0}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Rated</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {traktData?.stats.averageRating || 0}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Avg Rating</div>
-            </div>
-          </div>
-        </div>
+        <StatGrid title="Viewing Stats" stats={[
+          { value: traktData?.stats.totalShows || 0, label: 'Total Shows' },
+          { value: traktData?.stats.totalPlays || 0, label: 'Episodes Watched' },
+          { value: traktData?.stats.rated || 0, label: 'Rated' },
+          { value: traktData?.stats.averageRating || 0, label: 'Avg Rating' },
+        ]} />
       </section>
     )}
 

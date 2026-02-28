@@ -17,6 +17,9 @@
 const http = require('http');
 const url = require('url');
 const crypto = require('crypto');
+const { loadEnv, validateEnvVars, openBrowser, printTokenSuccess } = require('./oauth-helpers.cjs');
+
+loadEnv();
 
 const PORT = 8888;
 const REDIRECT_URI = `http://localhost:${PORT}/callback`;
@@ -77,19 +80,11 @@ async function exchangeCodeForToken(code, codeVerifier, clientId, clientSecret) 
 async function main() {
   console.log('\n🎵 Spotify Refresh Token Generator\n');
 
-  // Read credentials from environment or prompt
+  // Read credentials from environment
+  validateEnvVars(['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'],
+    `Run: SPOTIFY_CLIENT_ID=your_id SPOTIFY_CLIENT_SECRET=your_secret node ${process.argv[1]}`);
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    console.error('❌ Error: Missing Spotify credentials');
-    console.log('\nPlease set the following environment variables:');
-    console.log('  SPOTIFY_CLIENT_ID');
-    console.log('  SPOTIFY_CLIENT_SECRET');
-    console.log('\nOr run:');
-    console.log(`  SPOTIFY_CLIENT_ID=your_id SPOTIFY_CLIENT_SECRET=your_secret node ${process.argv[1]}`);
-    process.exit(1);
-  }
 
   console.log('✓ Found Spotify credentials');
   console.log(`  Client ID: ${clientId.substring(0, 10)}...`);
@@ -114,15 +109,7 @@ async function main() {
   console.log(`   ${authUrl.toString()}\n`);
 
   // Try to open browser
-  const platform = process.platform;
-  const { exec } = require('child_process');
-  if (platform === 'darwin') {
-    exec(`open "${authUrl.toString()}"`);
-  } else if (platform === 'win32') {
-    exec(`start "" "${authUrl.toString()}"`);
-  } else {
-    exec(`xdg-open "${authUrl.toString()}"`);
-  }
+  openBrowser(authUrl.toString());
 
   // Start local server to catch the callback
   const server = http.createServer(async (req, res) => {
@@ -162,12 +149,11 @@ async function main() {
         const tokenData = await exchangeCodeForToken(code, codeVerifier, clientId, clientSecret);
 
         console.log('\n✅ Success! Here are your tokens:\n');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('\n📋 Add these to your .env file:\n');
-        console.log(`SPOTIFY_CLIENT_ID=${clientId}`);
-        console.log(`SPOTIFY_CLIENT_SECRET=${clientSecret}`);
-        console.log(`SPOTIFY_REFRESH_TOKEN=${tokenData.refresh_token}`);
-        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        printTokenSuccess([
+          `SPOTIFY_CLIENT_ID=${clientId}`,
+          `SPOTIFY_CLIENT_SECRET=${clientSecret}`,
+          `SPOTIFY_REFRESH_TOKEN=${tokenData.refresh_token}`,
+        ]);
 
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`

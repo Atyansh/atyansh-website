@@ -15,24 +15,15 @@
 
 const https = require('https');
 const readline = require('readline');
+const { loadEnv, validateEnvVars, printTokenSuccess } = require('./oauth-helpers.cjs');
 
-// Load .env file
-try {
-  require('dotenv').config();
-} catch (error) {
-  console.log('Note: dotenv not found, using environment variables directly');
-}
+loadEnv();
+
+validateEnvVars(['TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET'],
+  'Add these to your .env file:\nTRAKT_CLIENT_ID=your_client_id\nTRAKT_CLIENT_SECRET=your_client_secret');
 
 const CLIENT_ID = process.env.TRAKT_CLIENT_ID;
 const CLIENT_SECRET = process.env.TRAKT_CLIENT_SECRET;
-
-if (!CLIENT_ID || !CLIENT_SECRET) {
-  console.error('Error: TRAKT_CLIENT_ID and TRAKT_CLIENT_SECRET must be set in .env');
-  console.error('\nAdd these to your .env file:');
-  console.error('TRAKT_CLIENT_ID=your_client_id');
-  console.error('TRAKT_CLIENT_SECRET=your_client_secret');
-  process.exit(1);
-}
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -142,7 +133,7 @@ async function pollForToken(deviceCode, interval, expiresIn) {
 
 async function main() {
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║           Trakt OAuth Token Generator                      ║');
+  console.log('║              Trakt OAuth Token Generator                   ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
 
   try {
@@ -168,14 +159,13 @@ async function main() {
     );
 
     console.log('\n\n✅ Authorization successful!\n');
-    console.log('━'.repeat(60));
     const expiresAtUnix = Math.floor(Date.now() / 1000) + tokenData.expires_in;
 
-    console.log('\nAdd these to your .env file:\n');
-    console.log(`TRAKT_ACCESS_TOKEN=${tokenData.access_token}`);
-    console.log(`TRAKT_REFRESH_TOKEN=${tokenData.refresh_token}`);
-    console.log(`TRAKT_TOKEN_EXPIRES_AT=${expiresAtUnix}`);
-    console.log('\n━'.repeat(60));
+    printTokenSuccess([
+      `TRAKT_ACCESS_TOKEN=${tokenData.access_token}`,
+      `TRAKT_REFRESH_TOKEN=${tokenData.refresh_token}`,
+      `TRAKT_TOKEN_EXPIRES_AT=${expiresAtUnix}`,
+    ]);
 
     console.log('\n⚠️  Important: Access tokens expire every 7 days.');
     console.log('The app will automatically refresh tokens during builds when <24h remain.\n');

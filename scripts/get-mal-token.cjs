@@ -13,28 +13,19 @@
  * 3. Run: node scripts/get-mal-token.cjs (loads .env automatically)
  */
 
-// Load .env file
-try {
-  require('dotenv').config();
-} catch (error) {
-  // dotenv not installed, continue without it
-}
-
 const http = require('http');
 const crypto = require('crypto');
-const { exec } = require('child_process');
+const { loadEnv, validateEnvVars, openBrowser } = require('./oauth-helpers.cjs');
+
+loadEnv();
+
+validateEnvVars(['MAL_CLIENT_ID', 'MAL_CLIENT_SECRET'],
+  'Get credentials at: https://myanimelist.net/apiconfig/create\n' +
+  'Usage: MAL_CLIENT_ID=your_id MAL_CLIENT_SECRET=your_secret node scripts/get-mal-token.cjs');
 
 const CLIENT_ID = process.env.MAL_CLIENT_ID;
 const CLIENT_SECRET = process.env.MAL_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3001/callback';
-
-if (!CLIENT_ID || !CLIENT_SECRET) {
-  console.error('Error: Please set MAL_CLIENT_ID and MAL_CLIENT_SECRET environment variables');
-  console.error('\nUsage:');
-  console.error('  MAL_CLIENT_ID=your_id MAL_CLIENT_SECRET=your_secret node scripts/get-mal-token.cjs');
-  console.error('\nGet credentials at: https://myanimelist.net/apiconfig/create');
-  process.exit(1);
-}
 
 // Generate PKCE code verifier and challenge
 // IMPORTANT: MAL only supports PLAIN method, not S256!
@@ -76,9 +67,7 @@ console.log(authUrl);
 console.log('\nStep 2: After authorizing, you\'ll be redirected to localhost...\n');
 
 // Open browser
-const platform = process.platform;
-const cmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
-exec(`${cmd} "${authUrl}"`);
+openBrowser(authUrl);
 
 // Step 2: Start local server to receive callback
 const server = http.createServer(async (req, res) => {

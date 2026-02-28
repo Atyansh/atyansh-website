@@ -281,15 +281,24 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
 
     log.info(`Found ${maxPage} total pages`);
 
-    // Scrape remaining pages
-    for (let page = 2; page <= maxPage; page++) {
-      log.info(`Fetching page ${page}...`);
-      const pageUrl = `https://letterboxd.com/${LETTERBOXD_USERNAME}/films/page/${page}/`;
-      const { films } = await scrapePage(browser, pageUrl);
-      allMovies.push(...films);
-
-      // Add a small delay to be respectful to the server
-      await new Promise(resolve => setTimeout(resolve, 500));
+    // Scrape remaining pages concurrently (limit to 2 to avoid Cloudflare detection)
+    if (maxPage > 1) {
+      const pageLimit = pLimit(2);
+      const pageResults = await Promise.all(
+        Array.from({ length: maxPage - 1 }, (_, i) => i + 2).map(page =>
+          pageLimit(async () => {
+            log.info(`Fetching page ${page}...`);
+            const pageUrl = `https://letterboxd.com/${LETTERBOXD_USERNAME}/films/page/${page}/`;
+            const { films } = await scrapePage(browser, pageUrl);
+            // Small delay as safety margin against rapid parallel requests
+            await new Promise(resolve => setTimeout(resolve, 200));
+            return films;
+          })
+        )
+      );
+      for (const films of pageResults) {
+        allMovies.push(...films);
+      }
     }
 
     // Fix poster URLs that might not work (e.g., movies using /sm/upload/ pattern)

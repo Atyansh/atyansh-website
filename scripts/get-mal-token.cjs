@@ -42,21 +42,15 @@ const codeVerifier = generateCodeVerifier();
 // For PLAIN method, code_challenge = code_verifier (no hashing!)
 const codeChallenge = codeVerifier;
 
-// MAL requires PKCE with PLAIN method
-const usePKCE = true;
-
 // Step 1: Generate authorization URL
 const authParams = {
   response_type: 'code',
   client_id: CLIENT_ID,
   redirect_uri: REDIRECT_URI,
   state: crypto.randomBytes(16).toString('hex'),
+  code_challenge: codeChallenge,
+  code_challenge_method: 'plain',  // MAL only supports 'plain', not 'S256'!
 };
-
-if (usePKCE) {
-  authParams.code_challenge = codeChallenge;
-  authParams.code_challenge_method = 'plain';  // MAL only supports 'plain', not 'S256'!
-}
 
 const authUrl = `https://myanimelist.net/v1/oauth2/authorize?${new URLSearchParams(authParams).toString()}`;
 
@@ -92,11 +86,8 @@ const server = http.createServer(async (req, res) => {
       code: code,
       grant_type: 'authorization_code',
       redirect_uri: REDIRECT_URI,
+      code_verifier: codeVerifier,
     };
-
-    if (usePKCE) {
-      tokenParams.code_verifier = codeVerifier;
-    }
 
     console.log('Exchanging code for tokens...');
 

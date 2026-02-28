@@ -1,5 +1,12 @@
 import { defineCollection, z } from 'astro:content';
 
+// Canonical status type constants — single source of truth
+export const ANIME_STATUSES = ['watching', 'completed', 'on_hold', 'dropped', 'plan_to_watch'] as const;
+export type AnimeStatus = typeof ANIME_STATUSES[number];
+
+export const BOOK_STATUSES = ['reading', 'finished', 'want-to-read'] as const;
+export type BookStatus = typeof BOOK_STATUSES[number];
+
 const blog = defineCollection({
   type: 'content',
   schema: z.object({

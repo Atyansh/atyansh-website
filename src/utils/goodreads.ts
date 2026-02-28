@@ -3,6 +3,7 @@
 
 import { XMLParser } from 'fast-xml-parser';
 import { FileCache } from './cache';
+import type { BookStatus } from '../content/config';
 import { createLogger } from './logger';
 import { fetchWithRetry } from './retry';
 
@@ -15,7 +16,7 @@ export interface GoodreadsBook {
   author: string;
   coverImage: string;
   rating?: number;
-  status: 'reading' | 'finished' | 'want-to-read';
+  status: BookStatus;
   dateRead?: Date;
   publishedDate?: Date;
   link?: string;
@@ -49,7 +50,7 @@ const xmlParser = new XMLParser({
 /**
  * Parse Goodreads RSS feed XML
  */
-export function parseRSSFeed(xml: string, status: 'reading' | 'finished' | 'want-to-read'): GoodreadsBook[] {
+export function parseRSSFeed(xml: string, status: BookStatus): GoodreadsBook[] {
   const parsed = xmlParser.parse(xml);
   const items = parsed?.rss?.channel?.item;
   if (!items || !Array.isArray(items)) return [];
@@ -121,7 +122,7 @@ export function parseRSSFeed(xml: string, status: 'reading' | 'finished' | 'want
  * Fetch books from a specific Goodreads shelf
  * Includes retry logic for transient failures
  */
-async function fetchShelf(userId: string, shelf: string, status: 'reading' | 'finished' | 'want-to-read'): Promise<GoodreadsBook[]> {
+async function fetchShelf(userId: string, shelf: string, status: BookStatus): Promise<GoodreadsBook[]> {
   try {
     const url = `https://www.goodreads.com/review/list_rss/${userId}?shelf=${shelf}`;
     log.info(`Fetching Goodreads ${shelf} shelf...`);

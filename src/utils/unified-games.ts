@@ -1,8 +1,11 @@
 // Unified game data structure combining Steam, PSN, and Nintendo
-import { getSteamStats, type SteamGame } from './steam';
-import { getPSNTitles, type PSNGame } from './psn';
-import { getNintendoStats, type NintendoGame } from './nintendo';
-import { getIGDBCoverUrl, isExcludedGame } from './igdb';
+import { getSteamStats, type SteamGame, type SteamStats } from './steam';
+import { getPSNData, type PSNGame, type PSNStats } from './psn';
+import { getNintendoStats, type NintendoGame, type NintendoStats } from './nintendo';
+import { getIGDBCoverUrl, isExcludedGame, flushIGDBCache } from './igdb';
+import { createLogger } from './logger';
+
+const log = createLogger('Games');
 
 export type Platform = 'steam' | 'psn' | 'nintendo';
 
@@ -41,13 +44,21 @@ export interface UnifiedGame {
   };
 }
 
+export interface AllGamesResult {
+  games: UnifiedGame[];
+  steamStats: SteamStats | null;
+  psnStats: PSNStats | null;
+  nintendoStats: NintendoStats | null;
+}
+
 /**
- * Combine games from all platforms into a unified list with IGDB cover art
+ * Combine games from all platforms into a unified list with IGDB cover art.
+ * Returns games + per-platform stats in a single call to avoid double-fetching.
  */
-export async function getAllGames(): Promise<UnifiedGame[]> {
-  const [steamStats, psnGames, nintendoStats] = await Promise.all([
+export async function getAllGames(): Promise<AllGamesResult> {
+  const [steamStats, psnData, nintendoStats] = await Promise.all([
     getSteamStats(),
-    getPSNTitles(),
+    getPSNData(),
     getNintendoStats(),
   ]);
 
@@ -55,7 +66,7 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
 
   // Add Steam games
   if (steamStats) {
-    console.log('Fetching IGDB covers for Steam games...');
+    log.info('Fetching IGDB covers for Steam games...');
     const filteredSteamGames = steamStats.topPlayedGames.filter(
       (game: SteamGame) => !isExcludedGame(game.name)
     );
@@ -80,8 +91,9 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
   }
 
   // Add PSN games
+  const psnGames = psnData?.games;
   if (psnGames && psnGames.length > 0) {
-    console.log('Fetching IGDB covers for PlayStation games...');
+    log.info('Fetching IGDB covers for PlayStation games...');
     const filteredPsnGames = psnGames.filter(
       (game: PSNGame) => !isExcludedGame(game.name)
     );
@@ -116,7 +128,7 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
 
   // Add Nintendo games
   if (nintendoStats && nintendoStats.recentGames.length > 0) {
-    console.log('Fetching IGDB covers for Nintendo games...');
+    log.info('Fetching IGDB covers for Nintendo games...');
     const filteredNintendoGames = nintendoStats.recentGames.filter(
       (game: NintendoGame) => !isExcludedGame(game.name)
     );
@@ -140,8 +152,16 @@ export async function getAllGames(): Promise<UnifiedGame[]> {
     unifiedGames.push(...nintendoUnified);
   }
 
-  console.log(`Total games with IGDB covers: ${unifiedGames.filter(g => g.image).length}/${unifiedGames.length}`);
-  return unifiedGames;
+  // Flush IGDB cache once after all covers are fetched
+  await flushIGDBCache();
+
+  log.info(`Total games with IGDB covers: ${unifiedGames.filter(g => g.image).length}/${unifiedGames.length}`);
+  return {
+    games: unifiedGames,
+    steamStats,
+    psnStats: psnData?.stats ?? null,
+    nintendoStats,
+  };
 }
 
 /**

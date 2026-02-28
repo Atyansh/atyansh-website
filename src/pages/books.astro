@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
 import BooksFilter from '../components/BooksFilter';
+import StatGrid from '../components/StatGrid.astro';
 import { getGoodreadsData } from '../utils/goodreads';
 
 // Fetch Goodreads data at build time
@@ -52,37 +53,12 @@ if (goodreadsData && goodreadsData.books.length > 0) {
 
         <BooksFilter client:load books={books} />
 
-        <div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
-          <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
-            Reading Stats
-          </h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {books.filter(b => b.data.status === 'finished').length}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Finished</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {books.filter(b => b.data.status === 'reading').length}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Currently Reading</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {books.filter(b => b.data.status === 'want-to-read').length}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Want to Read</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {books.filter(b => b.data.rating === 5).length}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">5-Star Reads</div>
-            </div>
-          </div>
-        </div>
+        <StatGrid title="Reading Stats" stats={[
+          { value: books.filter(b => b.data.status === 'finished').length, label: 'Finished' },
+          { value: books.filter(b => b.data.status === 'reading').length, label: 'Currently Reading' },
+          { value: books.filter(b => b.data.status === 'want-to-read').length, label: 'Want to Read' },
+          { value: books.filter(b => b.data.rating === 5).length, label: '5-Star Reads' },
+        ]} />
       </section>
     )}
   </div>

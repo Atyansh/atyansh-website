@@ -34,6 +34,15 @@ const INITIAL_DELAY_MS = 1000;
 const envUpdates = {};
 
 /**
+ * Persist a refreshed token to Secret Manager, envUpdates, and process.env
+ */
+async function persistTokenUpdate(key, value) {
+  await updateSecretManager(key, value);
+  envUpdates[key] = value;
+  process.env[key] = value;
+}
+
+/**
  * Sleep for specified milliseconds
  */
 function sleep(ms) {
@@ -76,13 +85,22 @@ async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
   throw lastError;
 }
 
+// Lazy singleton for SecretManagerServiceClient (avoids creating multiple gRPC clients)
+let _secretManagerClient = null;
+function getSecretManagerClient() {
+  if (!_secretManagerClient) {
+    const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+    _secretManagerClient = new SecretManagerServiceClient();
+  }
+  return _secretManagerClient;
+}
+
 /**
  * Update a secret in Google Cloud Secret Manager using the SDK
  */
 async function updateSecretManager(secretName, value) {
   try {
-    const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
-    const client = new SecretManagerServiceClient();
+    const client = getSecretManagerClient();
 
     const parent = `projects/${PROJECT_ID}/secrets/${secretName}`;
 
@@ -157,7 +175,6 @@ async function refreshTrakt() {
   const clientId = process.env.TRAKT_CLIENT_ID;
   const clientSecret = process.env.TRAKT_CLIENT_SECRET;
   const refreshToken = process.env.TRAKT_REFRESH_TOKEN;
-  const accessToken = process.env.TRAKT_ACCESS_TOKEN;
 
   if (!clientId || !clientSecret || !refreshToken) {
     console.log('  Skipping Trakt: missing credentials');
@@ -174,14 +191,13 @@ async function refreshTrakt() {
     return null;
   }
 
-  if (expiresAt > 0) {
+  if (expiresAt === 0) {
+    console.log('  Trakt: no expiry info, refreshing to be safe...');
+  } else if (hoursUntilExpiry > 0) {
     console.log(`  Trakt: token expires in ${Math.round(hoursUntilExpiry)}h, refreshing proactively...`);
   } else {
-    console.log('  Trakt: no expiry info, refreshing to be safe...');
+    console.log(`  Trakt: token expired ${Math.round(-hoursUntilExpiry)}h ago, refreshing...`);
   }
-
-  // Refresh the token
-  console.log('  Trakt: refreshing token...');
   try {
     const response = await fetchWithRetry('https://api.trakt.tv/oauth/token', {
       method: 'POST',
@@ -207,23 +223,15 @@ async function refreshTrakt() {
     const expiresInHours = Math.round(data.expires_in / 3600);
     console.log(`  ✓ Trakt token refreshed (expires in ${expiresInHours} hours)`);
 
-    // Compute and store expiry timestamp
-    const expiresAtNew = Math.floor(Date.now() / 1000) + data.expires_in;
+    // Compute expiry timestamp
+    const expiresAtStr = String(Math.floor(Date.now() / 1000) + data.expires_in);
 
-    // Update Secret Manager
-    await updateSecretManager('TRAKT_ACCESS_TOKEN', data.access_token);
-    await updateSecretManager('TRAKT_REFRESH_TOKEN', data.refresh_token);
-    await updateSecretManager('TRAKT_TOKEN_EXPIRES_AT', String(expiresAtNew));
-
-    // Track for .env update
-    envUpdates.TRAKT_ACCESS_TOKEN = data.access_token;
-    envUpdates.TRAKT_REFRESH_TOKEN = data.refresh_token;
-    envUpdates.TRAKT_TOKEN_EXPIRES_AT = String(expiresAtNew);
-
-    // Update process.env for this build
-    process.env.TRAKT_ACCESS_TOKEN = data.access_token;
-    process.env.TRAKT_REFRESH_TOKEN = data.refresh_token;
-    process.env.TRAKT_TOKEN_EXPIRES_AT = String(expiresAtNew);
+    // Persist all tokens in parallel
+    await Promise.all([
+      persistTokenUpdate('TRAKT_ACCESS_TOKEN', data.access_token),
+      persistTokenUpdate('TRAKT_REFRESH_TOKEN', data.refresh_token),
+      persistTokenUpdate('TRAKT_TOKEN_EXPIRES_AT', expiresAtStr),
+    ]);
 
     return data;
   } catch (error) {
@@ -287,17 +295,11 @@ async function refreshMAL() {
     const expiresInDays = Math.round(data.expires_in / 86400);
     console.log(`  ✓ MAL token refreshed (expires in ${expiresInDays} days)`);
 
-    // Update Secret Manager
-    await updateSecretManager('MAL_ACCESS_TOKEN', data.access_token);
-    await updateSecretManager('MAL_REFRESH_TOKEN', data.refresh_token);
-
-    // Track for .env update
-    envUpdates.MAL_ACCESS_TOKEN = data.access_token;
-    envUpdates.MAL_REFRESH_TOKEN = data.refresh_token;
-
-    // Update process.env for this build
-    process.env.MAL_ACCESS_TOKEN = data.access_token;
-    process.env.MAL_REFRESH_TOKEN = data.refresh_token;
+    // Persist all tokens in parallel
+    await Promise.all([
+      persistTokenUpdate('MAL_ACCESS_TOKEN', data.access_token),
+      persistTokenUpdate('MAL_REFRESH_TOKEN', data.refresh_token),
+    ]);
 
     return data;
   } catch (error) {
@@ -362,14 +364,7 @@ async function refreshIGDB() {
     const expiresInDays = Math.round(data.expires_in / 86400);
     console.log(`  ✓ IGDB token refreshed (expires in ${expiresInDays} days)`);
 
-    // Update Secret Manager
-    await updateSecretManager('IGDB_ACCESS_TOKEN', data.access_token);
-
-    // Track for .env update
-    envUpdates.IGDB_ACCESS_TOKEN = data.access_token;
-
-    // Update process.env for this build
-    process.env.IGDB_ACCESS_TOKEN = data.access_token;
+    await persistTokenUpdate('IGDB_ACCESS_TOKEN', data.access_token);
 
     return data;
   } catch (error) {
@@ -381,14 +376,20 @@ async function refreshIGDB() {
 async function main() {
   console.log('🔄 Pre-build token refresh\n');
 
-  console.log('Checking Trakt...');
-  await refreshTrakt();
+  // Refresh all tokens in parallel
+  const results = await Promise.allSettled([
+    refreshTrakt().then(r => { console.log('  Trakt: done'); return r; }),
+    refreshMAL().then(r => { console.log('  MAL: done'); return r; }),
+    refreshIGDB().then(r => { console.log('  IGDB: done'); return r; }),
+  ]);
 
-  console.log('\nChecking MyAnimeList...');
-  await refreshMAL();
-
-  console.log('\nChecking IGDB...');
-  await refreshIGDB();
+  // Log any unexpected rejections
+  results.forEach((result, i) => {
+    if (result.status === 'rejected') {
+      const names = ['Trakt', 'MAL', 'IGDB'];
+      console.log(`  ✗ ${names[i]} unexpected error: ${result.reason?.message || result.reason}`);
+    }
+  });
 
   // Update .env file with any changes
   console.log('');

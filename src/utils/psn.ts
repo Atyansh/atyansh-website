@@ -120,25 +120,19 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
     );
 
     // Transform the response to our format
-    const games: PSNGame[] = response.trophyTitles.map((title: any) => {
-      // PSN API doesn't provide playtime in trophy data
-      // We'll leave it undefined for now
-      let playDuration: string | undefined = undefined;
-
-      return {
-        titleId: title.npCommunicationId,
-        name: title.trophyTitleName,
-        category: title.trophyTitlePlatform || 'Unknown',
-        lastPlayedDateTime: title.lastUpdatedDateTime,
-        earnedTrophies: title.earnedTrophies ? {
-          bronze: title.earnedTrophies.bronze || 0,
-          silver: title.earnedTrophies.silver || 0,
-          gold: title.earnedTrophies.gold || 0,
-          platinum: title.earnedTrophies.platinum || 0,
-        } : undefined,
-        playDuration,
-      };
-    });
+    const games: PSNGame[] = response.trophyTitles.map((title: any) => ({
+      titleId: title.npCommunicationId,
+      name: title.trophyTitleName,
+      category: title.trophyTitlePlatform || 'Unknown',
+      lastPlayedDateTime: title.lastUpdatedDateTime,
+      earnedTrophies: title.earnedTrophies ? {
+        bronze: title.earnedTrophies.bronze || 0,
+        silver: title.earnedTrophies.silver || 0,
+        gold: title.earnedTrophies.gold || 0,
+        platinum: title.earnedTrophies.platinum || 0,
+      } : undefined,
+      playDuration: undefined,
+    }));
 
     return games;
   } catch (error) {
@@ -148,13 +142,13 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
 }
 
 /**
- * Get PSN gaming stats
+ * Get PSN games and stats together (avoids double-fetching titles)
  */
-export async function getPSNStats(): Promise<PSNStats | null> {
+export async function getPSNData(): Promise<{ games: PSNGame[]; stats: PSNStats } | null> {
   // Check cache first
   const cached = await cache.get();
   if (cached) {
-    return cached.stats;
+    return { games: cached.games, stats: cached.stats };
   }
 
   // Get fresh data from PSN
@@ -203,9 +197,17 @@ export async function getPSNStats(): Promise<PSNStats | null> {
 
     log.info(`Fetched PSN data: ${stats.totalGames} games, ${totalTrophies.total} trophies`);
 
-    return stats;
+    return { games: titles, stats };
   } catch (error) {
-    log.error('Error fetching PSN stats:', error);
+    log.error('Error fetching PSN data:', error);
     return null;
   }
+}
+
+/**
+ * Get PSN gaming stats only
+ */
+export async function getPSNStats(): Promise<PSNStats | null> {
+  const data = await getPSNData();
+  return data?.stats ?? null;
 }

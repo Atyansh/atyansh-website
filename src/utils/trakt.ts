@@ -4,6 +4,7 @@
 import { fetchWithRetry } from './retry';
 import { FileCache } from './cache';
 import { createLogger } from './logger';
+import { pLimit } from './concurrency';
 
 const log = createLogger('Trakt');
 
@@ -205,31 +206,31 @@ export async function getTraktData(): Promise<TraktData | null> {
 
     log.info(`Found ${watchedShows.length} watched shows, fetching posters...`);
 
-    // Fetch details from TMDB (with rate limiting)
-    const shows: TVShow[] = [];
-    for (const watched of watchedShows) {
-      const tmdbDetails = watched.show.ids.tmdb
-        ? await fetchTMDBDetails(watched.show.ids.tmdb)
-        : { posterImage: '' };
+    // Fetch details from TMDB concurrently (TMDB allows ~40 req/s,
+    // pLimit(5) with ~100-200ms network latency stays safely under that)
+    const tmdbLimit = pLimit(5);
+    const shows: TVShow[] = await Promise.all(
+      watchedShows.map(watched => tmdbLimit(async () => {
+        const tmdbDetails = watched.show.ids.tmdb
+          ? await fetchTMDBDetails(watched.show.ids.tmdb)
+          : { posterImage: '' };
 
-      shows.push({
-        title: watched.show.title,
-        year: watched.show.year,
-        traktId: watched.show.ids.trakt,
-        tmdbId: watched.show.ids.tmdb,
-        imdbId: watched.show.ids.imdb,
-        slug: watched.show.ids.slug,
-        posterImage: tmdbDetails.posterImage,
-        firstAiredAt: tmdbDetails.firstAiredAt,
-        rating: ratingsMap.get(watched.show.ids.trakt),
-        plays: watched.plays,
-        lastWatchedAt: new Date(watched.last_watched_at),
-        link: `https://trakt.tv/shows/${watched.show.ids.slug}`,
-      });
-
-      // Small delay to avoid rate limiting TMDB
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
+        return {
+          title: watched.show.title,
+          year: watched.show.year,
+          traktId: watched.show.ids.trakt,
+          tmdbId: watched.show.ids.tmdb,
+          imdbId: watched.show.ids.imdb,
+          slug: watched.show.ids.slug,
+          posterImage: tmdbDetails.posterImage,
+          firstAiredAt: tmdbDetails.firstAiredAt,
+          rating: ratingsMap.get(watched.show.ids.trakt),
+          plays: watched.plays,
+          lastWatchedAt: new Date(watched.last_watched_at),
+          link: `https://trakt.tv/shows/${watched.show.ids.slug}`,
+        };
+      }))
+    );
 
     // Sort by last watched date (most recent first)
     shows.sort((a, b) => b.lastWatchedAt.getTime() - a.lastWatchedAt.getTime());

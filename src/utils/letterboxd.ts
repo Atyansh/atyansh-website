@@ -1,10 +1,11 @@
 // Letterboxd web scraping integration
 // Fetches movie data by scraping Letterboxd profile pages with pagination
 
-import { withRetry, isTransientError } from './retry';
+import { withRetry } from './retry';
 import { FileCache } from './cache';
 import { createLogger } from './logger';
 import { pLimit } from './concurrency';
+import { launchStealthBrowser } from './browser';
 
 const LETTERBOXD_USERNAME = import.meta.env.LETTERBOXD_USERNAME;
 
@@ -160,11 +161,8 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
         const films: LetterboxdMovie[] = filmData.films.map((film: any) => {
           let releaseDate: Date | undefined;
           if (film.year) {
-            try {
-              releaseDate = new Date(film.year, 0, 1);
-            } catch (e) {
-              // Invalid date
-            }
+            const d = new Date(film.year, 0, 1);
+            if (!isNaN(d.getTime())) releaseDate = d;
           }
 
           // Upgrade poster image to higher resolution (230x345 instead of 70x105)
@@ -268,18 +266,9 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
   log.info('Fetching Letterboxd data...');
 
   // Launch browser once and share across all page scrapes
-  const puppeteerExtra = await import('puppeteer-extra');
-  const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
-  puppeteerExtra.default.use(StealthPlugin.default());
-
-  const browser = await puppeteerExtra.default.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled',
-    ],
-  });
+  const browser = await launchStealthBrowser([
+    '--disable-blink-features=AutomationControlled',
+  ]);
 
   try {
     const allMovies: LetterboxdMovie[] = [];
@@ -292,15 +281,24 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
 
     log.info(`Found ${maxPage} total pages`);
 
-    // Scrape remaining pages
-    for (let page = 2; page <= maxPage; page++) {
-      log.info(`Fetching page ${page}...`);
-      const pageUrl = `https://letterboxd.com/${LETTERBOXD_USERNAME}/films/page/${page}/`;
-      const { films } = await scrapePage(browser, pageUrl);
-      allMovies.push(...films);
-
-      // Add a small delay to be respectful to the server
-      await new Promise(resolve => setTimeout(resolve, 500));
+    // Scrape remaining pages concurrently (limit to 2 to avoid Cloudflare detection)
+    if (maxPage > 1) {
+      const pageLimit = pLimit(2);
+      const pageResults = await Promise.all(
+        Array.from({ length: maxPage - 1 }, (_, i) => i + 2).map(page =>
+          pageLimit(async () => {
+            log.info(`Fetching page ${page}...`);
+            const pageUrl = `https://letterboxd.com/${LETTERBOXD_USERNAME}/films/page/${page}/`;
+            const { films } = await scrapePage(browser, pageUrl);
+            // Small delay as safety margin against rapid parallel requests
+            await new Promise(resolve => setTimeout(resolve, 200));
+            return films;
+          })
+        )
+      );
+      for (const films of pageResults) {
+        allMovies.push(...films);
+      }
     }
 
     // Fix poster URLs that might not work (e.g., movies using /sm/upload/ pattern)

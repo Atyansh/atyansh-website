@@ -345,23 +345,21 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
       getRecentlyPlayed(accessToken, 50),
     ]);
 
-    // Find featured playlists and fetch their tracks
+    // Find featured playlists and fetch their tracks in parallel
     const featuredPlaylistNames = ['Songs I actually listen to', 'Focus'];
-    const featuredPlaylists: SpotifyPlaylistWithTracks[] = [];
-
-    for (const playlistName of featuredPlaylistNames) {
-      const playlist = playlists.find(p => p.name === playlistName);
-      if (playlist) {
+    const featuredPlaylistResults = await Promise.all(
+      featuredPlaylistNames.map(async (playlistName): Promise<SpotifyPlaylistWithTracks | null> => {
+        const playlist = playlists.find(p => p.name === playlistName);
+        if (!playlist) return null;
         log.info(`Fetching tracks for playlist: ${playlistName}...`);
         const tracks = await getPlaylistTracks(accessToken, playlist.id);
-        // Reverse tracks to show most recently added first
-        featuredPlaylists.push({
-          ...playlist,
-          allTracks: tracks.reverse(),
-        });
         log.info(`Fetched ${tracks.length} tracks for ${playlistName}`);
-      }
-    }
+        return { ...playlist, allTracks: tracks.reverse() };
+      })
+    );
+    const featuredPlaylists = featuredPlaylistResults.filter(
+      (p): p is SpotifyPlaylistWithTracks => p !== null
+    );
 
     const data: SpotifyData = {
       topTracks: {
@@ -375,7 +373,7 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
         long: topArtistsLong,
       },
       savedAlbums,
-      playlists: playlists.filter(p => p.public || p.id), // Only include accessible playlists
+      playlists,
       featuredPlaylists,
       recentlyPlayed,
       timestamp: Date.now(),

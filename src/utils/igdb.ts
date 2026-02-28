@@ -3,6 +3,9 @@
 
 import { pLimit } from './concurrency';
 import { fetchWithRetry } from './retry';
+import { createLogger } from './logger';
+
+const log = createLogger('IGDB');
 
 const IGDB_CLIENT_ID = import.meta.env.IGDB_CLIENT_ID;
 const IGDB_ACCESS_TOKEN = import.meta.env.IGDB_ACCESS_TOKEN;
@@ -42,6 +45,7 @@ interface IGDBCache {
 
 // In-memory cache for the current build
 let memoryCache: IGDBCache | null = null;
+let cacheDirty = false;
 
 /**
  * Load IGDB cache from disk
@@ -70,26 +74,6 @@ async function loadCache(): Promise<IGDBCache> {
 }
 
 /**
- * Save IGDB cache to disk
- */
-async function saveCache(cache: IGDBCache): Promise<void> {
-  // Only save cache in Node.js environment
-  if (!isNode) {
-    return;
-  }
-
-  try {
-    const { promises: fs } = await import('fs');
-    // Ensure cache directory exists
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(IGDB_CACHE_FILE, JSON.stringify(cache, null, 2));
-    memoryCache = cache;
-  } catch (error) {
-    console.error('Failed to save IGDB cache:', error);
-  }
-}
-
-/**
  * Get cached cover URL if available and not expired
  */
 async function getCachedCover(gameKey: string): Promise<string | null> {
@@ -108,7 +92,7 @@ async function getCachedCover(gameKey: string): Promise<string | null> {
 }
 
 /**
- * Cache a cover URL
+ * Cache a cover URL (memory only; call flushIGDBCache to persist)
  */
 async function cacheCover(gameKey: string, url: string): Promise<void> {
   const cache = await loadCache();
@@ -116,7 +100,23 @@ async function cacheCover(gameKey: string, url: string): Promise<void> {
     url,
     timestamp: Date.now(),
   };
-  await saveCache(cache);
+  cacheDirty = true;
+}
+
+/**
+ * Flush IGDB cache to disk (batched write — call once after all covers are fetched)
+ */
+export async function flushIGDBCache(): Promise<void> {
+  if (!cacheDirty || !isNode || !memoryCache) return;
+
+  try {
+    const { promises: fs } = await import('fs');
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    await fs.writeFile(IGDB_CACHE_FILE, JSON.stringify(memoryCache, null, 2));
+    cacheDirty = false;
+  } catch (error) {
+    log.error('Failed to save IGDB cache:', error);
+  }
 }
 
 // Rate limiting — pLimit(1) serializes all IGDB API calls so that
@@ -155,7 +155,7 @@ async function igdbFetch(url: string, body: string, retryLabel: string): Promise
         maxRetries: MAX_RETRIES,
         initialDelayMs: RETRY_BASE_DELAY,
         onRetry: (error, attempt) => {
-          console.log(`${retryLabel} retry ${attempt}: ${error.message}`);
+          log.info(`${retryLabel} retry ${attempt}: ${error.message}`);
         },
       }
     );
@@ -284,6 +284,29 @@ function scoreMatch(searchName: string, game: IGDBGame): { nameScore: number; po
 }
 
 /**
+ * Pick the best matching game from IGDB results based on name similarity and popularity.
+ * Returns the cover URL of the best match, or null if no good match found.
+ */
+function pickBestMatch(games: IGDBGame[], cleanedName: string): string | null {
+  const scoredResults = games
+    .filter(game => game.cover)
+    .map(game => {
+      const scores = scoreMatch(cleanedName, game);
+      return { game, ...scores };
+    })
+    .sort((a, b) => {
+      if (a.nameScore !== b.nameScore) return b.nameScore - a.nameScore;
+      return b.popularityBonus - a.popularityBonus;
+    });
+
+  const bestMatch = scoredResults.find(r => r.nameScore > 0);
+  if (!bestMatch) return null;
+
+  const imageId = bestMatch.game.cover!.image_id;
+  return `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
+}
+
+/**
  * Search IGDB for a game and get its cover art
  * Returns high-quality cover URL (3:4 aspect ratio)
  * Includes retry logic for transient failures
@@ -291,7 +314,7 @@ function scoreMatch(searchName: string, game: IGDBGame): { nameScore: number; po
 export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo'): Promise<string | null> {
   // If no API credentials, return null
   if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
-    console.log('IGDB API credentials not configured');
+    log.info('IGDB API credentials not configured');
     return null;
   }
 
@@ -301,7 +324,7 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
   // Check cache first
   const cachedUrl = await getCachedCover(gameKey);
   if (cachedUrl) {
-    console.log(`✓ Using cached IGDB cover for: ${gameName}`);
+    log.info(`Using cached IGDB cover for: ${gameName}`);
     return cachedUrl;
   }
 
@@ -338,7 +361,7 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
     );
 
     if (!response.ok) {
-      console.log(`IGDB API error for "${gameName}": ${response.status}`);
+      log.error(`IGDB API error for "${gameName}": ${response.status}`);
       return null;
     }
 
@@ -346,7 +369,7 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
 
     // If no results with platform filter, try without it
     if (data.length === 0 && platformFilter) {
-      console.log(`No results with platform filter for "${cleanedName}", retrying without filter...`);
+      log.info(`No results with platform filter for "${cleanedName}", retrying without filter...`);
 
       const queryWithoutPlatform = `
         search "${cleanedName.replace(/"/g, '\\"')}";
@@ -363,71 +386,32 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
 
       if (response2.ok) {
         const data2: IGDBGame[] = await response2.json();
-        if (data2.length > 0) {
-          // Score all results and pick the best match
-          // Sort by nameScore first, then by popularityBonus for ties
-          const scoredResults = data2
-            .filter(game => game.cover)
-            .map(game => {
-              const scores = scoreMatch(cleanedName, game);
-              return { game, ...scores, totalScore: scores.nameScore + scores.popularityBonus };
-            })
-            .sort((a, b) => {
-              if (a.nameScore !== b.nameScore) return b.nameScore - a.nameScore;
-              return b.popularityBonus - a.popularityBonus;
-            });
-
-          const bestMatch = scoredResults.find(r => r.nameScore > 0);
-
-          if (bestMatch) {
-            const imageId = bestMatch.game.cover!.image_id;
-            const coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
-            await cacheCover(gameKey, coverUrl);
-            console.log(`✓ Found IGDB cover for: ${gameName} (matched as: ${bestMatch.game.name}, score: ${bestMatch.nameScore}+${Math.round(bestMatch.popularityBonus)}) [no platform filter]`);
-            return coverUrl;
-          }
+        const coverUrl = data2.length > 0 ? pickBestMatch(data2, cleanedName) : null;
+        if (coverUrl) {
+          await cacheCover(gameKey, coverUrl);
+          log.info(`Found IGDB cover for: ${gameName} [no platform filter]`);
+          return coverUrl;
         }
       }
     }
 
     if (data.length > 0) {
-      // Score all results and pick the best match
-      // Sort by nameScore first, then by popularityBonus for ties
-      const scoredResults = data
-        .filter(game => game.cover)
-        .map(game => {
-          const scores = scoreMatch(cleanedName, game);
-          return { game, ...scores, totalScore: scores.nameScore + scores.popularityBonus };
-        })
-        .sort((a, b) => {
-          if (a.nameScore !== b.nameScore) return b.nameScore - a.nameScore;
-          return b.popularityBonus - a.popularityBonus;
-        });
-
-      // Only use results with reasonable scores
-      const bestMatch = scoredResults.find(r => r.nameScore > 0);
-
-      if (bestMatch) {
-        const imageId = bestMatch.game.cover!.image_id;
-        // Use cover_big (264x352) or cover_big_2x (528x704) for high quality
-        const coverUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${imageId}.jpg`;
-
-        // Cache the result
+      const coverUrl = pickBestMatch(data, cleanedName);
+      if (coverUrl) {
         await cacheCover(gameKey, coverUrl);
-
-        console.log(`✓ Found IGDB cover for: ${gameName} (matched as: ${bestMatch.game.name}, score: ${bestMatch.nameScore}+${Math.round(bestMatch.popularityBonus)})`);
+        log.info(`Found IGDB cover for: ${gameName}`);
         return coverUrl;
       }
     }
 
-    console.log(`✗ No IGDB cover found for: ${gameName}`);
+    log.info(`No IGDB cover found for: ${gameName}`);
 
     // Cache the null result to avoid repeated failed lookups
     await cacheCover(gameKey, '');
 
     return null;
   } catch (error) {
-    console.error(`Error fetching IGDB cover for "${gameName}":`, error);
+    log.error(`Error fetching IGDB cover for "${gameName}":`, error);
     return null;
   }
 }

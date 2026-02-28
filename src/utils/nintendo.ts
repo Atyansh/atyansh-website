@@ -2,6 +2,10 @@
 // Nintendo doesn't provide an official API, so we scrape Exophase for gaming stats
 // Note: Game cover art is fetched via IGDB API in unified-games.ts
 
+import { createLogger } from './logger';
+
+const log = createLogger('Nintendo');
+
 export interface NintendoGame {
   titleId: string;
   name: string;
@@ -39,7 +43,7 @@ export async function getNintendoStats(): Promise<NintendoStats | null> {
 
     return stats;
   } catch (error: any) {
-    console.error('Error fetching Nintendo stats:', error.message || error);
+    log.error('Error fetching Nintendo stats:', error.message || error);
     return null;
   }
 }

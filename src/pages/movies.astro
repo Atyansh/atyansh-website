@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import MoviesFilter from '../components/MoviesFilter';
+import StatGrid from '../components/StatGrid.astro';
 import { getLetterboxdData } from '../utils/letterboxd';
 
 // Fetch Letterboxd data at build time
@@ -51,37 +52,12 @@ if (letterboxdData && letterboxdData.movies.length > 0) {
 
         <MoviesFilter client:load movies={movies} />
 
-        <div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
-          <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
-            Viewing Stats
-          </h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {movies.length}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Total Films</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {movies.filter(m => m.data.rating && m.data.rating > 0).length}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Rated</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {movies.filter(m => m.data.rating === 5).length}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">5-Star Films</div>
-            </div>
-            <div>
-              <div class="text-3xl font-bold" style="color: var(--accent);">
-                {movies.filter(m => m.data.rewatch).length}
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary);">Rewatches</div>
-            </div>
-          </div>
-        </div>
+        <StatGrid title="Viewing Stats" stats={[
+          { value: movies.length, label: 'Total Films' },
+          { value: movies.filter(m => m.data.rating && m.data.rating > 0).length, label: 'Rated' },
+          { value: movies.filter(m => m.data.rating === 5).length, label: '5-Star Films' },
+          { value: movies.filter(m => m.data.rewatch).length, label: 'Rewatches' },
+        ]} />
       </section>
     )}
 

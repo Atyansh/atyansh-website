@@ -1,0 +1,29 @@
+---
+interface Stat {
+  value: string | number;
+  label: string;
+}
+
+interface Props {
+  title: string;
+  stats: Stat[];
+}
+
+const { title, stats } = Astro.props;
+---
+
+<div class="mt-8 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
+  <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary);">
+    {title}
+  </h3>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+    {stats.map(stat => (
+      <div>
+        <div class="text-3xl font-bold" style="color: var(--accent);">
+          {stat.value}
+        </div>
+        <div class="text-sm" style="color: var(--text-secondary);">{stat.label}</div>
+      </div>
+    ))}
+  </div>
+</div>

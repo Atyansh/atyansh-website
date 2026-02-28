@@ -155,12 +155,6 @@ export async function getPSNData(): Promise<{ games: PSNGame[]; stats: PSNStats 
   log.info('Fetching PSN data...');
 
   try {
-    const auth = await getPSNAuth();
-    if (!auth) {
-      log.error('Failed to get PSN authorization');
-      return null;
-    }
-
     const titles = await getPSNTitles();
 
     if (titles.length === 0) {

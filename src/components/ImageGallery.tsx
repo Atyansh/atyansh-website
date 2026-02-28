@@ -46,8 +46,6 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
           ref={scrollContainerRef}
           className="overflow-x-auto overflow-y-hidden scrollbar-hide w-full pb-4"
           style={{
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
             WebkitOverflowScrolling: 'touch'
           }}
         >
@@ -164,9 +162,6 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
       <style>{`
         .image-gallery-slider {
           width: 100%;
-        }
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
         }
       `}</style>
 

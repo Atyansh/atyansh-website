@@ -15,7 +15,7 @@
 
 const http = require('http');
 const crypto = require('crypto');
-const { loadEnv, validateEnvVars, openBrowser } = require('./oauth-helpers.cjs');
+const { loadEnv, validateEnvVars, openBrowser, printTokenSuccess } = require('./oauth-helpers.cjs');
 
 loadEnv();
 
@@ -117,10 +117,11 @@ const server = http.createServer(async (req, res) => {
 
       // Success!
       console.log('\n\n=== SUCCESS! ===\n');
-      console.log('Add these to your .env file:\n');
-      console.log(`MAL_CLIENT_ID=${CLIENT_ID}`);
-      console.log(`MAL_ACCESS_TOKEN=${data.access_token}`);
-      console.log(`MAL_REFRESH_TOKEN=${data.refresh_token}`);
+      printTokenSuccess([
+        `MAL_CLIENT_ID=${CLIENT_ID}`,
+        `MAL_ACCESS_TOKEN=${data.access_token}`,
+        `MAL_REFRESH_TOKEN=${data.refresh_token}`,
+      ]);
       console.log(`\nAccess token expires in: ${data.expires_in} seconds (${Math.round(data.expires_in / 3600)} hours)`);
       console.log('\nNote: Use the refresh token to get a new access token when it expires.');
 

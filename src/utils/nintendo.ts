@@ -42,8 +42,8 @@ export async function getNintendoStats(): Promise<NintendoStats | null> {
     }
 
     return stats;
-  } catch (error: any) {
-    log.error('Error fetching Nintendo stats:', error.message || error);
+  } catch (error) {
+    log.error('Error fetching Nintendo stats:', error);
     return null;
   }
 }

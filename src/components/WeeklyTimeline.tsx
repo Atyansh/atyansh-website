@@ -54,7 +54,7 @@ export default function WeeklyTimeline({ items }: WeeklyTimelineProps) {
                 style={{
                   background: isExpanded
                     ? 'linear-gradient(135deg, rgba(var(--accent-rgb), 0.1) 0%, rgba(var(--accent-rgb), 0.05) 100%)'
-                    : 'var(--card-bg)',
+                    : 'var(--bg-card)',
                   border: `1px solid rgba(var(--accent-rgb), ${isExpanded ? '0.3' : '0.15'})`,
                 }}
               >
@@ -102,7 +102,7 @@ export default function WeeklyTimeline({ items }: WeeklyTimelineProps) {
               <div
                 className="rounded-xl p-6 ml-0 md:ml-4"
                 style={{
-                  background: 'var(--card-bg)',
+                  background: 'var(--bg-card)',
                   border: '1px solid rgba(var(--accent-rgb), 0.1)',
                 }}
               >

@@ -78,11 +78,8 @@ export function parseRSSFeed(xml: string, status: BookStatus): GoodreadsBook[] {
     let dateRead: Date | undefined;
     const dateStr = item.user_read_at || item.user_date_added;
     if (dateStr) {
-      try {
-        dateRead = new Date(dateStr);
-      } catch {
-        // Invalid date, skip
-      }
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) dateRead = d;
     }
 
     const isbn = item.isbn ? String(item.isbn) : undefined;
@@ -92,13 +89,10 @@ export function parseRSSFeed(xml: string, status: BookStatus): GoodreadsBook[] {
     let publishedDate: Date | undefined;
     const year = item.book_published || item.book_publication_year;
     if (year) {
-      try {
-        const month = item.book_publication_month || 1;
-        const day = item.book_publication_day || 1;
-        publishedDate = new Date(parseInt(String(year)), parseInt(String(month)) - 1, parseInt(String(day)));
-      } catch {
-        // Invalid date, skip
-      }
+      const month = item.book_publication_month || 1;
+      const day = item.book_publication_day || 1;
+      const d = new Date(parseInt(String(year)), parseInt(String(month)) - 1, parseInt(String(day)));
+      if (!isNaN(d.getTime())) publishedDate = d;
     }
 
     books.push({

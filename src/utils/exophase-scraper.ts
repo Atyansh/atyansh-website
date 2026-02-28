@@ -188,8 +188,8 @@ export async function scrapeExophaseNintendoStats(): Promise<NintendoStats | nul
     } finally {
       await browser.close().catch(() => {});
     }
-  } catch (error: any) {
-    log.error('Error scraping Exophase:', error.message || error);
+  } catch (error) {
+    log.error('Error scraping Exophase:', error);
     return null;
   }
 }

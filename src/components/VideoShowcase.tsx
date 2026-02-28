@@ -180,7 +180,7 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
                     style={{
                       backgroundColor: isActive
                         ? 'rgba(var(--accent-rgb), 0.1)'
-                        : 'var(--card-bg)'
+                        : 'var(--bg-card)'
                     }}
                   >
                     <p
@@ -227,26 +227,6 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
 
         .thumbnail-card[data-active="true"] {
           box-shadow: 0 0 0 3px var(--accent), 0 20px 25px -5px rgba(0, 0, 0, 0.2);
-        }
-
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
-        }
-
-        .animate-pulse {
-          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
 
         @container (max-width: 768px) {

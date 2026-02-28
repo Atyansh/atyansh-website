@@ -3,6 +3,9 @@
 
 import { pLimit } from './concurrency';
 import { fetchWithRetry } from './retry';
+import { createLogger } from './logger';
+
+const log = createLogger('IGDB');
 
 const IGDB_CLIENT_ID = import.meta.env.IGDB_CLIENT_ID;
 const IGDB_ACCESS_TOKEN = import.meta.env.IGDB_ACCESS_TOKEN;
@@ -112,7 +115,7 @@ export async function flushIGDBCache(): Promise<void> {
     await fs.writeFile(IGDB_CACHE_FILE, JSON.stringify(memoryCache, null, 2));
     cacheDirty = false;
   } catch (error) {
-    console.error('Failed to save IGDB cache:', error);
+    log.error('Failed to save IGDB cache:', error);
   }
 }
 
@@ -152,7 +155,7 @@ async function igdbFetch(url: string, body: string, retryLabel: string): Promise
         maxRetries: MAX_RETRIES,
         initialDelayMs: RETRY_BASE_DELAY,
         onRetry: (error, attempt) => {
-          console.log(`${retryLabel} retry ${attempt}: ${error.message}`);
+          log.info(`${retryLabel} retry ${attempt}: ${error.message}`);
         },
       }
     );
@@ -311,7 +314,7 @@ function pickBestMatch(games: IGDBGame[], cleanedName: string): string | null {
 export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo'): Promise<string | null> {
   // If no API credentials, return null
   if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
-    console.log('IGDB API credentials not configured');
+    log.info('IGDB API credentials not configured');
     return null;
   }
 
@@ -321,7 +324,7 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
   // Check cache first
   const cachedUrl = await getCachedCover(gameKey);
   if (cachedUrl) {
-    console.log(`✓ Using cached IGDB cover for: ${gameName}`);
+    log.info(`Using cached IGDB cover for: ${gameName}`);
     return cachedUrl;
   }
 
@@ -358,7 +361,7 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
     );
 
     if (!response.ok) {
-      console.log(`IGDB API error for "${gameName}": ${response.status}`);
+      log.error(`IGDB API error for "${gameName}": ${response.status}`);
       return null;
     }
 
@@ -366,7 +369,7 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
 
     // If no results with platform filter, try without it
     if (data.length === 0 && platformFilter) {
-      console.log(`No results with platform filter for "${cleanedName}", retrying without filter...`);
+      log.info(`No results with platform filter for "${cleanedName}", retrying without filter...`);
 
       const queryWithoutPlatform = `
         search "${cleanedName.replace(/"/g, '\\"')}";
@@ -386,7 +389,7 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
         const coverUrl = data2.length > 0 ? pickBestMatch(data2, cleanedName) : null;
         if (coverUrl) {
           await cacheCover(gameKey, coverUrl);
-          console.log(`✓ Found IGDB cover for: ${gameName} [no platform filter]`);
+          log.info(`Found IGDB cover for: ${gameName} [no platform filter]`);
           return coverUrl;
         }
       }
@@ -396,19 +399,19 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
       const coverUrl = pickBestMatch(data, cleanedName);
       if (coverUrl) {
         await cacheCover(gameKey, coverUrl);
-        console.log(`✓ Found IGDB cover for: ${gameName}`);
+        log.info(`Found IGDB cover for: ${gameName}`);
         return coverUrl;
       }
     }
 
-    console.log(`✗ No IGDB cover found for: ${gameName}`);
+    log.info(`No IGDB cover found for: ${gameName}`);
 
     // Cache the null result to avoid repeated failed lookups
     await cacheCover(gameKey, '');
 
     return null;
   } catch (error) {
-    console.error(`Error fetching IGDB cover for "${gameName}":`, error);
+    log.error(`Error fetching IGDB cover for "${gameName}":`, error);
     return null;
   }
 }

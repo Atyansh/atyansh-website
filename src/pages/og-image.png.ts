@@ -1,5 +1,8 @@
 import type { APIRoute } from 'astro';
 import { generateOGImage } from '../utils/og-image';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('OGImage');
 
 export const GET: APIRoute = async () => {
   try {
@@ -12,7 +15,7 @@ export const GET: APIRoute = async () => {
       },
     });
   } catch (error) {
-    console.error('Error generating OG image:', error);
+    log.error('Error generating OG image:', error);
     return new Response('Error generating image', { status: 500 });
   }
 };

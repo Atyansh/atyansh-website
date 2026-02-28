@@ -1,5 +1,8 @@
 import type { APIRoute } from 'astro';
 import { getSteamStats } from '../../utils/steam';
+import { createLogger } from '../../utils/logger';
+
+const log = createLogger('SteamAPI');
 
 export const GET: APIRoute = async () => {
   try {
@@ -25,7 +28,7 @@ export const GET: APIRoute = async () => {
       },
     });
   } catch (error) {
-    console.error('Error in Steam stats API:', error);
+    log.error('Error in Steam stats API:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       {

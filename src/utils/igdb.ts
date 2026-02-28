@@ -75,8 +75,9 @@ async function loadCache(): Promise<IGDBCache> {
 
 /**
  * Get cached cover URL if available and not expired
+ * Returns: string = positive hit, null = negative hit (not found), undefined = cache miss
  */
-async function getCachedCover(gameKey: string): Promise<string | null> {
+async function getCachedCover(gameKey: string): Promise<string | null | undefined> {
   const cache = await loadCache();
   const cached = cache[gameKey];
 
@@ -88,7 +89,7 @@ async function getCachedCover(gameKey: string): Promise<string | null> {
     }
   }
 
-  return null;
+  return undefined;
 }
 
 /**
@@ -322,10 +323,10 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
   const gameKey = `${platform || 'all'}:${gameName.toLowerCase()}`;
 
   // Check cache first
-  const cachedUrl = await getCachedCover(gameKey);
-  if (cachedUrl) {
-    log.info(`Using cached IGDB cover for: ${gameName}`);
-    return cachedUrl;
+  const cached = await getCachedCover(gameKey);
+  if (cached !== undefined) {
+    if (cached) log.info(`Using cached IGDB cover for: ${gameName}`);
+    return cached;
   }
 
   try {

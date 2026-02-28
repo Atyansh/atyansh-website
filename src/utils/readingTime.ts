@@ -13,7 +13,7 @@ export function calculateReadingTime(content: string): number {
     .trim();
 
   // Count words
-  const wordCount = plainText.split(/\s+/).length;
+  const wordCount = plainText.length > 0 ? plainText.split(/\s+/).length : 0;
 
   // Calculate reading time in minutes
   const readingTime = Math.ceil(wordCount / wordsPerMinute);

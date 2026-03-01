@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import GameCarousel from '../components/GameCarousel';
-import StatGrid from '../components/StatGrid.astro';
 import { getAllGames } from '../utils/unified-games';
 
 // Fetch all games and stats from all platforms in a single call
@@ -42,17 +41,37 @@ const nintendoGames = allGames.filter(g => g.platform === 'nintendo');
         {/* Steam Games */}
         {steamStats && steamGames.length > 0 && (
           <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
-            <StatGrid title="Steam" stats={[
-              { value: steamStats.totalGames, label: 'Total Games' },
-              { value: `${steamStats.totalHoursPlayed.toLocaleString()}h`, label: 'Hours Played' },
-              { value: steamStats.gamesPlayedCount, label: 'Games Played' },
-            ]} />
-            <div class="mt-6">
-              <GameCarousel
-                client:load
-                games={steamGames}
-                title="Recent Games"
-              />
+            <div class="flex flex-col lg:flex-row gap-8">
+              <div class="lg:w-64 flex-shrink-0">
+                <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">Steam</h3>
+                <div class="space-y-4">
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {steamStats.totalGames}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Total Games</div>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {steamStats.totalHoursPlayed.toLocaleString()}h
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Hours Played</div>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {steamStats.gamesPlayedCount}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Games Played</div>
+                  </div>
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <GameCarousel
+                  client:load
+                  games={steamGames}
+                  title="Recent Games"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -60,50 +79,71 @@ const nintendoGames = allGames.filter(g => g.platform === 'nintendo');
         {/* PlayStation Games */}
         {psnStats && psnGames.length > 0 && (
           <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
-            <StatGrid title="PlayStation" stats={[
-              { value: psnStats.totalGames, label: 'Total Games' },
-              ...(psnStats.trophyLevel ? [{ value: psnStats.trophyLevel, label: 'Trophy Level' }] : []),
-              { value: psnStats.totalTrophies.total.toLocaleString(), label: 'Total Trophies' },
-            ]} />
+            <div class="flex flex-col lg:flex-row gap-8">
+              <div class="lg:w-64 flex-shrink-0">
+                <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">PlayStation</h3>
+                <div class="space-y-4">
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {psnStats.totalGames}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Total Games</div>
+                  </div>
+                  {psnStats.trophyLevel && (
+                    <div>
+                      <div class="text-3xl font-bold" style="color: var(--accent);">
+                        {psnStats.trophyLevel}
+                      </div>
+                      <div class="text-sm" style="color: var(--text-secondary);">Trophy Level</div>
+                    </div>
+                  )}
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {psnStats.totalTrophies.total.toLocaleString()}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Total Trophies</div>
+                  </div>
 
-            {/* Trophy Breakdown */}
-            {psnStats.totalTrophies.total > 0 && (
-              <div class="mt-4 pt-4 border-t" style="border-color: var(--bg-primary);">
-                <div class="flex flex-wrap gap-6 text-sm" style="color: var(--text-primary);">
-                  {psnStats.totalTrophies.platinum > 0 && (
-                    <div class="flex items-center gap-2">
-                      <span>🏆 Platinum</span>
-                      <span class="font-bold">{psnStats.totalTrophies.platinum}</span>
-                    </div>
-                  )}
-                  {psnStats.totalTrophies.gold > 0 && (
-                    <div class="flex items-center gap-2">
-                      <span>🥇 Gold</span>
-                      <span class="font-bold">{psnStats.totalTrophies.gold}</span>
-                    </div>
-                  )}
-                  {psnStats.totalTrophies.silver > 0 && (
-                    <div class="flex items-center gap-2">
-                      <span>🥈 Silver</span>
-                      <span class="font-bold">{psnStats.totalTrophies.silver}</span>
-                    </div>
-                  )}
-                  {psnStats.totalTrophies.bronze > 0 && (
-                    <div class="flex items-center gap-2">
-                      <span>🥉 Bronze</span>
-                      <span class="font-bold">{psnStats.totalTrophies.bronze}</span>
+                  {/* Trophy Breakdown */}
+                  {psnStats.totalTrophies.total > 0 && (
+                    <div class="pt-4 border-t" style="border-color: var(--bg-primary);">
+                      <div class="space-y-2 text-sm" style="color: var(--text-primary);">
+                        {psnStats.totalTrophies.platinum > 0 && (
+                          <div class="flex items-center justify-between">
+                            <span>🏆 Platinum</span>
+                            <span class="font-bold">{psnStats.totalTrophies.platinum}</span>
+                          </div>
+                        )}
+                        {psnStats.totalTrophies.gold > 0 && (
+                          <div class="flex items-center justify-between">
+                            <span>🥇 Gold</span>
+                            <span class="font-bold">{psnStats.totalTrophies.gold}</span>
+                          </div>
+                        )}
+                        {psnStats.totalTrophies.silver > 0 && (
+                          <div class="flex items-center justify-between">
+                            <span>🥈 Silver</span>
+                            <span class="font-bold">{psnStats.totalTrophies.silver}</span>
+                          </div>
+                        )}
+                        {psnStats.totalTrophies.bronze > 0 && (
+                          <div class="flex items-center justify-between">
+                            <span>🥉 Bronze</span>
+                            <span class="font-bold">{psnStats.totalTrophies.bronze}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
-            )}
-
-            <div class="mt-6">
-              <GameCarousel
-                client:load
-                games={psnGames}
-                title="Recent Games"
-              />
+              <div class="flex-1 min-w-0">
+                <GameCarousel
+                  client:load
+                  games={psnGames}
+                  title="Recent Games"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -111,16 +151,31 @@ const nintendoGames = allGames.filter(g => g.platform === 'nintendo');
         {/* Nintendo Games */}
         {nintendoStats && nintendoGames.length > 0 && (
           <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
-            <StatGrid title="Nintendo Switch" stats={[
-              { value: nintendoStats.totalGames, label: 'Total Games' },
-              { value: `${nintendoStats.totalHoursPlayed.toLocaleString()}h`, label: 'Hours Played' },
-            ]} />
-            <div class="mt-6">
-              <GameCarousel
-                client:load
-                games={nintendoGames}
-                title="Recent Games"
-              />
+            <div class="flex flex-col lg:flex-row gap-8">
+              <div class="lg:w-64 flex-shrink-0">
+                <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">Nintendo Switch</h3>
+                <div class="space-y-4">
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {nintendoStats.totalGames}
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Total Games</div>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold" style="color: var(--accent);">
+                      {nintendoStats.totalHoursPlayed.toLocaleString()}h
+                    </div>
+                    <div class="text-sm" style="color: var(--text-secondary);">Hours Played</div>
+                  </div>
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <GameCarousel
+                  client:load
+                  games={nintendoGames}
+                  title="Recent Games"
+                />
+              </div>
             </div>
           </div>
         )}

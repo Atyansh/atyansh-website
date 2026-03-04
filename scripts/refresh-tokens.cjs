@@ -186,7 +186,7 @@ async function refreshTrakt() {
   const nowSecs = Math.floor(Date.now() / 1000);
   const hoursUntilExpiry = (expiresAt - nowSecs) / 3600;
 
-  if (expiresAt > 0 && hoursUntilExpiry > 24) {
+  if (expiresAt > 0 && hoursUntilExpiry > 36) {
     console.log(`  Trakt: token valid (expires in ${Math.round(hoursUntilExpiry)}h), no refresh needed`);
     return null;
   }

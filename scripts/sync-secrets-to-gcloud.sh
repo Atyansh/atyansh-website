@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # Sync secrets from .env to Google Cloud Secret Manager
-# Usage: ./scripts/sync-secrets-to-gcloud.sh
+# Usage: ./scripts/sync-secrets-to-gcloud.sh [SECRET_NAME ...]
+# Examples:
+#   ./scripts/sync-secrets-to-gcloud.sh                    # Sync all secrets
+#   ./scripts/sync-secrets-to-gcloud.sh TRAKT_ACCESS_TOKEN # Sync one secret
+#   ./scripts/sync-secrets-to-gcloud.sh TRAKT_ACCESS_TOKEN TRAKT_REFRESH_TOKEN TRAKT_TOKEN_EXPIRES_AT
 
 set -e
 
@@ -22,9 +26,12 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-# Dynamically read all secret names from .env file (excluding comments and empty lines)
-# This ensures any new secrets added to .env are automatically synced
-SECRETS=($(grep -v '^#' .env | grep -v '^$' | cut -d'=' -f1))
+# Use CLI args if provided, otherwise sync all secrets from .env
+if [ $# -gt 0 ]; then
+    SECRETS=("$@")
+else
+    SECRETS=($(grep -v '^#' .env | grep -v '^$' | cut -d'=' -f1))
+fi
 
 echo "Found ${#SECRETS[@]} secrets in .env"
 echo ""

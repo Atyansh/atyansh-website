@@ -245,9 +245,21 @@ function scoreMatch(searchName: string, game: IGDBGame): { nameScore: number; po
   // Exact match is best
   if (search === result) return { nameScore: 100, popularityBonus };
 
+  // Normalize Roman numerals to Arabic in the result for number comparison only.
+  // This ensures "Slay the Spire II" matches search "Slay the Spire 2", etc.
+  // The original `result` string is still used for all other matching checks.
+  const romanToArabic: [RegExp, string][] = [
+    [/\bviii\b/g, '8'], [/\bvii\b/g, '7'], [/\bvi\b/g, '6'],
+    [/\bv\b/g, '5'], [/\biv\b/g, '4'], [/\biii\b/g, '3'], [/\bii\b/g, '2'],
+  ];
+  let resultForNumbers = result;
+  for (const [pattern, replacement] of romanToArabic) {
+    resultForNumbers = resultForNumbers.replace(pattern, replacement);
+  }
+
   // Check if search contains numbers (sequel indicator)
   const searchNumbers = search.match(/\d+/g);
-  const resultNumbers = result.match(/\d+/g);
+  const resultNumbers = resultForNumbers.match(/\d+/g);
 
   // If search has numbers, result should have the same numbers
   if (searchNumbers && searchNumbers.length > 0) {

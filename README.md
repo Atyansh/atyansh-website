@@ -23,6 +23,13 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
 - 📚 **Books** - Display reading list from Goodreads
 - 🧗 **Climbing** - Display bouldering stats, grade pyramid, and send videos from Kaya
 
+### Ambient Audio System
+- 🎵 **Per-page composed music** — each page has its own unique song with distinct melody, bass line, chords, tempo, and key (like different Pokemon city themes)
+- 🎹 **Step sequencer engine** — plays composed songs using `[midiNote, durationIn16ths]` patterns with multi-track support (melody, bass, pad, arp)
+- 🎛️ **Theme-reactive audio** — visual themes dramatically alter the music's pitch, oscillator type, envelope, filter, reverb, and distortion via live parameter ramping (no audio interruption)
+- 🔊 **12 distinct songs** spanning 60–140 BPM across major, minor, and Pythagorean scales
+- 🔇 **Toggle & volume control** — persisted in localStorage, with smooth crossfades between songs on page navigation
+
 ### Technical Features
 - 🛡️ Security-first approach with CSP, HSTS, and other security headers
 - 🎨 Responsive design with Tailwind CSS 4
@@ -446,7 +453,17 @@ Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS pars
 │   ├── sync-secrets-to-gcloud.sh # Sync .env to Secret Manager
 │   └── invalidate-cache.sh     # CDN cache invalidation
 ├── src/
+│   ├── audio/                  # Client-side audio engine
+│   │   ├── AudioEngine.ts    # Step sequencer + theme processing
+│   │   ├── songs.ts          # 12 composed songs (one per page)
+│   │   ├── instruments.ts    # Synth instrument presets
+│   │   ├── synth.ts          # SynthVoice (oscillator + ADSR + filter)
+│   │   ├── themes.ts         # Per-theme audio effects
+│   │   ├── notes.ts          # MIDI note constants
+│   │   ├── impulse.ts        # Algorithmic reverb impulse response
+│   │   └── types.ts          # Audio type definitions
 │   ├── components/             # React/Astro components
+│   │   ├── AudioToggle.astro # Audio toggle + volume control
 │   │   ├── ErrorBoundary.tsx  # React error boundary
 │   │   ├── GameCard.tsx
 │   │   ├── MediaCard.tsx
@@ -719,6 +736,7 @@ This project is open source and available for personal use. Please replace all p
 - [Shiki](https://shiki.matsu.io/) - Syntax highlighting
 - [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) - XML/RSS parsing
 - [Vitest](https://vitest.dev/) - Unit testing
+- [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) - Client-side audio synthesis
 
 ## Resources
 

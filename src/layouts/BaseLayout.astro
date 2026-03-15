@@ -1,7 +1,10 @@
 ---
 import '../styles/global.css';
 import ThemeSwitcher from '../components/ThemeSwitcher.astro';
+import AudioToggle from '../components/AudioToggle.astro';
 import StructuredData from '../components/StructuredData.astro';
+
+const ENABLE_AUDIO = false;
 import { ViewTransitions } from 'astro:transitions';
 
 interface Props {
@@ -166,6 +169,7 @@ if (image) {
 
           <!-- Right Side: Theme Switcher and Mobile Menu Button -->
           <div class="flex items-center gap-4">
+            {ENABLE_AUDIO && <AudioToggle />}
             <ThemeSwitcher />
             <button id="mobile-menu-button" class="p-2 lg:hidden" aria-label="Toggle menu">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

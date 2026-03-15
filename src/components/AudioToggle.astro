@@ -1,0 +1,186 @@
+---
+// Ambient audio toggle component
+---
+
+<div class="audio-toggle">
+  <button id="audio-button" class="audio-button" aria-label="Toggle ambient audio" title="Toggle ambient audio">
+    <svg id="audio-icon-off" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+    </svg>
+    <svg id="audio-icon-on" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+    </svg>
+  </button>
+  <div id="audio-volume-container" class="audio-volume-container hidden">
+    <input
+      id="audio-volume-slider"
+      type="range"
+      min="0"
+      max="100"
+      value="50"
+      class="audio-volume-slider"
+      aria-label="Volume"
+    />
+  </div>
+</div>
+
+<style>
+  .audio-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .audio-button {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .audio-button:hover {
+    background: var(--bg-secondary);
+  }
+
+  .audio-volume-container {
+    display: flex;
+    align-items: center;
+  }
+
+  .audio-volume-container.hidden {
+    display: none;
+  }
+
+  .audio-volume-slider {
+    width: 4rem;
+    height: 4px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .audio-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  .audio-volume-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+  }
+</style>
+
+<script>
+  import { AudioEngine } from '../audio/AudioEngine';
+
+  declare global {
+    interface Window {
+      __audioEngine?: AudioEngine;
+    }
+  }
+
+  let audioAbort: AbortController | null = null;
+  let audioObserver: MutationObserver | null = null;
+
+  function initAudioToggle() {
+    // Clean up previous listeners and observers
+    if (audioAbort) audioAbort.abort();
+    audioAbort = new AbortController();
+    const { signal } = audioAbort;
+
+    if (audioObserver) audioObserver.disconnect();
+
+    // Singleton engine on window
+    if (!window.__audioEngine) {
+      window.__audioEngine = new AudioEngine();
+    }
+    const engine = window.__audioEngine;
+
+    const button = document.getElementById('audio-button');
+    const iconOff = document.getElementById('audio-icon-off');
+    const iconOn = document.getElementById('audio-icon-on');
+    const volumeContainer = document.getElementById('audio-volume-container');
+    const volumeSlider = document.getElementById('audio-volume-slider') as HTMLInputElement | null;
+
+    if (!button || !iconOff || !iconOn || !volumeContainer || !volumeSlider) return;
+
+    // Sync UI to engine state
+    function updateUI() {
+      if (engine.enabled) {
+        iconOff!.classList.add('hidden');
+        iconOn!.classList.remove('hidden');
+        volumeContainer!.classList.remove('hidden');
+      } else {
+        iconOff!.classList.remove('hidden');
+        iconOn!.classList.add('hidden');
+        volumeContainer!.classList.add('hidden');
+      }
+      volumeSlider!.value = String(Math.round(engine.volume * 100));
+    }
+
+    updateUI();
+
+    // Update mood for current page
+    if (engine.enabled) {
+      engine.setMood(window.location.pathname);
+    }
+
+    // Toggle
+    button.addEventListener('click', async () => {
+      try {
+        if (engine.enabled) {
+          await engine.disable();
+        } else {
+          await engine.enable();
+        }
+      } catch (e) {
+        console.error('AudioEngine error:', e);
+      }
+      updateUI();
+    }, { signal });
+
+    // Volume slider
+    volumeSlider.addEventListener('input', () => {
+      engine.setVolume(parseInt(volumeSlider.value, 10) / 100);
+    }, { signal });
+
+    // Watch for theme changes via MutationObserver
+    audioObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.attributeName === 'data-theme') {
+          const newTheme = document.documentElement.getAttribute('data-theme') || 'minimal-technical';
+          engine.setTheme(newTheme);
+        }
+      }
+    });
+
+    audioObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+  }
+
+  // Initialize on page load
+  initAudioToggle();
+
+  // Re-initialize after View Transitions
+  document.addEventListener('astro:after-swap', initAudioToggle);
+</script>

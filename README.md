@@ -362,31 +362,32 @@ Trakt uses OAuth2. Use the included helper script.
 
 **Note:** Uses the public Kaya GraphQL API. No API key required.
 
-### 12. Email Notifications (API Health Monitoring)
+### 12. Discord Notifications (API Health Monitoring)
 
-Get notified when API keys expire during automated builds.
+Get notified via Discord DM when API keys expire during automated builds.
 
 **What you need:**
-- Gmail account with 2-Factor Authentication enabled
-- Gmail App Password
+- A Discord bot (create one at https://discord.com/developers/applications)
+- The bot must share a server with you (any server works)
+- Your Discord user ID
 
 **Steps:**
-1. Enable 2FA on your Google account at https://myaccount.google.com/security
-2. Go to "App passwords" and create one for "Mail"
-3. Copy the 16-character password
-4. Add to `.env`:
+1. Go to https://discord.com/developers/applications and click **New Application**
+2. Go to **Bot** in the sidebar, click **Reset Token**, and copy the bot token
+3. Invite the bot to a server you're in — go to **OAuth2**, copy the Application ID, then visit:
+   `https://discord.com/oauth2/authorize?client_id=YOUR_APPLICATION_ID&scope=bot`
+4. Get your Discord user ID: open Discord Settings > Advanced > enable **Developer Mode**, then right-click your name and **Copy User ID**
+5. Add to `.env`:
    ```bash
-   NOTIFICATION_EMAIL=your@email.com
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_USER=your@gmail.com
-   SMTP_PASS=your_app_password_here
+   DISCORD_BOT_TOKEN=your_discord_bot_token_here
+   DISCORD_USER_ID=your_discord_user_id_here
    ```
+6. Add both secrets to Google Secret Manager and sync (see [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for details)
 
 **What it does:**
 - Runs after every build (daily at 2 AM UTC in production)
 - Checks if all API integrations succeeded
-- Sends email if any API keys have expired
+- Sends you a Discord DM with an embed if any API keys have expired
 - Includes exact commands to fix issues
 
 See [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for detailed setup instructions.
@@ -660,7 +661,7 @@ If you accidentally commit secrets:
 **IGDB, MyAnimeList, and Trakt tokens auto-refresh during builds** if you have the required credentials:
 - IGDB: Requires `IGDB_CLIENT_SECRET` to auto-refresh
 - MyAnimeList: Uses `MAL_REFRESH_TOKEN` to auto-refresh
-- Trakt: Uses `TRAKT_REFRESH_TOKEN` to auto-refresh (expires every 7 days, proactively refreshed when <24h remain)
+- Trakt: Uses `TRAKT_REFRESH_TOKEN` to auto-refresh (expires every 7 days, proactively refreshed when <36h remain). In Cloud Build, the refresh uses Puppeteer with stealth to bypass Cloudflare's bot protection on Trakt's API.
 - Refreshed tokens are automatically saved to Secret Manager for future builds
 
 **Spotify tokens expire periodically:**
@@ -673,8 +674,8 @@ If you accidentally commit secrets:
 - Get new token from https://ca.account.sony.com/api/v1/ssocookie
 
 **Automated monitoring:**
-- If email notifications are configured, you'll automatically receive alerts when tokens expire
-- The email includes exact commands to fix each issue
+- If Discord notifications are configured, you'll automatically receive a DM when tokens expire
+- The message includes exact commands to fix each issue
 - See [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for setup
 
 ### Web Scraping Issues

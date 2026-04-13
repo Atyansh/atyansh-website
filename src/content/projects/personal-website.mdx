@@ -50,11 +50,11 @@ The site pulls data from 11+ different platforms to display what I'm currently p
 
 One of the key technical challenges was managing OAuth tokens that expire at different intervals (24 hours to 90 days). The solution:
 
-- **Pre-build token refresh** - A script runs before each build to test and refresh expired tokens
+- **Pre-build token refresh** - A script runs before each build to test and refresh expired tokens, using Puppeteer stealth to bypass Cloudflare when needed
 - **Secret Manager SDK** - Refreshed tokens are persisted to Google Cloud Secret Manager
 - **Retry logic** - All API calls include exponential backoff and serialized rate limiting for transient failures
 - **File-based caching** - Generic `FileCache<T>` with 24-hour TTL minimizes redundant API calls across builds
-- **Health monitoring** - Email notifications when any API fails during the daily build
+- **Health monitoring** - Discord DM notifications when any API fails during the daily build
 
 ## Architecture
 
@@ -65,7 +65,7 @@ One of the key technical challenges was managing OAuth tokens that expire at dif
 - **Frontend**: Astro 5, React, Tailwind CSS 4, Framer Motion
 - **Build**: TypeScript, Node.js 22, Vitest
 - **Infrastructure**: Google Cloud Build (custom Docker image), Secret Manager, Cloud Storage, Cloud CDN
-- **Monitoring**: Custom health checks with SMTP email notifications
+- **Monitoring**: Custom health checks with Discord webhook notifications
 
 ## Ambient Audio System
 

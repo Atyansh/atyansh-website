@@ -6,13 +6,13 @@
 2. ✅ Set project to `personal-website-334502`
 3. ✅ Enabled required APIs (Cloud Build, Secret Manager, Cloud Scheduler, Cloud Storage)
 4. ✅ Created `cloudbuild.yaml` configuration
-5. ✅ Created 27 secrets in Google Secret Manager (20 API keys + 1 token metadata + 6 email notification settings)
+5. ✅ Created 24 secrets in Google Secret Manager (20 API keys + 1 token metadata + 2 Discord notification settings)
 6. ✅ Granted IAM permissions to Cloud Build service accounts
 7. ✅ Configured Cloud Storage bucket (`gs://atyansh.com/`)
 8. ✅ Updated Cloud Build to use custom Docker image (`gcr.io/personal-website-334502/node-puppeteer:22`) with Chrome dependencies pre-installed
 9. ✅ Granted Secret Manager access to Compute Engine service account
 10. ✅ Successfully deployed site via Cloud Build
-11. ✅ Configured API health monitoring with email notifications
+11. ✅ Configured API health monitoring with Discord notifications
 12. ✅ Added file-based caching to all API integrations (generic `FileCache<T>` utility)
 13. ✅ Added TV shows page with Trakt/TMDB integration
 14. ✅ Added climbing page with Kaya integration
@@ -219,7 +219,7 @@ chmod +x deploy.sh
 
 ### API Health Monitoring
 
-The build automatically monitors all 11 API integrations and sends email notifications if any fail:
+The build automatically monitors all 11 API integrations and sends Discord notifications if any fail:
 
 **Monitored APIs:**
 - With API keys (self-healing): Spotify, MyAnimeList, IGDB, Trakt
@@ -230,10 +230,15 @@ The build automatically monitors all 11 API integrations and sends email notific
 - Runs after every build (`scripts/check-api-health.cjs`)
 - Validates cache files are fresh (<1 hour old)
 - Checks that data was successfully fetched
-- Sends email via SMTP if any API fails
+- Sends a Discord DM via bot if any API fails
 - Never fails the build (just notifies)
 
-**Email notifications are sent when:**
+**Cloudflare bypass:**
+- Trakt's Cloudflare protection blocks OAuth refresh requests from Cloud Build's datacenter IPs
+- The pre-build token refresh script uses Puppeteer with the stealth plugin to solve the Cloudflare JS challenge, then makes the OAuth refresh from within the browser session
+- This only activates in Cloud Build; local builds use plain `fetch`
+
+**Discord notifications are sent when:**
 - API credentials are missing or expired
 - Cache files are stale (API fetch failed but old cache exists)
 - Web scraping failed
@@ -286,7 +291,7 @@ This script will:
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
 - TV Shows: `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET`, `TRAKT_USERNAME`, `TRAKT_ACCESS_TOKEN`, `TRAKT_REFRESH_TOKEN`, `TRAKT_TOKEN_EXPIRES_AT`, `TMDB_API_KEY`
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`, `KAYA_USERNAME`
-- Email Notifications: `NOTIFICATION_EMAIL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
+- Discord Notifications: `DISCORD_BOT_TOKEN`, `DISCORD_USER_ID`
 
 ### Pulling Secrets to Local .env
 
@@ -340,26 +345,29 @@ echo -n "AQC..." | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file
 
 ### Secrets Expired
 
-**Automatic detection:** The build now sends email notifications when API keys expire or fail. Check your inbox for alerts.
+**Automatic detection:** The build now sends Discord notifications when API keys expire or fail. Check your Discord channel for alerts.
 
-**Manual renewal:**
-- **Spotify**: Re-run `scripts/get-spotify-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
-- **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
-- **Trakt**: Re-run `scripts/get-trakt-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh` (tokens expire every 7 days, auto-refresh when <24h remain)
-- **PSN**: Get new NPSSO token (expires every ~60 days), update `.env`, then sync
-- **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then sync
+**Auto-refresh (try this first):**
+```bash
+# Refreshes Trakt, MAL, and IGDB tokens automatically and persists to Secret Manager
+node scripts/refresh-tokens.cjs
+```
 
 **Quick workflow:**
 ```bash
-# 1. Update the expired token in .env
-nano .env
+# 1. Run auto-refresh (updates Secret Manager and .env automatically)
+node scripts/refresh-tokens.cjs
 
-# 2. Sync all secrets to Google Cloud
-./scripts/sync-secrets-to-gcloud.sh
-
-# 3. Trigger a new build to verify
+# 2. Trigger a new build to verify
 gcloud builds submit --config cloudbuild.yaml .
 ```
+
+**Manual renewal (fallback if auto-refresh fails):**
+- **Spotify**: Re-run `scripts/get-spotify-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
+- **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
+- **Trakt**: Re-run `scripts/get-trakt-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh` (tokens expire every 7 days, auto-refresh when <24h remain)
+- **PSN**: Log in at playstation.com, visit https://ca.account.sony.com/api/v1/ssocookie to get new NPSSO token (expires every ~60 days), update `.env`, then sync
+- **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then sync
 
 ### Build Succeeds but Site Not Updated
 - Check if files were uploaded: `gsutil ls -lh gs://atyansh.com/ | head`
@@ -435,9 +443,9 @@ For 10,000 visitors/month × 250KB per page = ~2.5GB = **~$0.20/month**
 - `create-secrets.sh` - Script to create/update secrets interactively
 - `scripts/sync-secrets-to-gcloud.sh` - Sync all secrets from .env to Google Cloud
 - `scripts/pull-secrets.cjs` - Sync secrets from Google Cloud to .env (runs automatically before builds)
-- `scripts/check-api-health.cjs` - API health monitoring and email notifications
+- `scripts/check-api-health.cjs` - API health monitoring and Discord notifications
 - `scripts/invalidate-cache.sh` - Helper script for manual cache invalidation
-- `API_HEALTH_MONITORING.md` - Complete guide for email notification setup
+- `API_HEALTH_MONITORING.md` - Complete guide for Discord notification setup
 - `DEPLOYMENT_GUIDE.md` - This file
 - `.gcloudignore` - Files to exclude from Cloud Build uploads (auto-created)
 
@@ -446,7 +454,7 @@ For 10,000 visitors/month × 250KB per page = ~2.5GB = **~$0.20/month**
 1. Wait 5-10 minutes for IAM permissions to fully propagate
 2. Run `gcloud builds submit --config cloudbuild.yaml .`
 3. If successful, set up Cloud Scheduler for daily builds
-4. Set up email notifications for API health monitoring (see `API_HEALTH_MONITORING.md`)
+4. Set up Discord notifications for API health monitoring (see `API_HEALTH_MONITORING.md`)
 5. Test the health monitoring by checking `.cache/api-health-report.json` after a build
 6. Commit the new files to git:
    ```bash
@@ -463,7 +471,7 @@ If you continue to have issues:
 3. Verify all secrets are populated: `gcloud secrets list`
 4. Test secret access: `gcloud secrets versions access latest --secret=STEAM_API_KEY | head -c 20`
 5. Check IAM permissions for both service accounts
-6. Review email notifications if any APIs are failing
+6. Review Discord notifications if any APIs are failing
 
 ## Alternative: GitHub Actions
 

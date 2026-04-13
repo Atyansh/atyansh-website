@@ -169,7 +169,68 @@ function updateEnvFile(updates) {
 }
 
 /**
+ * Refresh Trakt tokens via Puppeteer stealth.
+ * Launches a browser, solves the Cloudflare JS challenge by visiting trakt.tv,
+ * then makes the OAuth refresh POST from within the browser session itself.
+ */
+async function refreshTraktViaPuppeteer(requestBody) {
+  let puppeteer, StealthPlugin;
+  try {
+    puppeteer = require('puppeteer-extra');
+    StealthPlugin = require('puppeteer-extra-plugin-stealth');
+  } catch (e) {
+    console.log('  ⚠ Puppeteer/stealth not available, skipping Cloudflare bypass');
+    return null;
+  }
+
+  puppeteer.use(StealthPlugin());
+
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const page = await browser.newPage();
+
+    // Visit trakt.tv to solve Cloudflare challenge
+    console.log('  Solving Cloudflare challenge...');
+    await page.goto('https://trakt.tv', { waitUntil: 'networkidle2', timeout: 30000 });
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Make the OAuth refresh request from within the browser session
+    console.log('  Making OAuth refresh request from browser session...');
+    const result = await page.evaluate(async (body) => {
+      const response = await fetch('https://api.trakt.tv/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      return {
+        ok: response.ok,
+        status: response.status,
+        body: await response.text(),
+      };
+    }, requestBody);
+
+    if (!result.ok) {
+      console.log(`  ✗ Trakt refresh failed via Puppeteer: ${result.status} - ${result.body}`);
+      return null;
+    }
+
+    return JSON.parse(result.body);
+  } catch (error) {
+    console.log(`  ⚠ Puppeteer Cloudflare bypass failed: ${error.message}`);
+    return null;
+  } finally {
+    if (browser) await browser.close();
+  }
+}
+
+/**
  * Refresh Trakt tokens
+ * Uses Puppeteer stealth to bypass Cloudflare in Cloud Build.
  */
 async function refreshTrakt() {
   const clientId = process.env.TRAKT_CLIENT_ID;
@@ -198,46 +259,73 @@ async function refreshTrakt() {
   } else {
     console.log(`  Trakt: token expired ${Math.round(-hoursUntilExpiry)}h ago, refreshing...`);
   }
-  try {
-    const response = await fetchWithRetry('https://api.trakt.tv/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: 'urn:ietf:wg:oauth:2.0:oob',
-        grant_type: 'refresh_token',
-      }),
-    });
 
-    if (!response.ok) {
+  const requestBody = JSON.stringify({
+    refresh_token: refreshToken,
+    client_id: clientId,
+    client_secret: clientSecret,
+    redirect_uri: 'urn:ietf:wg:oauth:2.0:oob',
+    grant_type: 'refresh_token',
+  });
+
+  const isCloudBuild = !!(process.env.BUILD_ID || process.env.CLOUD_BUILD === 'true');
+
+  // In Cloud Build, Cloudflare blocks plain fetch from datacenter IPs,
+  // so skip straight to Puppeteer bypass. Locally, plain fetch works fine.
+  if (!isCloudBuild) {
+    try {
+      const response = await fetchWithRetry('https://api.trakt.tv/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody,
+      });
+
+      if (response.ok) {
+        return await handleTraktRefreshResponse(response);
+      }
+
       const errorText = await response.text();
       console.log(`  ✗ Trakt refresh failed: ${response.status} - ${errorText}`);
       return null;
+    } catch (error) {
+      console.log(`  ✗ Trakt refresh error: ${error.message}`);
+      return null;
     }
+  }
 
-    const data = await response.json();
-    const expiresInHours = Math.round(data.expires_in / 3600);
-    console.log(`  ✓ Trakt token refreshed (expires in ${expiresInHours} hours)`);
-
-    // Compute expiry timestamp
-    const expiresAtStr = String(Math.floor(Date.now() / 1000) + data.expires_in);
-
-    // Persist all tokens in parallel
-    await Promise.all([
-      persistTokenUpdate('TRAKT_ACCESS_TOKEN', data.access_token),
-      persistTokenUpdate('TRAKT_REFRESH_TOKEN', data.refresh_token),
-      persistTokenUpdate('TRAKT_TOKEN_EXPIRES_AT', expiresAtStr),
-    ]);
-
-    return data;
-  } catch (error) {
-    console.log(`  ✗ Trakt refresh error: ${error.message}`);
+  // Cloud Build: use Puppeteer to bypass Cloudflare and make the request
+  // from within the browser session
+  console.log('  Using Puppeteer to bypass Cloudflare...');
+  const data = await refreshTraktViaPuppeteer(requestBody);
+  if (!data) {
+    console.log('  ✗ Trakt refresh failed: could not bypass Cloudflare');
     return null;
   }
+
+  return await handleTraktRefreshResponse(data);
+}
+
+/**
+ * Process a successful Trakt token refresh response
+ */
+async function handleTraktRefreshResponse(responseOrData) {
+  const data = typeof responseOrData.json === 'function'
+    ? await responseOrData.json()
+    : responseOrData;
+  const expiresInHours = Math.round(data.expires_in / 3600);
+  console.log(`  ✓ Trakt token refreshed (expires in ${expiresInHours} hours)`);
+
+  // Compute expiry timestamp
+  const expiresAtStr = String(Math.floor(Date.now() / 1000) + data.expires_in);
+
+  // Persist all tokens in parallel
+  await Promise.all([
+    persistTokenUpdate('TRAKT_ACCESS_TOKEN', data.access_token),
+    persistTokenUpdate('TRAKT_REFRESH_TOKEN', data.refresh_token),
+    persistTokenUpdate('TRAKT_TOKEN_EXPIRES_AT', expiresAtStr),
+  ]);
+
+  return data;
 }
 
 /**

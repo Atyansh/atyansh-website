@@ -4,17 +4,14 @@
  * API Health Check Script
  *
  * Runs after the build to check which API integrations succeeded/failed.
- * Sends email notifications via SMTP if any APIs have expired credentials.
+ * Sends Discord notifications via webhook if any APIs have expired credentials.
  *
  * Usage:
  *   node scripts/check-api-health.cjs
  *
- * Environment Variables (for email notifications):
- *   NOTIFICATION_EMAIL - Email address to send notifications to (required)
- *   SMTP_HOST - SMTP server host (default: smtp.gmail.com)
- *   SMTP_PORT - SMTP server port (default: 587)
- *   SMTP_USER - SMTP username (your Gmail address)
- *   SMTP_PASS - SMTP app password (not your regular Gmail password!)
+ * Environment Variables (for Discord notifications):
+ *   DISCORD_BOT_TOKEN - Discord bot token (for sending DMs)
+ *   DISCORD_USER_ID - Your Discord user ID (DM recipient)
  */
 
 // Load .env file for local testing (Cloud Build uses Secret Manager)
@@ -303,64 +300,118 @@ function generateReport(results) {
 }
 
 /**
- * Send email notification using SMTP
+ * Send Discord notification via webhook
  */
-async function sendEmailNotification(results) {
-  const NOTIFICATION_EMAIL = process.env.NOTIFICATION_EMAIL;
-  const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-  const SMTP_USER = process.env.SMTP_USER;
-  const SMTP_PASS = process.env.SMTP_PASS;
+async function sendDiscordNotification(results) {
+  const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+  const DISCORD_USER_ID = process.env.DISCORD_USER_ID;
 
-  if (!NOTIFICATION_EMAIL) {
-    console.log('⚠️  NOTIFICATION_EMAIL not configured, skipping email');
+  if (!DISCORD_BOT_TOKEN || !DISCORD_USER_ID) {
+    console.log('⚠️  Discord credentials not configured (need DISCORD_BOT_TOKEN and DISCORD_USER_ID)');
     return false;
   }
 
-  if (!SMTP_USER || !SMTP_PASS) {
-    console.log('⚠️  SMTP credentials not configured (need SMTP_USER and SMTP_PASS)');
-    return false;
-  }
+  const headers = {
+    'Authorization': `Bot ${DISCORD_BOT_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
 
-  let nodemailer;
+  // Step 1: Open a DM channel with the user
+  let channelId;
   try {
-    nodemailer = require('nodemailer');
+    const dmResponse = await fetch('https://discord.com/api/v10/users/@me/channels', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ recipient_id: DISCORD_USER_ID }),
+    });
+
+    if (!dmResponse.ok) {
+      const errorText = await dmResponse.text();
+      console.error(`❌ Failed to open DM channel: ${dmResponse.status} - ${errorText}`);
+      return false;
+    }
+
+    const dmChannel = await dmResponse.json();
+    channelId = dmChannel.id;
   } catch (error) {
-    console.log('⚠️  nodemailer not installed, skipping email');
-    console.log('   Install with: npm install nodemailer');
+    console.error(`❌ Failed to open DM channel: ${error.message}`);
     return false;
   }
 
-  const subject = results.failed.length > 0
-    ? `⚠️ API Health Alert: ${results.failed.length} API(s) Failed`
-    : `✅ All APIs Healthy`;
+  // Step 2: Build the embed
+  const total = results.healthy.length + results.failed.length;
+  const healthPercentage = Math.round((results.healthy.length / total) * 100);
 
-  const report = generateReport(results);
+  const embed = {
+    title: `⚠️ API Health Alert: ${results.failed.length} API(s) Failed`,
+    color: 0xff4444,
+    description: `Health Score: **${results.healthy.length}/${total} APIs (${healthPercentage}%)**`,
+    fields: [],
+    timestamp: new Date().toISOString(),
+    footer: { text: 'Atyansh Website Monitor' },
+  };
 
+  const manualInterventionNeeded = results.failed.filter(f => f.requiresApiKey && !f.selfHealing);
+  const selfHealingFailed = results.failed.filter(f => f.requiresApiKey && f.selfHealing);
+  const scrapingFailures = results.failed.filter(f => !f.requiresApiKey);
+
+  if (manualInterventionNeeded.length > 0) {
+    embed.fields.push({
+      name: '🚨 Manual Intervention Required',
+      value: manualInterventionNeeded.map(api =>
+        `**${api.name}**\n${api.reason}\nFix: ${api.renewal}`
+      ).join('\n\n'),
+    });
+  }
+
+  if (selfHealingFailed.length > 0) {
+    embed.fields.push({
+      name: '⚠️ Self-Healing Failed',
+      value: selfHealingFailed.map(api =>
+        `**${api.name}**\n${api.reason}\nFix: ${api.renewal}`
+      ).join('\n\n'),
+    });
+  }
+
+  if (scrapingFailures.length > 0) {
+    embed.fields.push({
+      name: '❌ Web Scraping Failed',
+      value: scrapingFailures.map(api =>
+        `**${api.name}**\n${api.reason}\nFix: ${api.renewal}`
+      ).join('\n\n'),
+    });
+  }
+
+  if (results.healthy.length > 0) {
+    embed.fields.push({
+      name: '✅ Healthy APIs',
+      value: results.healthy.map(api => api.name).join(', '),
+    });
+  }
+
+  // Step 3: Send the DM
   try {
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: false,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS,
-      },
+    console.log('📨 Sending Discord DM...');
+
+    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        content: 'API health check detected failures:',
+        embeds: [embed],
+      }),
     });
 
-    console.log(`📧 Sending email to ${NOTIFICATION_EMAIL}...`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Failed to send Discord DM: ${response.status} - ${errorText}`);
+      return false;
+    }
 
-    await transporter.sendMail({
-      from: `"Atyansh Website Monitor" <${SMTP_USER}>`,
-      to: NOTIFICATION_EMAIL,
-      subject: subject,
-      text: report,
-    });
-
-    console.log(`✅ Email sent successfully`);
+    console.log('✅ Discord DM sent successfully');
     return true;
   } catch (error) {
-    console.error(`❌ Failed to send email: ${error.message}`);
+    console.error(`❌ Failed to send Discord DM: ${error.message}`);
     return false;
   }
 }
@@ -382,10 +433,10 @@ async function main() {
   fs.writeFileSync(reportPath, JSON.stringify(results, null, 2));
   console.log(`📄 Report saved to: ${reportPath}\n`);
 
-  // Send email notification if any APIs failed
+  // Send Discord DM if any APIs failed
   if (results.failed.length > 0) {
     console.log('⚠️  Detected API failures, sending notification...\n');
-    await sendEmailNotification(results);
+    await sendDiscordNotification(results);
   } else {
     console.log('✅ All APIs healthy, no notification needed\n');
   }

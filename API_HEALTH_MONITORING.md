@@ -1,10 +1,10 @@
 # API Health Monitoring Setup Guide
 
-This guide explains how to set up email notifications for API health monitoring in your Cloud Build pipeline.
+This guide explains how to set up Discord notifications for API health monitoring in your Cloud Build pipeline.
 
 ## Overview
 
-The API health monitoring system checks all 8 API integrations after each build and sends email notifications if any APIs fail:
+The API health monitoring system checks all 8 API integrations after each build and sends Discord notifications if any APIs fail:
 
 **APIs with credentials (can expire):**
 1. Spotify (OAuth refresh token)
@@ -22,7 +22,7 @@ The API health monitoring system checks all 8 API integrations after each build 
 
 1. **Build runs** (`npm run build`) - All APIs are called and cache files are created
 2. **Health check runs** (`scripts/check-api-health.cjs`) - Validates cache files
-3. **If failures detected** - Email notification sent with details
+3. **If failures detected** - Discord notification sent with details and @mention
 
 ### Cache Validation
 
@@ -35,53 +35,51 @@ If any check fails, you get notified which API failed and how to fix it.
 
 ## Setup Instructions
 
-### Step 1: Install Dependencies
+### Step 1: Create a Discord Bot
+
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
+2. Click **New Application**, give it a name (e.g., "Website Monitor")
+3. Go to **Bot** in the sidebar
+4. Click **Reset Token** and copy the bot token
+
+### Step 2: Invite the Bot to a Server
+
+The bot must share at least one server with you to send DMs.
+
+1. Go to **OAuth2** in the sidebar
+2. Copy the **Application ID** from the General Information page
+3. Visit this URL (replace `YOUR_APPLICATION_ID`):
+   ```
+   https://discord.com/oauth2/authorize?client_id=YOUR_APPLICATION_ID&scope=bot
+   ```
+4. Select a server you're in and authorize
+
+### Step 3: Get Your Discord User ID
+
+1. Open Discord Settings > **Advanced** > Enable **Developer Mode**
+2. Right-click your own name in any chat
+3. Click **Copy User ID**
+
+### Step 4: Add Secrets to Google Secret Manager
 
 ```bash
-npm install
+# Discord bot token
+echo -n "your_bot_token_here" | \
+  gcloud secrets create DISCORD_BOT_TOKEN --data-file=-
+
+# Your Discord user ID (DM recipient)
+echo -n "123456789012345678" | \
+  gcloud secrets create DISCORD_USER_ID --data-file=-
 ```
 
-This installs `nodemailer` and `dotenv` (added to devDependencies). Dotenv allows the health check script to automatically load your `.env` file for local testing.
-
-### Step 2: Get Gmail App Password
-
-1. Go to https://myaccount.google.com/security
-2. Enable 2-Factor Authentication (if not already enabled)
-3. Go to "App passwords" (search for it in settings)
-4. Create a new app password:
-   - App: "Mail"
-   - Device: "Other (Custom name)" → Enter "Atyansh Website Monitor"
-5. Copy the 16-character password (looks like: `xxxx xxxx xxxx xxxx`)
-
-**Important:** This is NOT your regular Gmail password. It's a special app-specific password.
-
-### Step 3: Add Secrets to Google Secret Manager
-
-Run these commands to create the email notification secrets:
-
-```bash
-# Your email address (where notifications will be sent)
-echo -n "your@email.com" | gcloud secrets create NOTIFICATION_EMAIL --data-file=-
-
-# Gmail SMTP settings (use defaults for Gmail)
-echo -n "smtp.gmail.com" | gcloud secrets create SMTP_HOST --data-file=-
-echo -n "587" | gcloud secrets create SMTP_PORT --data-file=-
-
-# Your Gmail address (sender)
-echo -n "your@gmail.com" | gcloud secrets create SMTP_USER --data-file=-
-
-# Gmail App Password (from Step 2)
-echo -n "xxxx xxxx xxxx xxxx" | gcloud secrets create SMTP_PASS --data-file=-
-```
-
-### Step 4: Grant Permissions
+### Step 5: Grant Permissions
 
 Grant the Cloud Build service account access to the new secrets:
 
 ```bash
 PROJECT_NUMBER=418072003908
 
-for secret in NOTIFICATION_EMAIL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS; do
+for secret in DISCORD_BOT_TOKEN DISCORD_USER_ID; do
   echo "Granting access to $secret..."
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
@@ -89,7 +87,7 @@ for secret in NOTIFICATION_EMAIL SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS; do
 done
 ```
 
-### Step 5: Test Locally (Optional)
+### Step 6: Test Locally (Optional)
 
 Test the health check script on your local machine:
 
@@ -101,8 +99,6 @@ npm run build
 node scripts/check-api-health.cjs
 ```
 
-The script automatically loads your `.env` file for local testing, so no need to export variables manually!
-
 You should see output like:
 ```
 🔍 Checking API health...
@@ -113,15 +109,15 @@ You should see output like:
 ...
 ```
 
-If any APIs failed, you'll receive an email.
+If any APIs failed, you'll receive a Discord DM.
 
-### Step 6: Deploy to Cloud Build
+### Step 7: Deploy to Cloud Build
 
 Commit and push your changes:
 
 ```bash
 git add .
-git commit -m "Add API health monitoring with email notifications"
+git commit -m "Switch API health notifications from email to Discord"
 git push
 ```
 
@@ -133,42 +129,19 @@ gcloud builds submit --config cloudbuild.yaml .
 
 Watch the build logs to see the health check run.
 
-## Understanding the Email Notifications
+## Understanding the Discord Notifications
 
-### Email Format
+### Notification Format
 
-You'll receive emails with this format:
+You'll receive a Discord DM with an embed containing:
 
-```
-Subject: ⚠️ API Health Alert: 2 API(s) Failed
-
-═══════════════════════════════════════════════
-          API HEALTH REPORT
-═══════════════════════════════════════════════
-
-Generated: January 14, 2025 at 2:00 AM
-Health Score: 6/8 APIs (75%)
-
-❌ FAILED APIs (Credentials Required):
-───────────────────────────────────────────────
-
-• Spotify
-  Reason: Cache file not found - API credentials may be missing or expired
-  Fix: Run: node scripts/get-spotify-token.cjs
-
-• PlayStation Network
-  Reason: Cache is stale (25h old) - API likely failed but old cache still exists
-  Fix: Update PSN_NPSSO token in Secret Manager (expires every ~60 days)
-
-✅ HEALTHY APIs:
-───────────────────────────────────────────────
-
-• Steam (API Key)
-  Last updated: January 14, 2025 at 1:55 AM
-  Cache age: 5 minutes
-
-...
-```
+- **Title:** "API Health Alert: 2 API(s) Failed"
+- **Health Score:** e.g., "6/8 APIs (75%)"
+- **Manual Intervention Required:** APIs that need you to manually update credentials
+- **Self-Healing Failed:** APIs that normally auto-refresh but failed
+- **Web Scraping Failed:** Scraping-based integrations that broke
+- **Healthy APIs:** List of APIs that are working fine
+- Sent directly to your DMs so you don't miss it
 
 ### When You Get Notified
 
@@ -178,7 +151,7 @@ Health Score: 6/8 APIs (75%)
 
 ## Troubleshooting
 
-### No Email Received
+### No Discord DM Received
 
 1. **Check Cloud Build logs:**
    ```bash
@@ -190,23 +163,25 @@ Health Score: 6/8 APIs (75%)
 
 2. **Verify secrets are set:**
    ```bash
-   gcloud secrets versions access latest --secret=NOTIFICATION_EMAIL
-   gcloud secrets versions access latest --secret=SMTP_USER
+   gcloud secrets versions access latest --secret=DISCORD_BOT_TOKEN
+   gcloud secrets versions access latest --secret=DISCORD_USER_ID
    ```
 
-3. **Check Gmail spam folder** - First email might be marked as spam
+3. **Check the bot is still in a shared server** - The bot must share at least one server with you
 
-4. **Verify Gmail app password is correct** - Try creating a new one
+### Notification Sending Fails
 
-### Email Sending Fails
+Error: "401"
+- **Cause:** Bot token is invalid or was reset
+- **Fix:** Regenerate the token in the Discord Developer Portal and update the secret
 
-Error: "Invalid login: 535-5.7.8 Username and Password not accepted"
-- **Cause:** Wrong app password or 2FA not enabled
-- **Fix:** Create a new app password following Step 2
+Error: "Failed to open DM channel"
+- **Cause:** Bot and user don't share a server
+- **Fix:** Invite the bot to a server you're in (Step 2)
 
-Error: "nodemailer not installed"
-- **Cause:** Dependencies not installed in Cloud Build
-- **Fix:** Run `npm ci` in Cloud Build (already configured)
+Error: "Discord credentials not configured"
+- **Cause:** Secrets not accessible in Cloud Build
+- **Fix:** Check IAM permissions (Step 5)
 
 ### False Positives
 
@@ -247,9 +222,9 @@ echo -n "new_refresh_token" | gcloud secrets versions add MAL_REFRESH_TOKEN --da
 ```
 
 ### PSN (NPSSO Token)
-1. Log into PSN on a web browser
-2. Open DevTools → Application → Cookies
-3. Find `npsso` cookie value
+1. Log in to https://www.playstation.com in your browser
+2. Visit https://ca.account.sony.com/api/v1/ssocookie
+3. Copy the `npsso` value from the JSON response
 4. Update secret:
    ```bash
    echo -n "new_npsso_value" | gcloud secrets versions add PSN_NPSSO --data-file=-
@@ -274,46 +249,33 @@ Steam API keys don't expire, but if you need to regenerate:
 
 ## Disabling Notifications
 
-If you want to disable email notifications but keep the health check:
+If you want to disable Discord notifications but keep the health check:
 
-### Option 1: Remove email secrets
+### Option 1: Remove Discord secrets
 ```bash
-gcloud secrets delete NOTIFICATION_EMAIL
-gcloud secrets delete SMTP_USER
-gcloud secrets delete SMTP_PASS
+gcloud secrets delete DISCORD_BOT_TOKEN
+gcloud secrets delete DISCORD_USER_ID
 ```
 
-The health check will still run and log results, but won't send emails.
+The health check will still run and log results, but won't send DMs.
 
 ### Option 2: Comment out the health check step
 
-Edit `cloudbuild.yaml` and comment out the health check step:
-
-```yaml
-# # Check API health and send notifications if any failed
-# - name: 'node:22'
-#   entrypoint: node
-#   args: ['scripts/check-api-health.cjs']
-#   ...
-```
+Edit `cloudbuild.yaml` and comment out the health check step.
 
 ## Cost Estimate
 
-- **Gmail SMTP:** Free (personal Gmail account)
+- **Discord Webhooks:** Free
 - **Cloud Build:** No extra cost (health check adds ~10 seconds)
 - **Secret Manager:** $0.06 per 10,000 accesses (negligible for daily builds)
 
 **Total additional cost:** $0/month
 
-## Files Created
+## Files
 
-- `scripts/check-api-health.cjs` - Health check script
+- `scripts/check-api-health.cjs` - Health check script with Discord notifications
 - `API_HEALTH_MONITORING.md` - This guide
-- Modified: `cloudbuild.yaml` - Added health check step
-- Modified: `package.json` - Added nodemailer dependency
-- Modified: `src/utils/steam.ts` - Added file-based caching
-- Modified: `src/utils/psn.ts` - Added file-based caching
-- Modified: `src/utils/exophase-scraper.ts` - Updated cache location
+- `cloudbuild.yaml` - Cloud Build configuration (health check step)
 
 ---
 

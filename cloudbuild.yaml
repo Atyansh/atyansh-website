@@ -62,11 +62,8 @@ steps:
     env:
       - 'NODE_ENV=production'
     secretEnv:
-      - 'NOTIFICATION_EMAIL'
-      - 'SMTP_HOST'
-      - 'SMTP_PORT'
-      - 'SMTP_USER'
-      - 'SMTP_PASS'
+      - 'DISCORD_BOT_TOKEN'
+      - 'DISCORD_USER_ID'
     waitFor: ['build-site']
 
   # Deploy to Cloud Storage
@@ -164,17 +161,11 @@ availableSecrets:
     # TMDB API secrets
     - versionName: projects/personal-website-334502/secrets/TMDB_API_KEY/versions/latest
       env: 'TMDB_API_KEY'
-    # Email notification secrets
-    - versionName: projects/personal-website-334502/secrets/NOTIFICATION_EMAIL/versions/latest
-      env: 'NOTIFICATION_EMAIL'
-    - versionName: projects/personal-website-334502/secrets/SMTP_HOST/versions/latest
-      env: 'SMTP_HOST'
-    - versionName: projects/personal-website-334502/secrets/SMTP_PORT/versions/latest
-      env: 'SMTP_PORT'
-    - versionName: projects/personal-website-334502/secrets/SMTP_USER/versions/latest
-      env: 'SMTP_USER'
-    - versionName: projects/personal-website-334502/secrets/SMTP_PASS/versions/latest
-      env: 'SMTP_PASS'
+    # Discord notification secrets
+    - versionName: projects/personal-website-334502/secrets/DISCORD_BOT_TOKEN/versions/latest
+      env: 'DISCORD_BOT_TOKEN'
+    - versionName: projects/personal-website-334502/secrets/DISCORD_USER_ID/versions/latest
+      env: 'DISCORD_USER_ID'
 
 # Build configuration
 options:

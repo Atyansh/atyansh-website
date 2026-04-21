@@ -27,6 +27,7 @@ steps:
     id: 'build-site'
     env:
       - 'NODE_ENV=production'
+      - 'CLOUD_BUILD=true'
     secretEnv:
       - 'STEAM_API_KEY'
       - 'STEAM_ID'

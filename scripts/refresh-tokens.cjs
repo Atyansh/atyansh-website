@@ -189,17 +189,36 @@ async function refreshTraktViaPuppeteer(requestBody) {
   try {
     browser = await puppeteer.launch({
       headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        // Needed so page.evaluate(fetch(...)) can POST to api.trakt.tv cross-origin
+        '--disable-web-security',
+      ],
     });
 
     const page = await browser.newPage();
 
-    // Visit trakt.tv to solve Cloudflare challenge
-    console.log('  Solving Cloudflare challenge...');
+    // Visit trakt.tv to solve Cloudflare challenge for the base domain
+    console.log('  Solving Cloudflare challenge on trakt.tv...');
     await page.goto('https://trakt.tv', { waitUntil: 'networkidle2', timeout: 30000 });
     await new Promise(resolve => setTimeout(resolve, 3000));
 
-    // Make the OAuth refresh request from within the browser session
+    // Navigate to api.trakt.tv to solve Cloudflare challenge for that host too.
+    // cf_clearance cookies are usually host-scoped, so we need CF clearance
+    // for api.trakt.tv separately. Making the POST from this origin also
+    // avoids CORS issues.
+    console.log('  Solving Cloudflare challenge on api.trakt.tv...');
+    await page.goto('https://api.trakt.tv/oauth/token', {
+      waitUntil: 'networkidle2',
+      timeout: 30000,
+    }).catch(() => {
+      // GET to a POST-only endpoint will return 405 or similar — that's fine,
+      // we just need Cloudflare to set the clearance cookie for this host.
+    });
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Make the OAuth refresh request from the api.trakt.tv origin (same-origin POST)
     console.log('  Making OAuth refresh request from browser session...');
     const result = await page.evaluate(async (body) => {
       const response = await fetch('https://api.trakt.tv/oauth/token', {

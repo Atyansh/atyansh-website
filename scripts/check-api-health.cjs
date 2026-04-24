@@ -57,9 +57,9 @@ const APIs = [
     name: 'PlayStation Network',
     cacheFile: 'psn-data.json',
     checkFn: (data) => data.games && data.games.length > 0,
-    renewal: 'Update PSN_NPSSO token in Secret Manager (expires every ~60 days, requires manual browser login)',
+    renewal: 'Auto-refreshes via refresh token (~10d window). If that also fails: log out + log back in at playstation.com, get fresh NPSSO from https://ca.account.sony.com/api/v1/ssocookie, update PSN_NPSSO in Secret Manager',
     requiresApiKey: true,
-    selfHealing: false, // NPSSO requires manual browser authentication
+    selfHealing: true, // Auto-refreshes via refresh token for ~10d; NPSSO bootstrap only needed when that expires
   },
   {
     name: 'IGDB (Game Covers)',

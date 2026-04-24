@@ -12,6 +12,7 @@ import { FileCache } from './cache';
 import { createLogger } from './logger';
 
 const PSN_NPSSO = import.meta.env.PSN_NPSSO;
+const PSN_ACCESS_TOKEN = import.meta.env.PSN_ACCESS_TOKEN;
 
 const log = createLogger('PSN');
 const cache = new FileCache<PSNData>('psn-data', { ttl: 24 * 60 * 60 * 1000 });
@@ -55,22 +56,29 @@ interface PSNData {
  * Includes retry logic for transient failures
  */
 async function getPSNAuth(): Promise<AuthTokensResponse | null> {
-  if (!PSN_NPSSO) {
-    log.error('PSN NPSSO token not configured');
-    return null;
-  }
-
-  // Return cached auth if still valid (tokens last 1 hour)
   if (cachedAuth) {
     return cachedAuth;
+  }
+
+  // Prefer the access token refreshed by scripts/refresh-tokens.cjs — that path
+  // uses the refresh token (~10d) instead of the fragile NPSSO, which can be
+  // invalidated whenever the user logs out of PSN anywhere.
+  if (PSN_ACCESS_TOKEN) {
+    cachedAuth = { accessToken: PSN_ACCESS_TOKEN } as AuthTokensResponse;
+    return cachedAuth;
+  }
+
+  // Fallback: bootstrap from NPSSO directly. Should only happen if the
+  // refresh script didn't run or failed (e.g. first-time local setup).
+  if (!PSN_NPSSO) {
+    log.error('Neither PSN_ACCESS_TOKEN nor PSN_NPSSO configured');
+    return null;
   }
 
   try {
     const authorization = await withRetry(
       async () => {
-        // Exchange NPSSO for authorization code
         const accessCode = await exchangeNpssoForCode(PSN_NPSSO);
-        // Exchange code for access token
         return await exchangeCodeForAccessToken(accessCode);
       },
       {

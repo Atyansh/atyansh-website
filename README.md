@@ -669,9 +669,14 @@ If you accidentally commit secrets:
 - Update `.env` with new values
 - For production: Sync to Google Cloud with `./scripts/sync-secrets-to-gcloud.sh`
 
-**PSN NPSSO tokens expire every ~60 days** and must be manually refreshed:
-- Visit https://store.playstation.com and sign in
-- Get new token from https://ca.account.sony.com/api/v1/ssocookie
+**PSN uses a refresh token flow** to avoid frequent manual renewal:
+- The NPSSO bootstraps the refresh token on first use
+- Each build uses the refresh token to get a new access token, extending the ~10-day window
+- The NPSSO can be invalidated at any time (e.g. logging out of PSN on another device) — the refresh token keeps working until its window expires
+- When the refresh token also expires, get a new NPSSO:
+  - Log out of https://store.playstation.com, then log back in
+  - Visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh token
+  - Update `PSN_NPSSO` in `.env` and sync to Secret Manager
 
 **Automated monitoring:**
 - If Discord notifications are configured, you'll automatically receive a DM when tokens expire

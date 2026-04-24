@@ -10,7 +10,7 @@ The API health monitoring system checks all 8 API integrations after each build 
 1. Spotify (OAuth refresh token)
 2. MyAnimeList (OAuth access token)
 3. Steam (API key)
-4. PlayStation Network (NPSSO token - expires ~60 days)
+4. PlayStation Network (refresh token, ~10 days; NPSSO only used to bootstrap)
 5. IGDB (access token for game covers)
 
 **Web scraping (no credentials):**
@@ -221,14 +221,20 @@ echo -n "new_access_token" | gcloud secrets versions add MAL_ACCESS_TOKEN --data
 echo -n "new_refresh_token" | gcloud secrets versions add MAL_REFRESH_TOKEN --data-file=-
 ```
 
-### PSN (NPSSO Token)
-1. Log in to https://www.playstation.com in your browser
+### PSN (Refresh Token / NPSSO)
+PSN uses a refresh token flow that rotates every build. You only need to touch
+the NPSSO when the refresh token expires or is revoked.
+
+1. **Log out** of https://www.playstation.com then log back in (the NPSSO cookie
+   value doesn't rotate on its own, so a previously-invalidated cookie can
+   still be returned by the ssocookie URL)
 2. Visit https://ca.account.sony.com/api/v1/ssocookie
 3. Copy the `npsso` value from the JSON response
 4. Update secret:
    ```bash
    echo -n "new_npsso_value" | gcloud secrets versions add PSN_NPSSO --data-file=-
    ```
+5. The next build will exchange the NPSSO for a fresh refresh token and persist it automatically
 
 ### IGDB
 1. Go to https://api.igdb.com/

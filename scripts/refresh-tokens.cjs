@@ -43,6 +43,16 @@ async function persistTokenUpdate(key, value) {
 }
 
 /**
+ * Set a per-build token that only needs to live for the current build.
+ * Writes to envUpdates (for .env.refresh) and process.env, but NOT Secret Manager.
+ * Used for short-lived access tokens (e.g. PSN access token, 1h TTL).
+ */
+function setEphemeralToken(key, value) {
+  envUpdates[key] = value;
+  process.env[key] = value;
+}
+
+/**
  * Sleep for specified milliseconds
  */
 function sleep(ms) {
@@ -480,6 +490,93 @@ async function refreshIGDB() {
   }
 }
 
+/**
+ * Refresh PSN tokens.
+ *
+ * PSN session flow:
+ *   NPSSO (user cookie, ~weeks)  →  access_token (1h)  +  refresh_token (~10d)
+ *
+ * The NPSSO is fragile — it can be invalidated when you log out of PSN on
+ * any device. The refresh token is more stable, so we prefer it: bootstrap
+ * from NPSSO once, then rotate the refresh token on every build. This lets
+ * the NPSSO go stale without breaking the site, as long as builds run
+ * within the refresh window (~10 days).
+ */
+async function refreshPSN() {
+  const npsso = process.env.PSN_NPSSO;
+  const refreshToken = process.env.PSN_REFRESH_TOKEN;
+
+  if (!npsso && !refreshToken) {
+    console.log('  Skipping PSN: no NPSSO or refresh token configured');
+    return null;
+  }
+
+  // Lazy require so we fail gracefully if psn-api isn't installed
+  let psnApi;
+  try {
+    psnApi = require('psn-api');
+  } catch (e) {
+    console.log('  ⚠ psn-api not installed, skipping PSN refresh');
+    return null;
+  }
+
+  const expiresAt = Number(process.env.PSN_REFRESH_TOKEN_EXPIRES_AT || '0');
+  const nowSecs = Math.floor(Date.now() / 1000);
+  const hoursUntilExpiry = (expiresAt - nowSecs) / 3600;
+
+  // Try refresh token path if we have one and it's not about to expire
+  if (refreshToken && expiresAt > 0 && hoursUntilExpiry > 24) {
+    console.log(`  PSN: using refresh token (expires in ${Math.round(hoursUntilExpiry)}h)`);
+    try {
+      const tokens = await psnApi.exchangeRefreshTokenForAuthTokens(refreshToken);
+      console.log(`  ✓ PSN access token refreshed (valid ${Math.round(tokens.expiresIn / 60)}m)`);
+
+      const newExpiresAt = String(Math.floor(Date.now() / 1000) + tokens.refreshTokenExpiresIn);
+
+      await Promise.all([
+        persistTokenUpdate('PSN_REFRESH_TOKEN', tokens.refreshToken),
+        persistTokenUpdate('PSN_REFRESH_TOKEN_EXPIRES_AT', newExpiresAt),
+      ]);
+      setEphemeralToken('PSN_ACCESS_TOKEN', tokens.accessToken);
+
+      return tokens;
+    } catch (error) {
+      console.log(`  ⚠ PSN refresh token exchange failed: ${error.message}`);
+      console.log('  PSN: falling back to NPSSO exchange');
+    }
+  } else if (refreshToken) {
+    console.log(`  PSN: refresh token near expiry (${Math.round(hoursUntilExpiry)}h), using NPSSO to get fresh one`);
+  } else {
+    console.log('  PSN: no refresh token, bootstrapping from NPSSO');
+  }
+
+  // Fallback / bootstrap: exchange NPSSO for fresh auth tokens
+  if (!npsso) {
+    console.log('  ✗ PSN: no NPSSO available for fallback');
+    return null;
+  }
+
+  try {
+    const code = await psnApi.exchangeNpssoForCode(npsso);
+    const tokens = await psnApi.exchangeCodeForAccessToken(code);
+    console.log(`  ✓ PSN bootstrapped from NPSSO (refresh token valid ${Math.round(tokens.refreshTokenExpiresIn / 86400)}d)`);
+
+    const newExpiresAt = String(Math.floor(Date.now() / 1000) + tokens.refreshTokenExpiresIn);
+
+    await Promise.all([
+      persistTokenUpdate('PSN_REFRESH_TOKEN', tokens.refreshToken),
+      persistTokenUpdate('PSN_REFRESH_TOKEN_EXPIRES_AT', newExpiresAt),
+    ]);
+    setEphemeralToken('PSN_ACCESS_TOKEN', tokens.accessToken);
+
+    return tokens;
+  } catch (error) {
+    console.log(`  ✗ PSN NPSSO exchange failed: ${error.message}`);
+    console.log('  Fix: get a new NPSSO from https://ca.account.sony.com/api/v1/ssocookie (log out + log back in first)');
+    return null;
+  }
+}
+
 async function main() {
   console.log('🔄 Pre-build token refresh\n');
 
@@ -488,12 +585,13 @@ async function main() {
     refreshTrakt().then(r => { console.log('  Trakt: done'); return r; }),
     refreshMAL().then(r => { console.log('  MAL: done'); return r; }),
     refreshIGDB().then(r => { console.log('  IGDB: done'); return r; }),
+    refreshPSN().then(r => { console.log('  PSN: done'); return r; }),
   ]);
 
   // Log any unexpected rejections
   results.forEach((result, i) => {
     if (result.status === 'rejected') {
-      const names = ['Trakt', 'MAL', 'IGDB'];
+      const names = ['Trakt', 'MAL', 'IGDB', 'PSN'];
       console.log(`  ✗ ${names[i]} unexpected error: ${result.reason?.message || result.reason}`);
     }
   });

@@ -32,6 +32,8 @@ steps:
       - 'STEAM_API_KEY'
       - 'STEAM_ID'
       - 'PSN_NPSSO'
+      - 'PSN_REFRESH_TOKEN'
+      - 'PSN_REFRESH_TOKEN_EXPIRES_AT'
       - 'IGDB_CLIENT_ID'
       - 'IGDB_CLIENT_SECRET'
       - 'IGDB_ACCESS_TOKEN'
@@ -118,6 +120,10 @@ availableSecrets:
       env: 'STEAM_ID'
     - versionName: projects/personal-website-334502/secrets/PSN_NPSSO/versions/latest
       env: 'PSN_NPSSO'
+    - versionName: projects/personal-website-334502/secrets/PSN_REFRESH_TOKEN/versions/latest
+      env: 'PSN_REFRESH_TOKEN'
+    - versionName: projects/personal-website-334502/secrets/PSN_REFRESH_TOKEN_EXPIRES_AT/versions/latest
+      env: 'PSN_REFRESH_TOKEN_EXPIRES_AT'
     - versionName: projects/personal-website-334502/secrets/IGDB_CLIENT_ID/versions/latest
       env: 'IGDB_CLIENT_ID'
     - versionName: projects/personal-website-334502/secrets/IGDB_CLIENT_SECRET/versions/latest

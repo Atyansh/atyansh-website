@@ -286,7 +286,7 @@ This script will:
 - Show a summary of updated/skipped/failed secrets
 
 **All secrets managed:**
-- Gaming: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`, `EXOPHASE_USERNAME`
+- Gaming: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `PSN_REFRESH_TOKEN`, `PSN_REFRESH_TOKEN_EXPIRES_AT`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`, `EXOPHASE_USERNAME`
 - Spotify: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
 - TV Shows: `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET`, `TRAKT_USERNAME`, `TRAKT_ACCESS_TOKEN`, `TRAKT_REFRESH_TOKEN`, `TRAKT_TOKEN_EXPIRES_AT`, `TMDB_API_KEY`
@@ -366,7 +366,7 @@ gcloud builds submit --config cloudbuild.yaml .
 - **Spotify**: Re-run `scripts/get-spotify-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
 - **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
 - **Trakt**: Re-run `scripts/get-trakt-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh` (tokens expire every 7 days, auto-refresh when <24h remain)
-- **PSN**: Log in at playstation.com, visit https://ca.account.sony.com/api/v1/ssocookie to get new NPSSO token (expires every ~60 days), update `.env`, then sync
+- **PSN**: Uses a refresh token (~10d) bootstrapped from the NPSSO. Only bootstrap when the refresh token expires or is revoked. To bootstrap: log out + log back in at playstation.com, visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh NPSSO, update `.env`, then sync — the next build will exchange it for a refresh token
 - **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then sync
 
 ### Build Succeeds but Site Not Updated

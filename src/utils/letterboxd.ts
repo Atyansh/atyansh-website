@@ -46,56 +46,30 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForSelector('.poster-list', { timeout: 10000 });
 
-        // Scroll down to trigger lazy loading of all images
-        await page.evaluate(async () => {
-          await new Promise<void>((resolve) => {
-            let totalHeight = 0;
-            const distance = 100;
-            const timer = setInterval(() => {
-              const scrollHeight = document.body.scrollHeight;
-              window.scrollBy(0, distance);
-              totalHeight += distance;
-
-              if (totalHeight >= scrollHeight) {
-                clearInterval(timer);
-                resolve();
-              }
-            }, 100);
-          });
-        });
-
-        // Wait for images to actually load (not just placeholders)
-        await page.waitForFunction(
-          () => {
-            const imgs = document.querySelectorAll('.react-component[data-item-name] img');
-            const loadedCount = Array.from(imgs).filter(img => {
-              const src = img.getAttribute('src') || '';
-              return src && !src.includes('empty-poster') && src.includes('ltrbxd.com');
-            }).length;
-            const totalCount = imgs.length;
-            // Wait until at least 90% of images have loaded (some might genuinely not have posters)
-            return loadedCount >= totalCount * 0.9;
-          },
-          { timeout: 15000 }
-        ).catch(() => {
-          // If timeout, continue anyway - some movies might not have posters
-          log.info('Some images may not have loaded, continuing...');
-        });
-
-        // Extract film data from rendered page
+        // Extract film data from the listing HTML. Each card carries its slug and
+        // film id (in data-postered-identifier), which is everything needed to build
+        // the poster URL directly — so there's no need to scroll and wait for
+        // Letterboxd's lazy-loaded <img> tags to swap in (that race is what left
+        // ~2 of every 12 posters stuck on the empty-poster placeholder).
         const filmData = await page.evaluate(() => {
           const films: any[] = [];
           const reactComponents = document.querySelectorAll('.react-component[data-item-name]');
 
           reactComponents.forEach((container) => {
-            const filmSlug = container.getAttribute('data-item-slug');
+            const filmSlug = container.getAttribute('data-item-slug') || '';
             const filmName = container.getAttribute('data-item-name') || '';
             const link = container.getAttribute('data-item-link') || '';
-            const filmId = container.getAttribute('data-film-id') || '';
-            const img = container.querySelector('img');
-            let posterUrl = img?.getAttribute('src') || '';
 
-            // Parse title and year first (needed for slug disambiguation logic)
+            // Film id used to live in data-film-id; Letterboxd now embeds it in
+            // data-postered-identifier as {"uid":"film:836571",...}. Support both.
+            let filmId = container.getAttribute('data-film-id') || '';
+            if (!filmId) {
+              const ident = container.getAttribute('data-postered-identifier') || '';
+              const idMatch = /film:(\d+)/.exec(ident);
+              if (idMatch) filmId = idMatch[1];
+            }
+
+            // Parse title and year (year informs slug disambiguation below)
             const titleYearMatch = /^(.*?)\s*\((\d{4})\)$/.exec(filmName);
             let title = filmName;
             let year: number | undefined;
@@ -105,36 +79,32 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
               year = parseInt(titleYearMatch[2], 10);
             }
 
-            // If lazy loading gave us a placeholder, try to construct the CDN URL from film ID
-            if (!posterUrl || posterUrl.includes('empty-poster')) {
-              if (filmId && filmSlug) {
-                // Determine the correct slug to use for poster URL
-                // Some slugs have year suffixes for disambiguation (e.g., "the-fall-guy-2024")
-                // Others have years as part of the title (e.g., "blade-runner-2049" for a 2017 film)
-                let slugForPoster = filmSlug;
-                if (year) {
-                  const yearSuffix = `-${year}`;
-                  if (filmSlug.endsWith(yearSuffix)) {
-                    // Year in slug matches release year, likely a disambiguation suffix - remove it
-                    slugForPoster = filmSlug.slice(0, -yearSuffix.length);
-                  }
-                  // Otherwise keep full slug (year might be part of the title)
+            // Construct the poster CDN URL directly from id + slug.
+            let posterUrl = '';
+            if (filmId && filmSlug) {
+              // Some slugs carry a disambiguation year suffix (e.g. "the-fall-guy-2024")
+              // that isn't part of the poster path; others have the year as part of the
+              // title (e.g. "blade-runner-2049"). Strip only a suffix matching the year.
+              let slugForPoster = filmSlug;
+              if (year) {
+                const yearSuffix = `-${year}`;
+                if (filmSlug.endsWith(yearSuffix)) {
+                  slugForPoster = filmSlug.slice(0, -yearSuffix.length);
                 }
-
-                // Split film ID digits into path (e.g., "778885" -> "7/7/8/8/8/5")
-                const idPath = filmId.split('').join('/');
-                // Construct CDN URL
-                posterUrl = `https://a.ltrbxd.com/resized/film-poster/${idPath}/${filmId}-${slugForPoster}-0-230-0-345-crop.jpg`;
               }
+
+              // Split film id digits into a path (e.g. "778885" -> "7/7/8/8/8/5")
+              const idPath = filmId.split('').join('/');
+              posterUrl = `https://a.ltrbxd.com/resized/film-poster/${idPath}/${filmId}-${slugForPoster}-0-230-0-345-crop.jpg`;
             }
 
-            // Include all movies
+            // Include all movies (missing/wrong posters are recovered below via the film page)
             if (title) {
               films.push({
                 title,
                 year,
                 link,
-                posterImage: posterUrl || '',
+                posterImage: posterUrl,
               });
             }
           });
@@ -165,16 +135,11 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
             if (!isNaN(d.getTime())) releaseDate = d;
           }
 
-          // Upgrade poster image to higher resolution (230x345 instead of 70x105)
-          const posterImage = film.posterImage
-            .replace('-0-70-0-105-crop', '-0-230-0-345-crop')
-            .replace('-0-140-0-210-crop', '-0-230-0-345-crop');
-
           return {
             title: film.title,
             year: film.year,
             releaseDate,
-            posterImage,
+            posterImage: film.posterImage,
             link: film.link.startsWith('http') ? film.link : `https://letterboxd.com${film.link}`,
           };
         });
@@ -289,22 +254,31 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
       }
     }
 
-    // Fix poster URLs that might not work (e.g., movies using /sm/upload/ pattern)
+    // Recover posters that are missing or wrong by reading the film page directly.
+    // This catches two cases: films with no usable id/slug (poster never built, or
+    // still an empty-poster placeholder), and constructed /film-poster/ URLs that
+    // 404 due to slug disambiguation. The HEAD check avoids fetching the film page
+    // for the common case where the constructed URL is already valid.
     const limit = pLimit(10);
     await Promise.all(allMovies.map((movie, i) => limit(async () => {
-      // Check if poster URL looks like it might be inaccessible (constructed /film-poster/ URL)
-      if (movie.posterImage.includes('/film-poster/')) {
-        // Quick HEAD request to check if URL is accessible
+      if (!movie.link) return;
+
+      const missing = !movie.posterImage || movie.posterImage.includes('empty-poster');
+      let needsFix = missing;
+
+      if (!missing && movie.posterImage.includes('/film-poster/')) {
+        // Quick HEAD request to check the constructed URL is actually accessible
         const isAccessible = await fetch(movie.posterImage, { method: 'HEAD' })
           .then(res => res.ok)
           .catch(() => false);
+        needsFix = !isAccessible;
+      }
 
-        if (!isAccessible && movie.link) {
-          log.info(`Fixing poster for ${movie.title}...`);
-          const fixedPoster = await fetchPosterFromFilmPage(movie.link);
-          if (fixedPoster) {
-            allMovies[i].posterImage = fixedPoster;
-          }
+      if (needsFix) {
+        log.info(`Fixing poster for ${movie.title}...`);
+        const fixedPoster = await fetchPosterFromFilmPage(movie.link);
+        if (fixedPoster) {
+          allMovies[i].posterImage = fixedPoster;
         }
       }
     })));

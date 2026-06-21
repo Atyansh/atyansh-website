@@ -79,23 +79,16 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
               year = parseInt(titleYearMatch[2], 10);
             }
 
-            // Construct the poster CDN URL directly from id + slug.
+            // Construct the poster CDN URL directly from id + slug. This is a fast
+            // guess that's verified (HEAD) and corrected later: the poster filename
+            // can use a different slug than the listing (a year disambiguation
+            // suffix may be present or absent, "4" vs "four", etc.), so we don't try
+            // to be clever here — wrong guesses 403 and are resolved during recovery.
             let posterUrl = '';
             if (filmId && filmSlug) {
-              // Some slugs carry a disambiguation year suffix (e.g. "the-fall-guy-2024")
-              // that isn't part of the poster path; others have the year as part of the
-              // title (e.g. "blade-runner-2049"). Strip only a suffix matching the year.
-              let slugForPoster = filmSlug;
-              if (year) {
-                const yearSuffix = `-${year}`;
-                if (filmSlug.endsWith(yearSuffix)) {
-                  slugForPoster = filmSlug.slice(0, -yearSuffix.length);
-                }
-              }
-
               // Split film id digits into a path (e.g. "778885" -> "7/7/8/8/8/5")
               const idPath = filmId.split('').join('/');
-              posterUrl = `https://a.ltrbxd.com/resized/film-poster/${idPath}/${filmId}-${slugForPoster}-0-230-0-345-crop.jpg`;
+              posterUrl = `https://a.ltrbxd.com/resized/film-poster/${idPath}/${filmId}-${filmSlug}-0-230-0-345-crop.jpg`;
             }
 
             // Include all movies (missing/wrong posters are recovered below via the film page)
@@ -179,23 +172,29 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
 }
 
 /**
- * Fetch poster URL from individual film page (for films that use /sm/upload/ pattern)
+ * Resolve a film's poster authoritatively from its own page (JSON-LD "image").
+ * This is the source of truth used whenever the constructed URL can't be verified.
+ * Retries transient failures so a network blip doesn't leave a film without a poster.
  */
 async function fetchPosterFromFilmPage(filmLink: string): Promise<string | null> {
+  const url = filmLink.startsWith('http') ? filmLink : `https://letterboxd.com${filmLink}`;
   try {
-    const url = filmLink.startsWith('http') ? filmLink : `https://letterboxd.com${filmLink}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const html = await res.text();
-    const jsonLdMatch = /"image":"([^"]+)"/.exec(html);
-    if (jsonLdMatch?.[1]) {
-      let posterUrl = jsonLdMatch[1];
-      if (!posterUrl.includes('-0-230-0-345-crop')) {
-        posterUrl = posterUrl.replace(/-0-\d+-0-\d+-crop/, '-0-230-0-345-crop');
-      }
-      return posterUrl;
-    }
-    return null;
+    return await withRetry(
+      async () => {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Film page ${url} returned ${res.status}`);
+        const html = await res.text();
+        const jsonLdMatch = /"image":"([^"]+)"/.exec(html);
+        // No structured-data image means the film genuinely has no poster; don't retry.
+        if (!jsonLdMatch?.[1]) return null;
+        let posterUrl = jsonLdMatch[1];
+        if (!posterUrl.includes('-0-230-0-345-crop')) {
+          posterUrl = posterUrl.replace(/-0-\d+-0-\d+-crop/, '-0-230-0-345-crop');
+        }
+        return posterUrl;
+      },
+      { maxRetries: 2, initialDelayMs: 1000 }
+    );
   } catch {
     return null;
   }
@@ -254,32 +253,56 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
       }
     }
 
-    // Recover posters that are missing or wrong by reading the film page directly.
-    // This catches two cases: films with no usable id/slug (poster never built, or
-    // still an empty-poster placeholder), and constructed /film-poster/ URLs that
-    // 404 due to slug disambiguation. The HEAD check avoids fetching the film page
-    // for the common case where the constructed URL is already valid.
+    // A poster URL is correct only if the CDN actually serves it. The film id pins
+    // the film, so any HEAD 200 is guaranteed to be the right poster.
+    const headOk = (u: string) =>
+      fetch(u, { method: 'HEAD' }).then(res => res.ok).catch(() => false);
+
+    // Toggle a trailing release-year on the slug of a constructed poster URL, e.g.
+    // "...667550-the-fall-guy-2024-0-230-..." <-> "...667550-the-fall-guy-0-230-...".
+    // The poster filename carries the year for some films and not others, regardless
+    // of the listing slug, so we try the opposite form before the authoritative fetch.
+    const yearToggledPoster = (posterUrl: string, year?: number): string | null => {
+      if (!year) return null;
+      const m = /^(.*\/\d+-)(.+?)(-0-230-0-345-crop\.jpg.*)$/.exec(posterUrl);
+      if (!m) return null;
+      const [, prefix, slug, suffix] = m;
+      const yearSuffix = `-${year}`;
+      const toggled = slug.endsWith(yearSuffix)
+        ? slug.slice(0, -yearSuffix.length)
+        : `${slug}${yearSuffix}`;
+      return `${prefix}${toggled}${suffix}`;
+    };
+
+    // Verify/repair every poster. Each one that ships is either a HEAD-verified CDN
+    // URL or the authoritative film-page poster — no unverified guess reaches the
+    // page, so there are no silent misses.
     const limit = pLimit(10);
     await Promise.all(allMovies.map((movie, i) => limit(async () => {
       if (!movie.link) return;
 
-      const missing = !movie.posterImage || movie.posterImage.includes('empty-poster');
-      let needsFix = missing;
+      const constructed = movie.posterImage;
+      const haveConstructed = !!constructed && constructed.includes('/film-poster/');
 
-      if (!missing && movie.posterImage.includes('/film-poster/')) {
-        // Quick HEAD request to check the constructed URL is actually accessible
-        const isAccessible = await fetch(movie.posterImage, { method: 'HEAD' })
-          .then(res => res.ok)
-          .catch(() => false);
-        needsFix = !isAccessible;
+      // Fast path: the constructed URL already works.
+      if (haveConstructed && await headOk(constructed)) return;
+
+      // Cheap deterministic fix: the same poster with the year added/removed.
+      if (haveConstructed) {
+        const alt = yearToggledPoster(constructed, movie.year);
+        if (alt && await headOk(alt)) {
+          allMovies[i].posterImage = alt;
+          return;
+        }
       }
 
-      if (needsFix) {
-        log.info(`Fixing poster for ${movie.title}...`);
-        const fixedPoster = await fetchPosterFromFilmPage(movie.link);
-        if (fixedPoster) {
-          allMovies[i].posterImage = fixedPoster;
-        }
+      // Authoritative fallback: read the poster straight from the film page.
+      log.info(`Resolving poster for ${movie.title}...`);
+      const fixedPoster = await fetchPosterFromFilmPage(movie.link);
+      if (fixedPoster) {
+        allMovies[i].posterImage = fixedPoster;
+      } else {
+        log.error(`Could not resolve poster for ${movie.title}`);
       }
     })));
 

@@ -7,7 +7,7 @@
  *
  * Prerequisites:
  * 1. Create a Spotify app at https://developer.spotify.com/dashboard
- * 2. Add http://localhost:8888/callback to your app's Redirect URIs
+ * 2. Add http://127.0.0.1:8888/callback to your app's Redirect URIs
  * 3. Note your Client ID and Client Secret
  *
  * Usage:
@@ -22,7 +22,9 @@ const { loadEnv, validateEnvVars, openBrowser, printTokenSuccess } = require('./
 loadEnv();
 
 const PORT = 8888;
-const REDIRECT_URI = `http://localhost:${PORT}/callback`;
+// Spotify no longer allows http://localhost as a redirect URI — loopback must
+// use the literal IP (https://developer.spotify.com/documentation/web-api/concepts/redirect_uri)
+const REDIRECT_URI = `http://127.0.0.1:${PORT}/callback`;
 
 // Scopes needed for our use case
 const SCOPES = [

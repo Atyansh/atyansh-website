@@ -387,7 +387,7 @@ The site is served by Firebase Hosting (Blaze plan) — its global CDN terminate
 
 **Cost:** hosting transfer has a 10 GB/month free allowance, then $0.15/GB. The site's real (domain-addressed) traffic is ~3.5 GB/month, so the expected bill is $0. Note that bare-IP scanner noise — which was ~60% of egress on the old load balancer — never reaches Firebase billing at all.
 
-**Analytics caveat:** Firebase Hosting has no per-request logs. The old load balancer's logs/metrics (user agents, countries, bytes per path) are gone after teardown; the Firebase console shows only aggregate storage/transfer. Add Google Analytics if per-page human analytics are ever wanted.
+**Analytics:** Firebase Hosting has no per-request logs — the old load balancer's logs/metrics (user agents, countries, bytes per path) are gone after teardown; the Firebase console shows only aggregate storage/transfer. Human page-view analytics come from GoatCounter (cookieless, no consent banner; snippet in BaseLayout.astro with View Transitions support). Dashboard: https://atyansh.goatcounter.com (login required).
 
 ## Firebase Hosting Migration (transition state & cutover)
 

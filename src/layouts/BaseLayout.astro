@@ -74,16 +74,17 @@ if (image) {
     <script is:inline>
       // Ambient audio is a hidden feature revealed by visiting any page with
       // ?audio=on (and hidden again with ?audio=off). The choice persists in
-      // localStorage so it follows the visitor across navigation and visits.
-      // Elements with the .audio-gated class only display when the <html>
+      // sessionStorage: it follows the visitor across navigation within the
+      // tab, but new tabs and future sessions start hidden again. Elements
+      // with the .audio-gated class only display when the <html>
       // data-audio-enabled attribute is set here.
       (function() {
         const param = new URLSearchParams(location.search).get('audio');
-        if (param === 'on') localStorage.setItem('audio-enabled', '1');
-        if (param === 'off') localStorage.removeItem('audio-enabled');
+        if (param === 'on') sessionStorage.setItem('audio-enabled', '1');
+        if (param === 'off') sessionStorage.removeItem('audio-enabled');
 
         function applyAudioFlag() {
-          if (localStorage.getItem('audio-enabled')) {
+          if (sessionStorage.getItem('audio-enabled')) {
             document.documentElement.setAttribute('data-audio-enabled', '');
           } else {
             document.documentElement.removeAttribute('data-audio-enabled');

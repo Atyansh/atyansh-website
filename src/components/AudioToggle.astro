@@ -102,7 +102,7 @@
     // The audio feature is revealed via the ?audio=on flag (see BaseLayout).
     // Without it, skip setup entirely — the dynamic import below means casual
     // visitors never download the audio engine at all.
-    if (!localStorage.getItem('audio-enabled')) return;
+    if (!sessionStorage.getItem('audio-enabled')) return;
 
     // Clean up previous listeners and observers
     if (audioAbort) audioAbort.abort();

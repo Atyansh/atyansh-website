@@ -17,6 +17,7 @@
 13. ✅ Added TV shows page with TMDB integration
 14. ✅ Added climbing page with Kaya integration
 15. ✅ Moved TV show tracking to a TMDB list + account ratings (July 2026)
+16. 🔄 Migrating hosting from GCS + Load Balancer + Cloud CDN to Firebase Hosting (July 2026 — see "Firebase Hosting Migration" below)
 
 ## Working Configuration
 
@@ -323,7 +324,7 @@ echo -n "AQC..." | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file
 
 - Cloud Build: Free tier includes 120 build-minutes/day (should be enough)
 - Secret Manager: $0.06 per 10,000 accesses (negligible for daily builds)
-- Cloud Storage: ~$0.02/month for your site
+- Firebase Hosting: $0/month at current traffic (10 GB/month free transfer)
 - Cloud Scheduler: $0.10/month per job
 
 **Estimated total: $0.15-0.20/month**
@@ -371,66 +372,45 @@ gcloud builds submit --config cloudbuild.yaml .
 - Verify cache headers aren't too aggressive
 - Clear browser cache or try incognito mode
 
-## Cloud CDN Cache Management
+## Firebase Hosting
 
-Cloud CDN is enabled on the backend bucket to provide:
-- ✅ Faster page loads globally (CDN edge locations)
-- ✅ Automatic cache invalidation on deployments
-- ✅ Manual cache invalidation capability
-- ✅ Reduced load on Cloud Storage
-- ✅ Better performance for international visitors
+The site is served by Firebase Hosting (Blaze plan) — its global CDN terminates TLS for atyansh.com, and every `firebase deploy` automatically purges the CDN, so new content is live immediately with no invalidation step.
 
-### Cache Configuration
-
-**Current cache settings:**
-- Static assets (`/_astro/**`): 1 year (immutable)
+**Cache configuration** (in `firebase.json`):
+- Static assets (`/_astro/**`): 1 year (immutable — filenames are content-hashed)
 - HTML pages: 1 hour
 
-### Automatic Cache Invalidation
+**Deploys:**
+- Cloud Build runs `npx firebase-tools deploy --only hosting` (authenticated via the build service account's ADC)
+- Manual: `./deploy.sh` or `npx firebase-tools deploy --only hosting`
+- Preview URL: https://personal-website-334502.web.app (always serves the latest deploy)
 
-**Cloud Build automatically invalidates the CDN cache after every deployment.** This ensures that new content is served immediately instead of waiting for cache expiry (up to 1 hour for HTML files).
+**Cost:** hosting transfer has a 10 GB/month free allowance, then $0.15/GB. The site's real (domain-addressed) traffic is ~3.5 GB/month, so the expected bill is $0. Note that bare-IP scanner noise — which was ~60% of egress on the old load balancer — never reaches Firebase billing at all.
 
-The invalidation:
-- Runs automatically as the final step in `cloudbuild.yaml`
-- Invalidates all paths (`/*`)
-- Executes asynchronously (doesn't block deployment completion)
-- Takes 30-60 seconds to propagate globally
+**Analytics caveat:** Firebase Hosting has no per-request logs. The old load balancer's logs/metrics (user agents, countries, bytes per path) are gone after teardown; the Firebase console shows only aggregate storage/transfer. Add Google Analytics if per-page human analytics are ever wanted.
 
-**No manual action required** - your changes will be live within ~1 minute after deployment completes.
+## Firebase Hosting Migration (transition state & cutover)
 
-### Manual Cache Invalidation
+The pipeline currently deploys to BOTH Firebase Hosting and the legacy GCS bucket. atyansh.com serves from the GCS/LB path until DNS is cut over.
 
-For specific scenarios where you need to force a cache refresh outside of deployments (e.g., testing or debugging):
+**Cutover steps (manual, in the Firebase console):**
+1. Hosting → Add custom domain → `atyansh.com`: add the TXT verification record and the two A records it provides to the Cloud DNS zone for atyansh.com
+2. Wait for the TLS certificate to provision (minutes to ~1 hour), verify https://atyansh.com serves from Firebase (`curl -sI https://atyansh.com | grep -i x-served-by` — Firebase responds with its own headers, no `x-goog-*`)
 
-**Using the helper script:**
-```bash
-# Invalidate a specific page
-./scripts/invalidate-cache.sh /movies/index.html
-
-# Invalidate all HTML pages
-./scripts/invalidate-cache.sh "/*.html"
-
-# Invalidate everything
-./scripts/invalidate-cache.sh "/*"
-```
-
-**Direct gcloud command:**
-```bash
-gcloud compute url-maps invalidate-cdn-cache atyansh-website \
-  --path "/movies/index.html" \
-  --async
-```
-
-**Note:** Cache invalidation takes 30-60 seconds to propagate globally.
-
-### Cost Information
-
-Cloud CDN pricing for a personal website:
-- **Cache egress**: $0.02-0.08/GB (North America)
-- **Cache invalidations**: First 1,000/month are FREE
-- **Estimated cost**: $0.20-0.50/month for typical traffic
-
-For 10,000 visitors/month × 250KB per page = ~2.5GB = **~$0.20/month**
+**Post-cutover cleanup (once verified):**
+1. Remove from `cloudbuild.yaml`: the `deploy-to-gcs`, `set-asset-cache`, `set-html-cache`, and `invalidate-cdn-cache` steps
+2. Remove the legacy GCS block from `deploy.sh` and delete `scripts/invalidate-cache.sh`
+3. Tear down the load balancer stack (saves ~$18/month):
+   ```bash
+   gcloud compute forwarding-rules delete atyansh-website-forwarding-rule atyansh-website-forwarding-rul-forwarding-rule --global
+   gcloud compute target-https-proxies delete atyansh-website-target-proxy
+   gcloud compute target-http-proxies delete atyansh-website-forwarding-rul-target-proxy
+   gcloud compute url-maps delete atyansh-website
+   gcloud compute backend-buckets delete <backend-bucket-name>
+   gcloud compute ssl-certificates delete <cert-name>
+   gcloud compute addresses delete atyansh-website-ip --global
+   ```
+4. Delete the `gs://atyansh.com` bucket (the site now lives in Firebase; the `_cloudbuild` staging bucket stays — it holds the build cache)
 
 ## Files Created
 

@@ -144,8 +144,8 @@ This means the site stays fresh with daily activity updates, but I can also push
 1. **Secret Injection** - Build secrets are pulled from Secret Manager
 2. **Token Refresh** - Pre-build script tests and refreshes OAuth tokens
 3. **Astro Build** - Static site generation with all API data
-4. **Upload** - Built files deployed to Cloud Storage
-5. **CDN Invalidation** - Cloud CDN cache is purged for fresh content
+4. **Deploy** - Built files deployed to Firebase Hosting
+5. **CDN Refresh** - Firebase's CDN serves the new version immediately (cache purge is automatic on deploy)
 
 ### Health Monitoring
 
@@ -157,11 +157,11 @@ I typically find out about failures in the morning and can fix them quickly.
 
 ## Deployment
 
-The built site is deployed to Google Cloud Storage with Cloud CDN in front. Static assets use content-based hashing for immutable caching:
+The built site is deployed to Firebase Hosting, whose global CDN terminates TLS and purges its cache automatically on every deploy. Static assets use content-based hashing for immutable caching:
 
 ```
-/assets/index.a1b2c3d4.js  → Cache-Control: public, max-age=31536000, immutable
-/index.html                 → Cache-Control: public, max-age=0, must-revalidate
+/_astro/index.a1b2c3d4.js  → Cache-Control: public, max-age=31536000, immutable
+/index.html                 → Cache-Control: public, max-age=3600
 ```
 
 This gives the best of both worlds: instant cache invalidation for HTML while leveraging browser caching for assets.

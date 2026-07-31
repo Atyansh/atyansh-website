@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Simple deployment script for atyansh.com
-# Builds the site locally and deploys to Google Cloud Storage
+# Builds the site locally and deploys to Firebase Hosting
+# (and, during the migration transition, also to the legacy GCS bucket)
 
 set -e
 
@@ -27,7 +28,12 @@ fi
 echo "✅ Build complete!"
 echo ""
 
-# Deploy to Cloud Storage
+# Deploy to Firebase Hosting
+echo "🔥 Deploying to Firebase Hosting..."
+npx firebase-tools deploy --only hosting --project personal-website-334502 --non-interactive
+
+# TRANSITION: legacy GCS deploy — atyansh.com serves from the GCS/LB path
+# until the Firebase DNS cutover; remove everything below once cut over.
 echo "☁️  Deploying to gs://atyansh.com/..."
 # Use single process mode to avoid Python multiprocessing crash on macOS
 export CLOUDSDK_PYTHON=python3

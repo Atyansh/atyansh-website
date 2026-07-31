@@ -23,7 +23,6 @@
     "dotenv": "^16.4.5",
     "fast-xml-parser": "^4.5.0",
     "framer-motion": "^12.23.24",
-
     "psn-api": "^2.15.0",
     "puppeteer": "^24.24.0",
     "puppeteer-extra": "^3.3.6",
@@ -37,6 +36,7 @@
   "devDependencies": {
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",
+    "firebase-tools": "^15.25.1",
     "vitest": "^3.0.0"
   }
 }

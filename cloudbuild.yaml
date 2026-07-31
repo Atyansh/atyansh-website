@@ -89,7 +89,17 @@ steps:
       - 'DISCORD_USER_ID'
     waitFor: ['build-site']
 
-  # Deploy to Cloud Storage
+  # Deploy to Firebase Hosting (serves atyansh.com after DNS cutover;
+  # cache headers and CDN invalidation are handled by firebase.json + deploy)
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
+    entrypoint: npx
+    args: ['firebase-tools', 'deploy', '--only', 'hosting', '--project', 'personal-website-334502', '--non-interactive']
+    id: 'deploy-to-firebase'
+    waitFor: ['build-site']
+
+  # TRANSITION: legacy GCS/LB deploy, kept until the Firebase DNS cutover is
+  # verified. Remove this and the three cache/invalidation steps below (plus
+  # the LB, CDN, and static IP) once atyansh.com serves from Firebase.
   - name: 'gcr.io/cloud-builders/gsutil'
     args: ['-m', 'rsync', '-r', '-c', '-d', 'dist/', 'gs://atyansh.com/']
     id: 'deploy-to-gcs'

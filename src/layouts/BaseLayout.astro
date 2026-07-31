@@ -3,8 +3,7 @@ import '../styles/global.css';
 import ThemeSwitcher from '../components/ThemeSwitcher.astro';
 import AudioToggle from '../components/AudioToggle.astro';
 import StructuredData from '../components/StructuredData.astro';
-
-const ENABLE_AUDIO = false;
+import { ENABLE_AUDIO } from '../config';
 import { ViewTransitions } from 'astro:transitions';
 
 interface Props {

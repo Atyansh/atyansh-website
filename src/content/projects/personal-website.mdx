@@ -1,7 +1,9 @@
 ---
 title: 'Personal Website'
-description: 'A comprehensive personal website featuring bio, projects, research, blog, real-time activity tracking from 11+ platforms, and a generative ambient music system with unique compositions per page. Built entirely with AI-assisted development.'
-technologies: ['Astro', 'TypeScript', 'React', 'Tailwind CSS', 'Google Cloud', 'Node.js', 'Web Audio API']
+description: 'A comprehensive personal website featuring bio, projects, research, blog, and real-time activity tracking from 11+ platforms. Built entirely with AI-assisted development.'
+# When ENABLE_AUDIO is turned on (src/config.ts), re-add 'Web Audio API' here
+# and the ambient-music mention to the description.
+technologies: ['Astro', 'TypeScript', 'React', 'Tailwind CSS', 'Google Cloud', 'Node.js']
 featured: true
 startDate: 2024-11-01
 links:
@@ -10,6 +12,8 @@ links:
 ---
 
 import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
+import AmbientAudioSection from './_ambient-audio.mdx';
+import { ENABLE_AUDIO } from '../../config';
 
 # Personal Website
 
@@ -67,63 +71,7 @@ One of the key technical challenges was managing OAuth tokens that expire at dif
 - **Infrastructure**: Google Cloud Build (custom Docker image), Secret Manager, Cloud Storage, Cloud CDN
 - **Monitoring**: Custom health checks with Discord webhook notifications
 
-## Ambient Audio System
-
-The site features a generative music system that plays unique composed music on every page — similar to how each town in a Pokemon game has its own theme. Visitors can toggle it on via a speaker icon in the header.
-
-### Step Sequencer Architecture
-
-Rather than using pre-recorded audio files or random generative drones, the system is built as a **real-time step sequencer** using the Web Audio API. Each page has a hand-composed song defined as data — arrays of `[midiNote, durationIn16ths]` pairs across multiple tracks (melody, bass, chords, arpeggios). A scheduler loop runs every 100ms, looking 250ms ahead to schedule notes with sample-accurate timing via `AudioContext.currentTime`.
-
-### Per-Page Compositions
-
-There are 12 distinct songs, each with its own tempo, key, mode, and instrumentation:
-
-- **Home** (90 BPM, C major) — Warm village theme with gentle arpeggios
-- **Work** (100 BPM, A minor) — Focused, driven feel with a steady groove
-- **Blog** (72 BPM, G major) — Thoughtful, jazzy with wide intervals
-- **Books** (60 BPM, F major) — Peaceful, classical, very sparse
-- **Music** (110 BPM, D minor) — Groovy with syncopated bass
-- **Movies** (80 BPM, D minor) — Cinematic with dramatic pauses
-- **TV** (95 BPM, Bb major) — Pop, bright, accessible
-- **Anime** (120 BPM, E minor) — J-pop energy with fast arpeggios
-- **Games** (140 BPM, C major) — NES-style chiptune with square wave arps
-- **Climbing** (130 BPM, A minor) — Rock intensity with power bass
-- **Pets** (105 BPM, F major) — Playful, bouncy melody
-- **Euler** (66 BPM, C Pythagorean) — Mathematical, Fibonacci-inspired
-
-Each song has multiple tracks that loop at different lengths, creating natural variation through polyrhythmic phasing — a 12-bar melody over a 4-bar bass line produces 12 bars before an exact repeat.
-
-### SynthVoice Design
-
-Each note is rendered by a temporary `SynthVoice` — a cluster of 1–3 oscillators (for unison width) routed through an ADSR amplitude envelope and optional lowpass filter with its own envelope. Voices auto-disconnect after their release phase completes, keeping the audio graph clean. Eleven instrument presets (piano, bass, pad, leads, arps) define the oscillator type, unison spread, envelope shape, and filter characteristics.
-
-### Theme-Reactive Audio Processing
-
-The site's five visual themes each apply a distinct audio processing chain that changes the sonic character without altering the composition:
-
-- **Minimal Technical** — Clean and faithful: open filter, minimal reverb, original instruments
-- **Modern Glass** — Ethereal: sine waves, +4 semitone transpose, slow attack, 75% reverb
-- **Brutalist** — Aggressive: sawtooth override, −5 semitones, tight filter, waveshaper distortion
-- **Dark Terminal** — Lo-fi digital: square waves, −2 semitones, resonant filter, subtle grit
-- **Academic Minimal** — Warm classical: triangle waves, +2 semitones, lush reverb, soft attack
-
-Theme changes ramp parameters on existing audio nodes over 800ms (filter frequency/Q, reverb wet/dry, ADSR scaling) rather than rebuilding the processing graph — this avoids audio dropout during transitions.
-
-### Audio Signal Path
-
-```
-SynthVoice oscillators → ADSR GainNode → track GainNode → song master GainNode
-    → BiquadFilter (theme EQ) → WaveShaperNode (distortion/bypass)
-    → ConvolverNode (algorithmic reverb) + dry path → theme GainNode
-    → master GainNode (MAX_VOLUME cap) → DynamicsCompressor → speakers
-```
-
-A dynamics compressor at the end prevents clipping regardless of how many voices play simultaneously.
-
-### Navigation Crossfading
-
-When navigating between pages, the new song fades in over 2 seconds while the old song fades out, with the old audio graph disconnected after the crossfade completes. The `AudioEngine` singleton persists across Astro View Transitions, maintaining playback state and volume preferences in `localStorage`.
+{ENABLE_AUDIO && <AmbientAudioSection />}
 
 ## Key Features
 

@@ -114,7 +114,7 @@ async function updateSecretManager(secretName, value) {
 
     const parent = `projects/${PROJECT_ID}/secrets/${secretName}`;
 
-    await client.addSecretVersion({
+    const [newVersion] = await client.addSecretVersion({
       parent,
       payload: {
         data: Buffer.from(value, 'utf8'),
@@ -122,10 +122,32 @@ async function updateSecretManager(secretName, value) {
     });
 
     console.log(`  ✓ Updated ${secretName} in Secret Manager`);
+    await disableOldVersions(client, parent, newVersion.name);
     return true;
   } catch (error) {
     console.log(`  ⚠ Could not update Secret Manager: ${error.message}`);
     return false;
+  }
+}
+
+/**
+ * Disable every enabled version of a secret except the one just added.
+ * Only the latest version is ever read (builds use versions/latest), but
+ * Secret Manager bills each ENABLED version at ~$0.06/month — daily token
+ * rotation once left hundreds of stale versions quietly accruing charges.
+ * Disabled versions stay recoverable, so this is safe to do eagerly.
+ */
+async function disableOldVersions(client, parent, keepName) {
+  try {
+    const [versions] = await client.listSecretVersions({ parent });
+    const stale = versions.filter(v => v.state === 'ENABLED' && v.name !== keepName);
+    await Promise.all(stale.map(v => client.disableSecretVersion({ name: v.name })));
+    if (stale.length > 0) {
+      console.log(`  ✓ Disabled ${stale.length} old version(s) of ${parent.split('/').pop()}`);
+    }
+  } catch (error) {
+    // Non-fatal: the new version is already live; stale ones just cost pennies
+    console.log(`  ⚠ Could not disable old secret versions: ${error.message}`);
   }
 }
 

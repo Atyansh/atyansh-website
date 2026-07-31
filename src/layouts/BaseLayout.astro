@@ -3,8 +3,6 @@ import '../styles/global.css';
 import ThemeSwitcher from '../components/ThemeSwitcher.astro';
 import AudioToggle from '../components/AudioToggle.astro';
 import StructuredData from '../components/StructuredData.astro';
-
-const ENABLE_AUDIO = false;
 import { ViewTransitions } from 'astro:transitions';
 
 interface Props {
@@ -72,6 +70,33 @@ if (image) {
 
     <!-- View Transitions for smooth page navigation -->
     <ViewTransitions />
+
+    <script is:inline>
+      // Ambient audio is a hidden feature revealed by visiting any page with
+      // ?audio=on (and hidden again with ?audio=off). The choice persists in
+      // sessionStorage: it follows the visitor across navigation within the
+      // tab, but new tabs and future sessions start hidden again. Elements
+      // with the .audio-gated class only display when the <html>
+      // data-audio-enabled attribute is set here.
+      (function() {
+        const param = new URLSearchParams(location.search).get('audio');
+        if (param === 'on') sessionStorage.setItem('audio-enabled', '1');
+        if (param === 'off') sessionStorage.removeItem('audio-enabled');
+
+        function applyAudioFlag() {
+          if (sessionStorage.getItem('audio-enabled')) {
+            document.documentElement.setAttribute('data-audio-enabled', '');
+          } else {
+            document.documentElement.removeAttribute('data-audio-enabled');
+          }
+        }
+
+        applyAudioFlag();
+        // View Transitions replace <html> attributes with the incoming page's
+        // static ones, so re-apply after every swap
+        document.addEventListener('astro:after-swap', applyAudioFlag);
+      })();
+    </script>
 
     <script is:inline>
       // Run FIRST to set theme before ANY rendering
@@ -169,7 +194,7 @@ if (image) {
 
           <!-- Right Side: Theme Switcher and Mobile Menu Button -->
           <div class="flex items-center gap-4">
-            {ENABLE_AUDIO && <AudioToggle />}
+            <span class="audio-gated"><AudioToggle /></span>
             <ThemeSwitcher />
             <button id="mobile-menu-button" class="p-2 lg:hidden" aria-label="Toggle menu">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

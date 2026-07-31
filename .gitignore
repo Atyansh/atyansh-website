@@ -21,6 +21,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Firebase deploy cache (machine-local state)
+.firebase/
+
 # Environment variables & secrets
 .env
 .env.*

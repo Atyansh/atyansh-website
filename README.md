@@ -430,7 +430,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS pars
 │   ├── check-api-health.cjs    # API health monitoring
 │   ├── pull-secrets.cjs        # Sync secrets from GCloud to .env
 │   ├── sync-secrets-to-gcloud.sh # Sync .env to Secret Manager
-│   └── invalidate-cache.sh     # CDN cache invalidation
 ├── src/
 │   ├── audio/                  # Client-side audio engine
 │   │   ├── AudioEngine.ts    # Step sequencer + theme processing
@@ -548,9 +547,9 @@ To completely remove a feature:
 
 This site can be deployed to any static hosting platform:
 
-### Google Cloud Storage + Cloud Build (Current Setup)
+### Firebase Hosting + Cloud Build (Current Setup)
 
-This site is currently deployed to Google Cloud Storage with automated daily builds via Cloud Build.
+This site is deployed to Firebase Hosting (Blaze plan) with automated daily builds via Cloud Build. Firebase's global CDN serves the site, purges its cache automatically on every deploy, and manages the TLS certificate for atyansh.com.
 
 **Manual Deployment:**
 ```bash
@@ -558,9 +557,9 @@ This site is currently deployed to Google Cloud Storage with automated daily bui
 ```
 
 **Automated Daily Builds:**
-- Cloud Build runs daily at 2 AM UTC using a [custom Docker image](#cloud-build-docker-image) with Chrome dependencies pre-installed
+- Cloud Build runs daily at 2 AM PT using a [custom Docker image](#cloud-build-docker-image) with Chrome dependencies pre-installed
 - Fetches latest code and API data
-- Deploys automatically to gs://atyansh.com/
+- Deploys automatically to Firebase Hosting (`firebase deploy --only hosting`)
 
 See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for full setup instructions.
 
@@ -600,7 +599,7 @@ gcloud builds submit --config=cloudbuild-image.yaml .
 
 ### Important for Production
 
-1. **Security headers**: HSTS is enabled in `src/middleware.ts` for non-dev environments. For static hosting (e.g., GCS), configure security headers at the CDN/load balancer level.
+1. **Security headers**: HSTS is enabled in `src/middleware.ts` for non-dev environments. For static hosting, configure security/caching headers in `firebase.json`.
 2. **Environment variables**: Add all your API keys to your hosting platform's environment variable settings
 3. **Caching**: All API integrations use file-based caching (24-hour TTL) to minimize external requests during builds
 

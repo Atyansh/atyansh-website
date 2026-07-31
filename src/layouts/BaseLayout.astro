@@ -142,6 +142,34 @@ if (image) {
       }
     </script>
 
+    <!-- GoatCounter analytics: cookieless page-view counting (no consent
+         banner needed). no_onload disables its automatic counting; the
+         astro:page-load listener below counts BOTH the initial load and every
+         View Transitions navigation, which count.js can't see on its own.
+         count.js ignores localhost, so dev traffic never pollutes stats. -->
+    <script
+      is:inline
+      data-goatcounter="https://atyansh.goatcounter.com/count"
+      data-goatcounter-settings='{"no_onload": true}'
+      async
+      src="https://gc.zgo.at/count.js"></script>
+    <script is:inline>
+      document.addEventListener('astro:page-load', function () {
+        // count.js loads async and may not be ready on the first page-load
+        // event — retry briefly instead of dropping the first page view.
+        var attempts = 0;
+        (function record() {
+          if (window.goatcounter && window.goatcounter.count) {
+            window.goatcounter.count({
+              path: location.pathname + location.search,
+            });
+          } else if (attempts++ < 20) {
+            setTimeout(record, 250);
+          }
+        })();
+      });
+    </script>
+
     <!-- Structured Data -->
     <StructuredData type={structuredDataType} data={structuredData} />
   </head>

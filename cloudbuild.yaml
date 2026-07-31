@@ -48,13 +48,9 @@ steps:
       - 'GOODREADS_USER_ID'
       - 'KAYA_USERNAME'
       - 'EXOPHASE_USERNAME'
-      - 'TRAKT_CLIENT_ID'
-      - 'TRAKT_CLIENT_SECRET'
-      - 'TRAKT_USERNAME'
-      - 'TRAKT_ACCESS_TOKEN'
-      - 'TRAKT_REFRESH_TOKEN'
-      - 'TRAKT_TOKEN_EXPIRES_AT'
-      - 'TMDB_API_KEY'
+      - 'TMDB_ACCESS_TOKEN'
+      - 'TMDB_ACCOUNT_OBJECT_ID'
+      - 'TMDB_TV_LIST_ID'
     waitFor: ['install-dependencies']
 
   # Check API health and send notifications if any failed
@@ -152,22 +148,13 @@ availableSecrets:
       env: 'KAYA_USERNAME'
     - versionName: projects/personal-website-334502/secrets/EXOPHASE_USERNAME/versions/latest
       env: 'EXOPHASE_USERNAME'
-    # Trakt API secrets
-    - versionName: projects/personal-website-334502/secrets/TRAKT_CLIENT_ID/versions/latest
-      env: 'TRAKT_CLIENT_ID'
-    - versionName: projects/personal-website-334502/secrets/TRAKT_CLIENT_SECRET/versions/latest
-      env: 'TRAKT_CLIENT_SECRET'
-    - versionName: projects/personal-website-334502/secrets/TRAKT_USERNAME/versions/latest
-      env: 'TRAKT_USERNAME'
-    - versionName: projects/personal-website-334502/secrets/TRAKT_ACCESS_TOKEN/versions/latest
-      env: 'TRAKT_ACCESS_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/TRAKT_REFRESH_TOKEN/versions/latest
-      env: 'TRAKT_REFRESH_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/TRAKT_TOKEN_EXPIRES_AT/versions/latest
-      env: 'TRAKT_TOKEN_EXPIRES_AT'
-    # TMDB API secrets
-    - versionName: projects/personal-website-334502/secrets/TMDB_API_KEY/versions/latest
-      env: 'TMDB_API_KEY'
+    # TMDB API secrets (TV shows tracked via TMDB list + ratings)
+    - versionName: projects/personal-website-334502/secrets/TMDB_ACCESS_TOKEN/versions/latest
+      env: 'TMDB_ACCESS_TOKEN'
+    - versionName: projects/personal-website-334502/secrets/TMDB_ACCOUNT_OBJECT_ID/versions/latest
+      env: 'TMDB_ACCOUNT_OBJECT_ID'
+    - versionName: projects/personal-website-334502/secrets/TMDB_TV_LIST_ID/versions/latest
+      env: 'TMDB_TV_LIST_ID'
     # Discord notification secrets
     - versionName: projects/personal-website-334502/secrets/DISCORD_BOT_TOKEN/versions/latest
       env: 'DISCORD_BOT_TOKEN'

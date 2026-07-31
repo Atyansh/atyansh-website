@@ -68,7 +68,7 @@ The heart of the site is the activity tracking system. It pulls data from 11+ ex
 
 **Spotify** uses OAuth 2.0 with refresh tokens that expire every hour. The API provides recently played tracks with timestamps, allowing the site to show what I've been listening to.
 
-**Trakt** tracks TV show watching progress. It has a robust API with OAuth authentication and provides episode-level detail about what's currently being watched. For poster images, Trakt data is enriched with **TMDB** (The Movie Database) artwork.
+**TMDB** (The Movie Database) tracks TV show watching. Watched shows live in a public TMDB list and ratings on the TMDB account, both read through TMDB's v4 API with a long-lived access token that never needs refreshing. The same API responses carry poster artwork and air dates, so a single integration covers tracking and imagery.
 
 **Letterboxd** tracks movie watching and ratings. Letterboxd doesn't offer a public API, so the integration uses Puppeteer to scrape the profile pages. This required installing Chrome dependencies in the Cloud Build environment and handling lazy-loaded images - the scraper scrolls the page and waits for images to load before extracting data.
 
@@ -88,7 +88,6 @@ One interesting problem was managing OAuth tokens across multiple platforms, eac
 |----------|---------------|
 | Spotify | 1 hour |
 | PlayStation | 24 hours |
-| Trakt | 90 days |
 | MyAnimeList | 30 days |
 
 With a daily build schedule, tokens could expire at any time. A pre-build token refresh system handles this automatically:

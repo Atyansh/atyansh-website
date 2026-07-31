@@ -109,24 +109,15 @@ const APIs = [
     requiresApiKey: false,
   },
   {
-    name: 'Trakt (TV Shows)',
-    cacheFile: 'trakt-data.json',
-    checkFn: (data) => data.shows && data.shows.length > 0,
-    renewal: 'Auto-refreshes tokens. If still failing: run node scripts/get-trakt-token.cjs',
-    requiresApiKey: true,
-    selfHealing: true,
-  },
-  {
-    name: 'TMDB (TV Posters)',
-    cacheFile: 'trakt-data.json', // TMDB data is embedded in Trakt cache
+    name: 'TMDB (TV Shows)',
+    cacheFile: 'tmdb-tv-data.json',
     checkFn: (data) => {
-      // Check that at least some shows have poster images (TMDB working)
       if (!data.shows || data.shows.length === 0) return false;
       const showsWithPosters = data.shows.filter(s => s.posterImage && s.posterImage.length > 0);
-      // At least 50% should have posters if TMDB is working
+      // At least 50% should have posters if TMDB is healthy
       return showsWithPosters.length >= data.shows.length * 0.5;
     },
-    renewal: 'Check TMDB_API_KEY in Secret Manager (get key at themoviedb.org/settings/api)',
+    renewal: 'Token is long-lived; if revoked, re-run node scripts/setup-tmdb.cjs and sync TMDB_ACCESS_TOKEN',
     requiresApiKey: true,
     selfHealing: false,
   },

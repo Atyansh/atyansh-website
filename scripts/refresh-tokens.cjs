@@ -3,7 +3,7 @@
 /**
  * Pre-build token refresh script
  *
- * Refreshes OAuth tokens (Trakt, MAL, IGDB) BEFORE the Astro build starts.
+ * Refreshes OAuth tokens (MAL, IGDB, PSN) BEFORE the Astro build starts.
  * This avoids race conditions when multiple pages try to refresh concurrently.
  *
  * - Updates Secret Manager (for Cloud Build persistence)
@@ -176,185 +176,6 @@ function updateEnvFile(updates) {
 
   fs.writeFileSync(ENV_FILE, content);
   console.log(`  ✓ Updated .env file with ${Object.keys(updates).length} token(s)`);
-}
-
-/**
- * Refresh Trakt tokens via Puppeteer stealth.
- * Launches a browser, solves the Cloudflare JS challenge by visiting trakt.tv,
- * then makes the OAuth refresh POST from within the browser session itself.
- */
-async function refreshTraktViaPuppeteer(requestBody) {
-  let puppeteer, StealthPlugin;
-  try {
-    puppeteer = require('puppeteer-extra');
-    StealthPlugin = require('puppeteer-extra-plugin-stealth');
-  } catch (e) {
-    console.log('  ⚠ Puppeteer/stealth not available, skipping Cloudflare bypass');
-    return null;
-  }
-
-  puppeteer.use(StealthPlugin());
-
-  let browser;
-  try {
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        // Needed so page.evaluate(fetch(...)) can POST to api.trakt.tv cross-origin
-        '--disable-web-security',
-      ],
-    });
-
-    const page = await browser.newPage();
-
-    // Visit trakt.tv to solve Cloudflare challenge for the base domain
-    console.log('  Solving Cloudflare challenge on trakt.tv...');
-    await page.goto('https://trakt.tv', { waitUntil: 'networkidle2', timeout: 30000 });
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    // Navigate to api.trakt.tv to solve Cloudflare challenge for that host too.
-    // cf_clearance cookies are usually host-scoped, so we need CF clearance
-    // for api.trakt.tv separately. Making the POST from this origin also
-    // avoids CORS issues.
-    console.log('  Solving Cloudflare challenge on api.trakt.tv...');
-    await page.goto('https://api.trakt.tv/oauth/token', {
-      waitUntil: 'networkidle2',
-      timeout: 30000,
-    }).catch(() => {
-      // GET to a POST-only endpoint will return 405 or similar — that's fine,
-      // we just need Cloudflare to set the clearance cookie for this host.
-    });
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    // Make the OAuth refresh request from the api.trakt.tv origin (same-origin POST)
-    console.log('  Making OAuth refresh request from browser session...');
-    const result = await page.evaluate(async (body) => {
-      const response = await fetch('https://api.trakt.tv/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
-      return {
-        ok: response.ok,
-        status: response.status,
-        body: await response.text(),
-      };
-    }, requestBody);
-
-    if (!result.ok) {
-      console.log(`  ✗ Trakt refresh failed via Puppeteer: ${result.status} - ${result.body}`);
-      return null;
-    }
-
-    return JSON.parse(result.body);
-  } catch (error) {
-    console.log(`  ⚠ Puppeteer Cloudflare bypass failed: ${error.message}`);
-    return null;
-  } finally {
-    if (browser) await browser.close();
-  }
-}
-
-/**
- * Refresh Trakt tokens
- * Uses Puppeteer stealth to bypass Cloudflare in Cloud Build.
- */
-async function refreshTrakt() {
-  const clientId = process.env.TRAKT_CLIENT_ID;
-  const clientSecret = process.env.TRAKT_CLIENT_SECRET;
-  const refreshToken = process.env.TRAKT_REFRESH_TOKEN;
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    console.log('  Skipping Trakt: missing credentials');
-    return null;
-  }
-
-  // Check if token needs refresh based on expiry time (not API call, to avoid grace-window false positives)
-  const expiresAt = Number(process.env.TRAKT_TOKEN_EXPIRES_AT || '0');
-  const nowSecs = Math.floor(Date.now() / 1000);
-  const hoursUntilExpiry = (expiresAt - nowSecs) / 3600;
-
-  if (expiresAt > 0 && hoursUntilExpiry > 36) {
-    console.log(`  Trakt: token valid (expires in ${Math.round(hoursUntilExpiry)}h), no refresh needed`);
-    return null;
-  }
-
-  if (expiresAt === 0) {
-    console.log('  Trakt: no expiry info, refreshing to be safe...');
-  } else if (hoursUntilExpiry > 0) {
-    console.log(`  Trakt: token expires in ${Math.round(hoursUntilExpiry)}h, refreshing proactively...`);
-  } else {
-    console.log(`  Trakt: token expired ${Math.round(-hoursUntilExpiry)}h ago, refreshing...`);
-  }
-
-  const requestBody = JSON.stringify({
-    refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
-    redirect_uri: 'urn:ietf:wg:oauth:2.0:oob',
-    grant_type: 'refresh_token',
-  });
-
-  const isCloudBuild = !!(process.env.BUILD_ID || process.env.CLOUD_BUILD === 'true');
-
-  // In Cloud Build, Cloudflare blocks plain fetch from datacenter IPs,
-  // so skip straight to Puppeteer bypass. Locally, plain fetch works fine.
-  if (!isCloudBuild) {
-    try {
-      const response = await fetchWithRetry('https://api.trakt.tv/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: requestBody,
-      });
-
-      if (response.ok) {
-        return await handleTraktRefreshResponse(response);
-      }
-
-      const errorText = await response.text();
-      console.log(`  ✗ Trakt refresh failed: ${response.status} - ${errorText}`);
-      return null;
-    } catch (error) {
-      console.log(`  ✗ Trakt refresh error: ${error.message}`);
-      return null;
-    }
-  }
-
-  // Cloud Build: use Puppeteer to bypass Cloudflare and make the request
-  // from within the browser session
-  console.log('  Using Puppeteer to bypass Cloudflare...');
-  const data = await refreshTraktViaPuppeteer(requestBody);
-  if (!data) {
-    console.log('  ✗ Trakt refresh failed: could not bypass Cloudflare');
-    return null;
-  }
-
-  return await handleTraktRefreshResponse(data);
-}
-
-/**
- * Process a successful Trakt token refresh response
- */
-async function handleTraktRefreshResponse(responseOrData) {
-  const data = typeof responseOrData.json === 'function'
-    ? await responseOrData.json()
-    : responseOrData;
-  const expiresInHours = Math.round(data.expires_in / 3600);
-  console.log(`  ✓ Trakt token refreshed (expires in ${expiresInHours} hours)`);
-
-  // Compute expiry timestamp
-  const expiresAtStr = String(Math.floor(Date.now() / 1000) + data.expires_in);
-
-  // Persist all tokens in parallel
-  await Promise.all([
-    persistTokenUpdate('TRAKT_ACCESS_TOKEN', data.access_token),
-    persistTokenUpdate('TRAKT_REFRESH_TOKEN', data.refresh_token),
-    persistTokenUpdate('TRAKT_TOKEN_EXPIRES_AT', expiresAtStr),
-  ]);
-
-  return data;
 }
 
 /**
@@ -582,7 +403,6 @@ async function main() {
 
   // Refresh all tokens in parallel
   const results = await Promise.allSettled([
-    refreshTrakt().then(r => { console.log('  Trakt: done'); return r; }),
     refreshMAL().then(r => { console.log('  MAL: done'); return r; }),
     refreshIGDB().then(r => { console.log('  IGDB: done'); return r; }),
     refreshPSN().then(r => { console.log('  PSN: done'); return r; }),
@@ -591,7 +411,7 @@ async function main() {
   // Log any unexpected rejections
   results.forEach((result, i) => {
     if (result.status === 'rejected') {
-      const names = ['Trakt', 'MAL', 'IGDB', 'PSN'];
+      const names = ['MAL', 'IGDB', 'PSN'];
       console.log(`  ✗ ${names[i]} unexpected error: ${result.reason?.message || result.reason}`);
     }
   });
@@ -602,6 +422,16 @@ async function main() {
 
   console.log('\n✅ Token refresh complete\n');
 }
+
+// The Secret Manager gRPC client can throw async errors that escape the
+// per-call try/catch (e.g. ADC lookup failures on local machines). Those
+// must not kill the prebuild — persist failures are already tolerated.
+process.on('uncaughtException', (error) => {
+  console.log(`  ⚠ Ignoring async error: ${error.message}`);
+});
+process.on('unhandledRejection', (reason) => {
+  console.log(`  ⚠ Ignoring async rejection: ${reason?.message || reason}`);
+});
 
 main().catch((error) => {
   console.error('Token refresh failed:', error);

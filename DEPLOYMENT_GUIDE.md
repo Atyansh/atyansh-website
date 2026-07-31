@@ -14,8 +14,9 @@
 10. ✅ Successfully deployed site via Cloud Build
 11. ✅ Configured API health monitoring with Discord notifications
 12. ✅ Added file-based caching to all API integrations (generic `FileCache<T>` utility)
-13. ✅ Added TV shows page with Trakt/TMDB integration
+13. ✅ Added TV shows page with TMDB integration
 14. ✅ Added climbing page with Kaya integration
+15. ✅ Moved TV show tracking to a TMDB list + account ratings (July 2026)
 
 ## Working Configuration
 
@@ -36,7 +37,7 @@ This service account requires two Secret Manager permissions:
 | Role | Purpose |
 |------|---------|
 | `roles/secretmanager.secretAccessor` | Read secrets during build |
-| `roles/secretmanager.secretVersionManager` | Auto-refresh OAuth tokens (Trakt, Spotify, etc.) |
+| `roles/secretmanager.secretVersionManager` | Auto-refresh OAuth tokens (MAL, IGDB, PSN) |
 
 **If you encounter permission errors**, grant both permissions:
 ```bash
@@ -219,10 +220,10 @@ chmod +x deploy.sh
 
 ### API Health Monitoring
 
-The build automatically monitors all 11 API integrations and sends Discord notifications if any fail:
+The build automatically monitors all 10 API integrations and sends Discord notifications if any fail:
 
 **Monitored APIs:**
-- With API keys (self-healing): Spotify, MyAnimeList, IGDB, Trakt
+- With API keys (self-healing): Spotify, MyAnimeList, IGDB
 - With API keys (manual renewal): Steam, PSN, TMDB
 - Web scraping/public APIs: Letterboxd, Goodreads, Nintendo (Exophase), Kaya (climbing)
 
@@ -232,11 +233,6 @@ The build automatically monitors all 11 API integrations and sends Discord notif
 - Checks that data was successfully fetched
 - Sends a Discord DM via bot if any API fails
 - Never fails the build (just notifies)
-
-**Cloudflare bypass:**
-- Trakt's Cloudflare protection blocks OAuth refresh requests from Cloud Build's datacenter IPs
-- The pre-build token refresh script uses Puppeteer with the stealth plugin to solve the Cloudflare JS challenge, then makes the OAuth refresh from within the browser session
-- This only activates in Cloud Build; local builds use plain `fetch`
 
 **Discord notifications are sent when:**
 - API credentials are missing or expired
@@ -289,7 +285,7 @@ This script will:
 - Gaming: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `PSN_REFRESH_TOKEN`, `PSN_REFRESH_TOKEN_EXPIRES_AT`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`, `EXOPHASE_USERNAME`
 - Spotify: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
-- TV Shows: `TRAKT_CLIENT_ID`, `TRAKT_CLIENT_SECRET`, `TRAKT_USERNAME`, `TRAKT_ACCESS_TOKEN`, `TRAKT_REFRESH_TOKEN`, `TRAKT_TOKEN_EXPIRES_AT`, `TMDB_API_KEY`
+- TV Shows: `TMDB_READ_TOKEN`, `TMDB_ACCESS_TOKEN`, `TMDB_ACCOUNT_OBJECT_ID`, `TMDB_TV_LIST_ID`
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`, `KAYA_USERNAME`
 - Discord Notifications: `DISCORD_BOT_TOKEN`, `DISCORD_USER_ID`
 
@@ -303,7 +299,7 @@ node scripts/pull-secrets.cjs
 
 This runs automatically before `npm run build` (via the `prebuild` hook), so your local builds always use the latest secrets from Secret Manager.
 
-**Secret Manager is the single source of truth.** When tokens are auto-refreshed during a build (IGDB, MAL, Trakt), they're updated in Secret Manager. The next local build will pull the fresh tokens automatically.
+**Secret Manager is the single source of truth.** When tokens are auto-refreshed during a build (IGDB, MAL, PSN), they're updated in Secret Manager. The next local build will pull the fresh tokens automatically.
 
 ### Option 2: Update Individual Secrets
 
@@ -349,7 +345,7 @@ echo -n "AQC..." | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file
 
 **Auto-refresh (try this first):**
 ```bash
-# Refreshes Trakt, MAL, and IGDB tokens automatically and persists to Secret Manager
+# Refreshes MAL, IGDB, and PSN tokens automatically and persists to Secret Manager
 node scripts/refresh-tokens.cjs
 ```
 
@@ -365,7 +361,7 @@ gcloud builds submit --config cloudbuild.yaml .
 **Manual renewal (fallback if auto-refresh fails):**
 - **Spotify**: Re-run `scripts/get-spotify-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
 - **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
-- **Trakt**: Re-run `scripts/get-trakt-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh` (tokens expire every 7 days, auto-refresh when <24h remain)
+- **TMDB**: The v4 access token is long-lived and shouldn't expire. If revoked, re-run `node scripts/setup-tmdb.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
 - **PSN**: Uses a refresh token (~10d) bootstrapped from the NPSSO. Only bootstrap when the refresh token expires or is revoked. To bootstrap: log out + log back in at playstation.com, visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh NPSSO, update `.env`, then sync — the next build will exchange it for a refresh token
 - **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then sync
 

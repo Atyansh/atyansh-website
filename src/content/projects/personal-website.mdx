@@ -1,8 +1,9 @@
 ---
 title: 'Personal Website'
 description: 'A comprehensive personal website featuring bio, projects, research, blog, and real-time activity tracking from 11+ platforms. Built entirely with AI-assisted development.'
-# When ENABLE_AUDIO is turned on (src/config.ts), re-add 'Web Audio API' here
-# and the ambient-music mention to the description.
+# The audio system is a hidden feature (visit with ?audio=on to reveal it).
+# Frontmatter is static and feeds public meta tags / project cards, so it
+# deliberately omits the audio mentions ('Web Audio API', description).
 technologies: ['Astro', 'TypeScript', 'React', 'Tailwind CSS', 'Google Cloud', 'Node.js']
 featured: true
 startDate: 2024-11-01
@@ -13,7 +14,6 @@ links:
 
 import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
 import AmbientAudioSection from './_ambient-audio.mdx';
-import { ENABLE_AUDIO } from '../../config';
 
 # Personal Website
 
@@ -71,7 +71,9 @@ One of the key technical challenges was managing OAuth tokens that expire at dif
 - **Infrastructure**: Google Cloud Build (custom Docker image), Secret Manager, Cloud Storage, Cloud CDN
 - **Monitoring**: Custom health checks with Discord webhook notifications
 
-{ENABLE_AUDIO && <AmbientAudioSection />}
+<div class="audio-gated">
+  <AmbientAudioSection />
+</div>
 
 ## Key Features
 

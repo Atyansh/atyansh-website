@@ -89,18 +89,21 @@
 </style>
 
 <script>
-  import { AudioEngine } from '../audio/AudioEngine';
-
   declare global {
     interface Window {
-      __audioEngine?: AudioEngine;
+      __audioEngine?: import('../audio/AudioEngine').AudioEngine;
     }
   }
 
   let audioAbort: AbortController | null = null;
   let audioObserver: MutationObserver | null = null;
 
-  function initAudioToggle() {
+  async function initAudioToggle() {
+    // The audio feature is revealed via the ?audio=on flag (see BaseLayout).
+    // Without it, skip setup entirely — the dynamic import below means casual
+    // visitors never download the audio engine at all.
+    if (!localStorage.getItem('audio-enabled')) return;
+
     // Clean up previous listeners and observers
     if (audioAbort) audioAbort.abort();
     audioAbort = new AbortController();
@@ -110,6 +113,7 @@
 
     // Singleton engine on window
     if (!window.__audioEngine) {
+      const { AudioEngine } = await import('../audio/AudioEngine');
       window.__audioEngine = new AudioEngine();
     }
     const engine = window.__audioEngine;

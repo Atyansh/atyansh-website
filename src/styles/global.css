@@ -789,3 +789,12 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+/* Audio-gated elements: hidden unless the secret ?audio=on flag is active
+   (data-audio-enabled is set on <html> by the inline script in BaseLayout) */
+.audio-gated {
+  display: none;
+}
+
+html[data-audio-enabled] .audio-gated {
+  display: contents;
+}

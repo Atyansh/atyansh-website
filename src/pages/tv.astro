@@ -2,22 +2,21 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import TVFilter from '../components/TVFilter';
 import StatGrid from '../components/StatGrid.astro';
-import { getTraktData } from '../utils/trakt';
+import { getTmdbTVData } from '../utils/tmdb';
 
-// Fetch Trakt data at build time
-const traktData = await getTraktData();
+// Fetch TV data from TMDB at build time
+const tvData = await getTmdbTVData();
 
-// Map Trakt shows to the format expected by the UI
+// Map shows to the format expected by the UI
 let shows = [];
-if (traktData && traktData.shows.length > 0) {
-  shows = traktData.shows.map(show => ({
+if (tvData && tvData.shows.length > 0) {
+  shows = tvData.shows.map(show => ({
     data: {
       title: show.title,
       year: show.year,
       posterImage: show.posterImage,
+      firstAiredAt: show.firstAiredAt,
       rating: show.rating,
-      plays: show.plays,
-      lastWatchedAt: show.lastWatchedAt,
       link: show.link,
     }
   }));
@@ -49,10 +48,9 @@ if (traktData && traktData.shows.length > 0) {
         <TVFilter client:load shows={shows} />
 
         <StatGrid title="Viewing Stats" stats={[
-          { value: traktData?.stats.totalShows || 0, label: 'Total Shows' },
-          { value: traktData?.stats.totalPlays || 0, label: 'Episodes Watched' },
-          { value: traktData?.stats.rated || 0, label: 'Rated' },
-          { value: traktData?.stats.averageRating || 0, label: 'Avg Rating' },
+          { value: tvData?.stats.totalShows || 0, label: 'Total Shows' },
+          { value: tvData?.stats.rated || 0, label: 'Rated' },
+          { value: tvData?.stats.averageRating || 0, label: 'Avg Rating' },
         ]} />
       </section>
     )}
@@ -60,14 +58,14 @@ if (traktData && traktData.shows.length > 0) {
     {shows.length === 0 && (
       <div class="text-center py-12">
         <p class="text-lg" style="color: var(--text-secondary);">
-          No TV shows found. Configure your Trakt credentials in the environment variables.
+          No TV shows found. Run scripts/setup-tmdb.cjs to configure the TMDB integration.
         </p>
       </div>
     )}
 
-    {/* Attribution */}
+    {/* Attribution (required by TMDB API terms) */}
     <div class="text-center mt-8 text-sm" style="color: var(--text-secondary);">
-      Data from <a href="https://trakt.tv" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline" style="color: var(--accent);">Trakt</a>
+      Data from <a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline" style="color: var(--accent);" title="This website uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.">TMDB</a>
     </div>
   </div>
 </BaseLayout>

@@ -4,8 +4,8 @@
 # Usage: ./scripts/sync-secrets-to-gcloud.sh [SECRET_NAME ...]
 # Examples:
 #   ./scripts/sync-secrets-to-gcloud.sh                    # Sync all secrets
-#   ./scripts/sync-secrets-to-gcloud.sh TRAKT_ACCESS_TOKEN # Sync one secret
-#   ./scripts/sync-secrets-to-gcloud.sh TRAKT_ACCESS_TOKEN TRAKT_REFRESH_TOKEN TRAKT_TOKEN_EXPIRES_AT
+#   ./scripts/sync-secrets-to-gcloud.sh SPOTIFY_REFRESH_TOKEN # Sync one secret
+#   ./scripts/sync-secrets-to-gcloud.sh TMDB_ACCESS_TOKEN TMDB_ACCOUNT_OBJECT_ID TMDB_TV_LIST_ID
 
 set -e
 

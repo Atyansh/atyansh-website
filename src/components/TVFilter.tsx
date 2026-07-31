@@ -7,8 +7,6 @@ interface ShowData {
   posterImage: string;
   firstAiredAt?: Date;
   rating?: number;
-  plays: number;
-  lastWatchedAt: Date;
   link: string;
 }
 

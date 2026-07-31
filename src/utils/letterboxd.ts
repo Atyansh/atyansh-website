@@ -44,6 +44,17 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
         page = await browser.newPage();
 
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+        // Cloudflare sometimes serves a "Just a moment..." challenge page,
+        // especially to datacenter IPs. The stealth plugin passes the JS
+        // challenge automatically — give it time to clear before expecting
+        // real content, otherwise the selector wait below eats the timeout
+        // staring at the interstitial.
+        await page.waitForFunction(
+          () => !document.title.includes('Just a moment'),
+          { timeout: 15000 }
+        ).catch(() => {});
+
         await page.waitForSelector('.poster-list', { timeout: 10000 });
 
         // Extract film data from the listing HTML. Each card carries its slug and
@@ -163,7 +174,9 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
     },
     {
       maxRetries: 2,
-      initialDelayMs: 2000,
+      // Long enough for a temporary Cloudflare flag on this IP to cool off —
+      // 2s/4s retries were failing back-to-back against the same block.
+      initialDelayMs: 10000,
       onRetry: (error, attempt) => {
         log.info(`Scrape retry ${attempt}: ${error.message}`);
       },
@@ -233,24 +246,17 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
 
     log.info(`Found ${maxPage} total pages`);
 
-    // Scrape remaining pages concurrently (limit to 2 to avoid Cloudflare detection)
-    if (maxPage > 1) {
-      const pageLimit = pLimit(2);
-      const pageResults = await Promise.all(
-        Array.from({ length: maxPage - 1 }, (_, i) => i + 2).map(page =>
-          pageLimit(async () => {
-            log.info(`Fetching page ${page}...`);
-            const pageUrl = `https://letterboxd.com/${LETTERBOXD_USERNAME}/films/page/${page}/`;
-            const { films } = await scrapePage(browser, pageUrl);
-            // Small delay as safety margin against rapid parallel requests
-            await new Promise(resolve => setTimeout(resolve, 200));
-            return films;
-          })
-        )
-      );
-      for (const films of pageResults) {
-        allMovies.push(...films);
-      }
+    // Fetch remaining listing pages one at a time with a small gap. Parallel
+    // hits from a single datacenter IP are what trip Cloudflare's bot
+    // detection (the cause of the intermittent mornings where pages 2+ failed
+    // every retry while page 1 was fine). A serial scrape of ~5 pages costs
+    // only a few seconds.
+    for (let pageNum = 2; pageNum <= maxPage; pageNum++) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      log.info(`Fetching page ${pageNum}...`);
+      const pageUrl = `https://letterboxd.com/${LETTERBOXD_USERNAME}/films/page/${pageNum}/`;
+      const { films } = await scrapePage(browser, pageUrl);
+      allMovies.push(...films);
     }
 
     // A poster URL is correct only if the CDN actually serves it. The film id pins
@@ -319,6 +325,14 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
     return data;
   } catch (error) {
     log.error('Error fetching Letterboxd data:', error);
+    // Serve last-known-good data rather than shipping a blank movies page.
+    // The stale timestamp still trips the post-build health check, so the
+    // failure is alerted either way.
+    const stale = await cache.getStale();
+    if (stale) {
+      log.error(`Falling back to stale Letterboxd data from ${new Date(stale.timestamp).toISOString()}`);
+      return stale;
+    }
     return null;
   } finally {
     await browser.close().catch(() => {});

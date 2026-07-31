@@ -6,6 +6,19 @@ steps:
     args: ['ci']
     id: 'install-dependencies'
 
+  # Restore the previous build's data cache as a last-known-good fallback.
+  # The build still fetches fresh data for every source — this is only read
+  # (via FileCache.getStale) when a scrape/API fails outright, so the page
+  # renders yesterday's data instead of nothing. The health check still
+  # alerts on the stale timestamp.
+  - name: 'gcr.io/cloud-builders/gsutil'
+    entrypoint: bash
+    args:
+      - '-c'
+      - 'gsutil -m rsync -r gs://personal-website-334502_cloudbuild/build-cache .cache-fallback || echo "No previous build cache"'
+    id: 'restore-build-cache'
+    waitFor: ['-']
+
   # Build the site with environment variables from Secret Manager
   - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
     entrypoint: bash
@@ -51,7 +64,18 @@ steps:
       - 'TMDB_ACCESS_TOKEN'
       - 'TMDB_ACCOUNT_OBJECT_ID'
       - 'TMDB_TV_LIST_ID'
-    waitFor: ['install-dependencies']
+    waitFor: ['install-dependencies', 'restore-build-cache']
+
+  # Save this build's data cache for the next build's fallback. No -d flag:
+  # if a source failed today (no cache file written), the previous good copy
+  # stays in the bucket instead of being deleted.
+  - name: 'gcr.io/cloud-builders/gsutil'
+    entrypoint: bash
+    args:
+      - '-c'
+      - 'gsutil -m rsync -r .cache gs://personal-website-334502_cloudbuild/build-cache || echo "No cache to save"'
+    id: 'save-build-cache'
+    waitFor: ['build-site']
 
   # Check API health and send notifications if any failed
   - name: 'gcr.io/personal-website-334502/node-puppeteer:22'

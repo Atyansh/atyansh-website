@@ -14,6 +14,9 @@ export interface FileCacheOptions<T> {
 }
 
 const CACHE_DIR = '.cache';
+// Cloud builds restore the previous build's cache here (see cloudbuild.yaml).
+// It is only read by getStale() — never treated as fresh.
+const FALLBACK_CACHE_DIR = '.cache-fallback';
 
 export class FileCache<T extends Timestamped> {
   private memoryCache: T | null = null;
@@ -63,6 +66,36 @@ export class FileCache<T extends Timestamped> {
       // Cache doesn't exist or is invalid
       return null;
     }
+  }
+
+  /**
+   * Read cached data ignoring TTL: the live cache first, then the fallback
+   * directory restored from the previous cloud build. Lets callers serve
+   * last-known-good data when a fetch fails outright. Deliberately does not
+   * touch the cache file or memory cache, so the stale timestamp still trips
+   * the post-build health check.
+   */
+  async getStale(): Promise<T | null> {
+    if (!this.isNode) {
+      return null;
+    }
+
+    const { promises: fs } = await import('fs');
+    for (const dir of [CACHE_DIR, FALLBACK_CACHE_DIR]) {
+      try {
+        const cacheData = await fs.readFile(`${dir}/${this.cacheFile}.json`, 'utf-8');
+        let cached: T = JSON.parse(cacheData);
+
+        if (this.options.deserialize) {
+          cached = this.options.deserialize(cached);
+        }
+
+        return cached;
+      } catch {
+        // Not in this location — try the next one
+      }
+    }
+    return null;
   }
 
   async set(data: T): Promise<void> {

@@ -233,6 +233,7 @@ The build automatically monitors all 10 API integrations and sends Discord notif
 - Checks that data was successfully fetched
 - Sends a Discord DM via bot if any API fails
 - Never fails the build (just notifies)
+- If a scrape/API fails outright, the build serves the previous build's data (`.cache-fallback/`, restored from the Cloud Build staging bucket) so the page still renders — the alert still fires because the cache timestamp is stale
 
 **Discord notifications are sent when:**
 - API credentials are missing or expired

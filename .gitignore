@@ -67,6 +67,7 @@ coverage/
 *.lcov
 .nyc_output
 .cache/
+.cache-fallback/
 .parcel-cache/
 __coverage__/
 .jest-cache/

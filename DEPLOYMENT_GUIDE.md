@@ -132,16 +132,11 @@ Build and deploy manually to verify everything works:
 # Build locally
 npm run build
 
-# Deploy to Cloud Storage
-gsutil -m rsync -r -c -d dist/ gs://atyansh.com/
-
-# Set cache headers
-gsutil -m setmeta -h "Cache-Control:public, max-age=31536000, immutable" \
-  "gs://atyansh.com/_astro/**"
-
-gsutil -m setmeta -h "Cache-Control:public, max-age=3600" \
-  "gs://atyansh.com/**/*.html"
+# Deploy to Firebase Hosting (cache headers come from firebase.json)
+npx firebase-tools deploy --only hosting --project personal-website-334502
 ```
+
+Or use `./deploy.sh`, which does both the build and the deploy.
 
 ## Setting Up Daily Automated Builds
 
@@ -368,8 +363,8 @@ gcloud builds submit --config cloudbuild.yaml .
 - **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then sync
 
 ### Build Succeeds but Site Not Updated
-- Check if files were uploaded: `gsutil ls -lh gs://atyansh.com/ | head`
-- Verify cache headers aren't too aggressive
+- Check the release landed: https://console.firebase.google.com/project/personal-website-334502/hosting (release history shows every deploy)
+- Compare the preview URL (https://personal-website-334502.web.app) with atyansh.com — if the preview is fresh but the domain is stale, it's browser HTML cache (1 hour); hard-refresh
 - Clear browser cache or try incognito mode
 
 ## Firebase Hosting
@@ -421,7 +416,6 @@ The pipeline currently deploys to BOTH Firebase Hosting and the legacy GCS bucke
 - `scripts/sync-secrets-to-gcloud.sh` - Sync all secrets from .env to Google Cloud
 - `scripts/pull-secrets.cjs` - Sync secrets from Google Cloud to .env (runs automatically before builds)
 - `scripts/check-api-health.cjs` - API health monitoring and Discord notifications
-- `scripts/invalidate-cache.sh` - Helper script for manual cache invalidation
 - `API_HEALTH_MONITORING.md` - Complete guide for Discord notification setup
 - `DEPLOYMENT_GUIDE.md` - This file
 - `.gcloudignore` - Files to exclude from Cloud Build uploads (auto-created)

@@ -430,7 +430,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS pars
 │   ├── check-api-health.cjs    # API health monitoring
 │   ├── pull-secrets.cjs        # Sync secrets from GCloud to .env
 │   ├── sync-secrets-to-gcloud.sh # Sync .env to Secret Manager
-│   └── invalidate-cache.sh     # CDN cache invalidation
 ├── src/
 │   ├── audio/                  # Client-side audio engine
 │   │   ├── AudioEngine.ts    # Step sequencer + theme processing

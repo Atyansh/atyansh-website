@@ -118,7 +118,10 @@ export async function boot(container: HTMLElement): Promise<void> {
   scene.add(sun);
   scene.add(new THREE.HemisphereLight(0x9ec2ee, 0x6b6f66, 1.3));
 
-  const block = buildBlock(scene.userData.skyEnv as THREE.Texture);
+  const worldData = await fetch('/world/world-data.json')
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  const block = buildBlock(scene.userData.skyEnv as THREE.Texture, worldData ?? undefined);
   scene.add(block.group);
 
   const character = await loadCharacter();

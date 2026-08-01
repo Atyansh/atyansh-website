@@ -55,3 +55,21 @@ export interface GroundSample {
   /** Ground height at a world XZ position (street vs sidewalk vs park) */
   y: number;
 }
+
+export interface ArtItem {
+  title: string;
+  art: string;
+  artist?: string;
+  hours?: number;
+}
+
+export interface WorldData {
+  movies?: ArtItem[];
+  tv?: ArtItem[];
+  music?: ArtItem[];
+  games?: ArtItem[];
+  books?: ArtItem[];
+  anime?: ArtItem[];
+  climbing?: Array<{ grade: string; count: number }>;
+  generatedAt?: string;
+}

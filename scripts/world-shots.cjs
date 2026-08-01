@@ -66,7 +66,7 @@ async function main() {
     );
     // Let shaders compile / first frames settle; hide HUD for clean shots
     await page.evaluate(() => window.__world.hideHud());
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 3500));
 
     const bookmarks = await page.evaluate(() => window.__world.bookmarks);
     for (const name of [...bookmarks, 'player']) {

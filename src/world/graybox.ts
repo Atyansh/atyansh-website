@@ -6,7 +6,7 @@
 // cinema marquee. Interiors arrive in M2.
 
 import * as THREE from 'three';
-import type { BlockGeometry, BuildingDef, ColliderRect, DoorTrigger } from './types';
+import type { ArtItem, BlockGeometry, BuildingDef, ColliderRect, DoorTrigger, WorldData } from './types';
 import {
   BLOCK, BUILDINGS, CURB_H, FILLER, KIOSK, LAMPS, OUTER_W, PARK,
   SIDEWALK_W, WORLD_EDGE,
@@ -67,7 +67,49 @@ function outwardOffset(facing: BuildingDef['facing'], amount: number): { x: numb
   }
 }
 
-export function buildBlock(glassEnv?: THREE.Texture): BlockGeometry {
+const artLoader = new THREE.TextureLoader();
+
+/** A row of real art (posters/covers) mounted in a storefront window,
+    laid along the facade and skipping the door bay. */
+function addArtRow(
+  group: THREE.Group,
+  items: ArtItem[],
+  door: { x: number; z: number },
+  rot: number,
+  out: { x: number; z: number },
+  opts: { y: number; w: number; h: number; gap: number; maxAlong: number },
+): void {
+  const slots: number[] = [];
+  const step = opts.w + opts.gap;
+  for (let a = step / 2; a <= opts.maxAlong; a += step) {
+    slots.push(a, -a);
+  }
+  slots.sort((p, q) => Math.abs(p) - Math.abs(q));
+  const doorHalf = DOOR_W / 2 + 0.55 + opts.w / 2;
+  const usable = slots.filter((a) => Math.abs(a) > doorHalf);
+  for (let i = 0; i < Math.min(items.length, usable.length); i++) {
+    const tex = artLoader.load(items[i].art);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(opts.w, opts.h),
+      new THREE.MeshStandardMaterial({
+        map: tex, roughness: 0.7,
+        emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.5,
+      }),
+    );
+    const along = usable[i];
+    m.position.set(
+      door.x + out.x * 0.03 + Math.cos(rot) * along,
+      opts.y,
+      door.z + out.z * 0.03 - Math.sin(rot) * along,
+    );
+    m.rotation.y = rot;
+    group.add(m);
+  }
+}
+
+export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeometry {
   const group = new THREE.Group();
   const colliders: ColliderRect[] = [];
   const doors: DoorTrigger[] = [];
@@ -172,8 +214,9 @@ export function buildBlock(glassEnv?: THREE.Texture): BlockGeometry {
   // ---- Shared building materials ----
   const frameMat = new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.55, metalness: 0.35 });
   const glassMat = new THREE.MeshStandardMaterial({
-    color: 0x5e7f96, metalness: 0.85, roughness: 0.24,
-    envMap: glassEnv ?? null, envMapIntensity: 0.32,
+    color: 0x86a7bb, metalness: 0.6, roughness: 0.2,
+    envMap: glassEnv ?? null, envMapIntensity: 0.25,
+    transparent: true, opacity: 0.18, depthWrite: false,
   });
   const parapetMat = new THREE.MeshStandardMaterial({ color: 0xcfd0d3, roughness: 0.85 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x606268, roughness: 0.95 });
@@ -311,8 +354,9 @@ export function buildBlock(glassEnv?: THREE.Texture): BlockGeometry {
       mq.rotation.y = rot;
       group.add(mq);
 
-      // Poster cases flanking the door (filled with real art in M2)
-      for (const side of [-1, 1]) {
+      // Poster cases flanking the door, filled with the latest real posters
+      const posters = data?.movies ?? [];
+      [-1, 1].forEach((side, idx) => {
         const caseM = new THREE.Mesh(
           new THREE.BoxGeometry(1.15, 1.75, 0.12),
           new THREE.MeshStandardMaterial({ color: 0x1c1d22, roughness: 0.4 }),
@@ -325,6 +369,28 @@ export function buildBlock(glassEnv?: THREE.Texture): BlockGeometry {
         );
         caseM.rotation.y = rot;
         group.add(caseM);
+        const p = posters[idx];
+        if (p) {
+          const tex = artLoader.load(p.art);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          const art = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.0, 1.6),
+            new THREE.MeshStandardMaterial({
+              map: tex, roughness: 0.6,
+              emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.25,
+            }),
+          );
+          art.position.copy(caseM.position);
+          art.position.x += out.x * 0.08;
+          art.position.z += out.z * 0.08;
+          art.rotation.y = rot;
+          group.add(art);
+        }
+      });
+      // More recent movies inside the lobby glass
+      if (posters.length > 2) {
+        addArtRow(group, posters.slice(2, 8), door, rot, out,
+          { y: CURB_H + 1.95, w: 1.35, h: 2.05, gap: 0.5, maxAlong: glassLen / 2 - 0.8 });
       }
     } else {
       const signTex = makeSignTexture(b.name, b.accent);
@@ -339,6 +405,30 @@ export function buildBlock(glassEnv?: THREE.Texture): BlockGeometry {
       sign.position.set(door.x + out.x * 0.35, CURB_H + GF_H - 0.28, door.z + out.z * 0.35);
       sign.rotation.y = rot;
       group.add(sign);
+    }
+
+    // Window dressing from real site data (M2)
+    if (data) {
+      const rowY = CURB_H + 1.95;
+      const maxAlong = glassLen / 2 - 0.7;
+      if (b.id === 'records' && data.music?.length) {
+        addArtRow(group, data.music.slice(0, 6), door, rot, out,
+          { y: CURB_H + 2.45, w: 0.95, h: 0.95, gap: 0.35, maxAlong });
+        addArtRow(group, data.music.slice(6, 12), door, rot, out,
+          { y: CURB_H + 1.3, w: 0.95, h: 0.95, gap: 0.35, maxAlong });
+      } else if (b.id === 'arcade' && data.games?.length) {
+        addArtRow(group, data.games.slice(0, 6), door, rot, out,
+          { y: rowY, w: 1.15, h: 1.55, gap: 0.4, maxAlong });
+      } else if (b.id === 'books' && data.books?.length) {
+        addArtRow(group, data.books.slice(0, 8), door, rot, out,
+          { y: CURB_H + 1.7, w: 0.75, h: 1.1, gap: 0.28, maxAlong });
+      } else if (b.id === 'anime' && data.anime?.length) {
+        addArtRow(group, data.anime.slice(0, 6), door, rot, out,
+          { y: rowY, w: 0.95, h: 1.4, gap: 0.35, maxAlong });
+      } else if (b.id === 'tv' && data.tv?.length) {
+        addArtRow(group, data.tv.slice(0, 6), door, rot, out,
+          { y: rowY, w: 0.95, h: 1.4, gap: 0.35, maxAlong });
+      }
     }
 
     doors.push({

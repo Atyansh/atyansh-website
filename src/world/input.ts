@@ -45,15 +45,26 @@ export class Input {
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('pagehide', this.releaseAll);
     window.addEventListener('blur', this.releaseAll);
+    // Back/forward-cache restore: reset to a clean unlocked state so the
+    // click-to-walk gate is accurate and the next click re-locks cleanly.
+    window.addEventListener('pageshow', this.releaseAll);
     // Any click on the page is a valid gesture to (re)acquire the lock.
-    document.addEventListener('click', () => {
-      if (this.pointerLocked) return;
+    const tryLock = (retry: boolean) => {
       try {
         const p = this.el.requestPointerLock() as unknown as Promise<void> | undefined;
-        p?.catch?.((err) => console.warn('pointer lock refused:', err));
+        p?.catch?.((err) => {
+          // Chrome transiently refuses relocks right after exits/restores;
+          // one delayed retry covers it.
+          if (retry) setTimeout(() => tryLock(false), 150);
+          else console.warn('pointer lock refused:', err);
+        });
       } catch (err) {
-        console.warn('pointer lock unavailable:', err);
+        if (retry) setTimeout(() => tryLock(false), 150);
+        else console.warn('pointer lock unavailable:', err);
       }
+    };
+    document.addEventListener('click', () => {
+      if (!this.pointerLocked) tryLock(true);
     });
   }
 

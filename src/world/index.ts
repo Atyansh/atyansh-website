@@ -137,7 +137,10 @@ export async function boot(container: HTMLElement): Promise<void> {
   let nearDoor: DoorTrigger | null = null;
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Enter' && nearDoor) {
-      window.location.href = nearDoor.route;
+      // Release capture first, then open the 2D page in a new tab so the
+      // world session (position, loaded state) survives the visit.
+      if (document.pointerLockElement) document.exitPointerLock();
+      window.open(nearDoor.route, '_blank', 'noopener');
     }
   });
 

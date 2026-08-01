@@ -371,14 +371,13 @@ gcloud builds submit --config cloudbuild.yaml .
 
 Every build appends its API caches (gzipped, ~0.4 MB per build) to
 `gs://personal-website-334502_cloudbuild/snapshots/YYYY-MM-DD/HHMMSS/` — an
-append-only archive for future stats/"wrapped" pages. Timestamps use
-America/Los_Angeles; every build gets its own directory, so nothing is ever
-overwritten and intra-day builds each preserve their fetch (distinct Spotify
-recently-played windows, rating changes, etc.). Readers group directories by
-the date prefix at whatever granularity they need. The `build-cache/` prefix in
+append-only archive for future stats/"wrapped" pages. Timestamps are UTC (the
+build container has no tzdata; stats code regroups into local days at read
+time). Every build gets its own directory, so nothing is ever overwritten and
+intra-day builds each preserve their fetch (distinct Spotify recently-played
+windows, rating changes, etc.). The `build-cache/` prefix in
 the same bucket is a separate mechanism (rolling last-known-good for the
-stale-cache fallback) and is overwritten, not archived. First snapshot:
-2026-07-31.
+stale-cache fallback) and is overwritten, not archived. First snapshots: 2026-08-01 UTC (the evening of 2026-07-31 PT).
 
 ## Firebase Hosting
 

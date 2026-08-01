@@ -79,18 +79,18 @@ steps:
 
   # Append this build's data to the historical snapshot archive (read by
   # future stats pages; the build-cache above stays the fallback mechanism).
-  # Every build writes its own timestamped directory under a PT-dated parent
-  # (snapshots/YYYY-MM-DD/HHMMSS/) — pure append-only, nothing is ever
-  # overwritten, so intra-day builds each preserve their fetch (e.g. distinct
-  # Spotify recently-played windows). Readers group by the date prefix and
-  # pick whatever granularity they need. Non-fatal: snapshot problems must
-  # never fail the build.
+  # Every build writes its own timestamped directory
+  # (snapshots/YYYY-MM-DD/HHMMSS/, UTC — this container has no tzdata, and
+  # readers regroup timestamps into local days at read time anyway) — pure
+  # append-only, nothing is ever overwritten, so intra-day builds each
+  # preserve their fetch (e.g. distinct Spotify recently-played windows).
+  # Non-fatal: snapshot problems must never fail the build.
   - name: 'gcr.io/cloud-builders/gsutil'
     entrypoint: bash
     args:
       - '-c'
       - |
-        STAMP=$$(TZ=America/Los_Angeles date "+%F/%H%M%S")
+        STAMP=$$(date -u "+%F/%H%M%S")
         mkdir -p /tmp/snap
         for f in .cache/*.json; do
           [ -e "$$f" ] || continue

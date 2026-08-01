@@ -31,6 +31,10 @@ const BOOKMARKS: Record<string, CamBookmark> = {
   park: { pos: [50, 2.6, -2], look: [32, 2, -16] },
   alley: { pos: [2, 2.2, 44], look: [2, 3, -30] },
   overview: { pos: [-70, 55, 80], look: [0, 0, 0] },
+  cinemaIn: { pos: [-11, 2.6, 29], look: [-11, 2.2, 12] },
+  arcadeIn: { pos: [25, 2.4, 29], look: [25, 1.6, 14] },
+  climbIn: { pos: [-34, 3.4, -27], look: [-34, 4.2, -9] },
+  recordsIn: { pos: [11, 2.4, 29.5], look: [11, 1.8, 16] },
 };
 
 export async function boot(container: HTMLElement): Promise<void> {

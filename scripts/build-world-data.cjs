@@ -113,9 +113,15 @@ async function main() {
       anime.anime.map((a) => ({ title: a.title, url: a.imageUrl })), 10);
   }
   if (kaya?.pyramid) {
-    data.climbing = kaya.pyramid.map((p) => ({
-      grade: p.grade, count: p.ascent_count,
-    }));
+    data.climbing = kaya.pyramid
+      .map((p) => ({
+        grade: String(p.grade?.name ?? p.grade),
+        ordering: p.grade?.ordering ?? 0,
+        count: p.ascent_count,
+      }))
+      .filter((p) => p.count > 0 && p.grade !== 'v?')
+      .sort((a, b) => a.ordering - b.ordering)
+      .map(({ grade, count }) => ({ grade, count }));
   }
 
   data.generatedAt = new Date().toISOString();

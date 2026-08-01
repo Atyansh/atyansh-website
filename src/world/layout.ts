@@ -58,9 +58,9 @@ export const BUILDINGS: BuildingDef[] = [
 
 // Non-enterable background mass filling the block interior (skyline depth)
 export const FILLER: Array<{ x: number; z: number; w: number; d: number; h: number }> = [
-  { x: -18, z: -2, w: 26, d: 22, h: 24 },
+  { x: -12, z: -2, w: 22, d: 22, h: 24 },
   { x: 14, z: 2, w: 18, d: 18, h: 20 },
-  { x: 30, z: 12, w: 14, d: 12, h: 14 },
+  { x: 30, z: 8, w: 14, d: 12, h: 14 },
 ];
 
 // The newsstand kiosk (small freestanding structure on the SE outer sidewalk)

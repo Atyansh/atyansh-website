@@ -14,6 +14,7 @@ import {
 import {
   asphaltTexture, awningTexture, grassTexture, sidewalkTexture, windowsTexture,
 } from './textures';
+import { buildInteriorShell, furnishInterior, gfHeight } from './interiors';
 
 const DOOR_W = 2.6;
 const DOOR_H = 3.2;
@@ -69,6 +70,19 @@ function outwardOffset(facing: BuildingDef['facing'], amount: number): { x: numb
 
 const artLoader = new THREE.TextureLoader();
 
+function interiorFloorColor(id: string): number {
+  switch (id) {
+    case 'cinema': return 0x5a2e31;
+    case 'records': return 0x74604a;
+    case 'arcade': return 0x232530;
+    case 'books': return 0x7a6448;
+    case 'anime': return 0x8a6a72;
+    case 'tv': return 0x4a4e58;
+    case 'climb': return 0x39508c;
+    default: return 0x9a938a;
+  }
+}
+
 /** A row of real art (posters/covers) mounted in a storefront window,
     laid along the facade and skipping the door bay. */
 function addArtRow(
@@ -100,9 +114,9 @@ function addArtRow(
     );
     const along = usable[i];
     m.position.set(
-      door.x + out.x * 0.03 + Math.cos(rot) * along,
+      door.x + out.x + Math.cos(rot) * along,
       opts.y,
-      door.z + out.z * 0.03 - Math.sin(rot) * along,
+      door.z + out.z - Math.sin(rot) * along,
     );
     m.rotation.y = rot;
     group.add(m);
@@ -227,18 +241,15 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
     const rot = facingRotation(b.facing);
     const door = doorPosition(b);
     const out = outwardOffset(b.facing, 1);
-    const upperH = b.h - GF_H;
+    const bGF = gfHeight(b.id);
+    const upperH = b.h - bGF;
     const floors = Math.max(1, Math.round(upperH / FLOOR_H));
 
-    // Ground floor: solid base tinted to the building
+    // Ground floor: hollow, enterable interior (M2b)
     const baseColor = new THREE.Color(0x9c968b).lerp(new THREE.Color(b.accent), 0.22);
-    const gfMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.85 });
-    const gf = new THREE.Mesh(new THREE.BoxGeometry(b.w, GF_H, b.d), gfMat);
-    gf.position.set(b.x, CURB_H + GF_H / 2, b.z);
-    gf.castShadow = true;
-    gf.receiveShadow = true;
-    group.add(gf);
-    cameraBlockers.push(gf);
+    const ctx = { group, colliders, blockers: cameraBlockers, doors };
+    const frame = buildInteriorShell(b, ctx, baseColor, interiorFloorColor(b.id));
+    furnishInterior(b, ctx, data, frame);
 
     // Upper floors: window-grid texture per face, repeats matched to size
     if (upperH > 0.5) {
@@ -255,7 +266,7 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
         new THREE.BoxGeometry(b.w, upperH, b.d),
         [matX, matX, roofMat, roofMat, matZ, matZ],
       );
-      upper.position.set(b.x, CURB_H + GF_H + upperH / 2, b.z);
+      upper.position.set(b.x, CURB_H + bGF + upperH / 2, b.z);
       upper.castShadow = true;
       upper.receiveShadow = true;
       group.add(upper);
@@ -267,19 +278,22 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
       group.add(cap);
     }
 
-    colliders.push({
-      minX: b.x - b.w / 2, maxX: b.x + b.w / 2,
-      minZ: b.z - b.d / 2, maxZ: b.z + b.d / 2,
-    });
-
     // Storefront: glass band across the facing side
     const facadeLen = b.facing === 's' || b.facing === 'n' ? b.w : b.d;
     const glassLen = facadeLen * 0.82;
     const glassH = 2.7;
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(glassLen, glassH, 0.12), glassMat);
-    glass.position.set(door.x + out.x * 0.08, CURB_H + 0.5 + glassH / 2, door.z + out.z * 0.08);
-    glass.rotation.y = rot;
-    group.add(glass);
+    const segLen = (glassLen - 3.0) / 2; // flank the real door opening
+    for (const side of [-1, 1]) {
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(segLen, glassH, 0.12), glassMat);
+      const along = side * (3.0 / 2 + segLen / 2);
+      glass.position.set(
+        door.x + out.x * 0.08 + Math.cos(rot) * along,
+        CURB_H + 0.5 + glassH / 2,
+        door.z + out.z * 0.08 - Math.sin(rot) * along,
+      );
+      glass.rotation.y = rot;
+      group.add(glass);
+    }
     // Frame: header + sill + end pillars
     const header = new THREE.Mesh(new THREE.BoxGeometry(glassLen + 0.4, 0.45, 0.3), frameMat);
     header.position.set(door.x + out.x * 0.1, CURB_H + 0.5 + glassH + 0.2, door.z + out.z * 0.1);
@@ -301,15 +315,6 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
       p.rotation.y = rot;
       group.add(p);
     }
-
-    // Door recess
-    const recess = new THREE.Mesh(
-      new THREE.BoxGeometry(DOOR_W, DOOR_H, 0.35),
-      new THREE.MeshStandardMaterial({ color: 0x101114, roughness: 0.5 }),
-    );
-    recess.position.set(door.x + out.x * 0.14, CURB_H + DOOR_H / 2, door.z + out.z * 0.14);
-    recess.rotation.y = rot;
-    group.add(recess);
 
     // Awning (shops only)
     if (AWNINGS.has(b.id)) {
@@ -389,7 +394,7 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
       });
       // More recent movies inside the lobby glass
       if (posters.length > 2) {
-        addArtRow(group, posters.slice(2, 8), door, rot, out,
+        addArtRow(group, posters.slice(2, 8), door, rot, outwardOffset(b.facing, 0.19),
           { y: CURB_H + 1.95, w: 1.35, h: 2.05, gap: 0.5, maxAlong: glassLen / 2 - 0.8 });
       }
     } else {
@@ -412,29 +417,25 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
       const rowY = CURB_H + 1.95;
       const maxAlong = glassLen / 2 - 0.7;
       if (b.id === 'records' && data.music?.length) {
-        addArtRow(group, data.music.slice(0, 6), door, rot, out,
+        addArtRow(group, data.music.slice(0, 6), door, rot, outwardOffset(b.facing, 0.19),
           { y: CURB_H + 2.45, w: 0.95, h: 0.95, gap: 0.35, maxAlong });
-        addArtRow(group, data.music.slice(6, 12), door, rot, out,
+        addArtRow(group, data.music.slice(6, 12), door, rot, outwardOffset(b.facing, 0.19),
           { y: CURB_H + 1.3, w: 0.95, h: 0.95, gap: 0.35, maxAlong });
       } else if (b.id === 'arcade' && data.games?.length) {
-        addArtRow(group, data.games.slice(0, 6), door, rot, out,
+        addArtRow(group, data.games.slice(0, 6), door, rot, outwardOffset(b.facing, 0.19),
           { y: rowY, w: 1.15, h: 1.55, gap: 0.4, maxAlong });
       } else if (b.id === 'books' && data.books?.length) {
-        addArtRow(group, data.books.slice(0, 8), door, rot, out,
+        addArtRow(group, data.books.slice(0, 8), door, rot, outwardOffset(b.facing, 0.19),
           { y: CURB_H + 1.7, w: 0.75, h: 1.1, gap: 0.28, maxAlong });
       } else if (b.id === 'anime' && data.anime?.length) {
-        addArtRow(group, data.anime.slice(0, 6), door, rot, out,
+        addArtRow(group, data.anime.slice(0, 6), door, rot, outwardOffset(b.facing, 0.19),
           { y: rowY, w: 0.95, h: 1.4, gap: 0.35, maxAlong });
       } else if (b.id === 'tv' && data.tv?.length) {
-        addArtRow(group, data.tv.slice(0, 6), door, rot, out,
+        addArtRow(group, data.tv.slice(0, 6), door, rot, outwardOffset(b.facing, 0.19),
           { y: rowY, w: 0.95, h: 1.4, gap: 0.35, maxAlong });
       }
     }
 
-    doors.push({
-      buildingId: b.id, name: b.name, route: b.route,
-      x: door.x + out.x * 0.6, z: door.z + out.z * 0.6, radius: 2.4,
-    });
   }
 
   // ---- Block-interior filler mass (windowed, muted) ----

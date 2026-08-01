@@ -58,10 +58,10 @@ export function buildBlock(): BlockGeometry {
   const doors: DoorTrigger[] = [];
   const cameraBlockers: THREE.Object3D[] = [];
 
-  const concrete = new THREE.MeshStandardMaterial({ color: 0x3a3d44, roughness: 0.95 });
-  const asphalt = new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.85, metalness: 0.05 });
-  const curb = new THREE.MeshStandardMaterial({ color: 0x4a4d55, roughness: 0.9 });
-  const grass = new THREE.MeshStandardMaterial({ color: 0x2a3b2e, roughness: 1.0 });
+  const concrete = new THREE.MeshStandardMaterial({ color: 0x9a9da4, roughness: 0.95 });
+  const asphalt = new THREE.MeshStandardMaterial({ color: 0x3b3d42, roughness: 0.9, metalness: 0.02 });
+  const curb = new THREE.MeshStandardMaterial({ color: 0xb2b4ba, roughness: 0.92 });
+  const grass = new THREE.MeshStandardMaterial({ color: 0x5d8a4e, roughness: 1.0 });
 
   // ---- Ground: street ring ----
   const streetOuterW = WORLD_EDGE.maxX - WORLD_EDGE.minX;
@@ -108,8 +108,8 @@ export function buildBlock(): BlockGeometry {
   group.add(park);
 
   // Park trees (placeholder cones)
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 1 });
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x27452c, roughness: 1 });
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6e5236, roughness: 1 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x4a7a3d, roughness: 1 });
   const treeSpots = [
     { x: 29, z: -13 }, { x: 36, z: -25 }, { x: 42, z: -12 }, { x: 33, z: -19 },
   ];
@@ -140,8 +140,8 @@ export function buildBlock(): BlockGeometry {
   const shellMats = new Map<string, THREE.MeshStandardMaterial>();
   for (const b of BUILDINGS) {
     // Slightly tinted shell so gray-box buildings are tellable-apart
-    const base = new THREE.Color(0x565a63);
-    base.lerp(new THREE.Color(b.accent), 0.08);
+    const base = new THREE.Color(0xb7b2a6);
+    base.lerp(new THREE.Color(b.accent), 0.18);
     const mat = new THREE.MeshStandardMaterial({ color: base, roughness: 0.9 });
     shellMats.set(b.id, mat);
 
@@ -185,7 +185,7 @@ export function buildBlock(): BlockGeometry {
           map: signTex,
           emissive: 0xffffff,
           emissiveMap: signTex,
-          emissiveIntensity: 3.4,
+          emissiveIntensity: 0.9,
         }),
         new THREE.MeshStandardMaterial({ color: 0x14151a }),
       ],
@@ -198,7 +198,7 @@ export function buildBlock(): BlockGeometry {
     const strip = new THREE.Mesh(
       new THREE.BoxGeometry(Math.min(b.w * 0.85, 11), 0.12, 0.1),
       new THREE.MeshStandardMaterial({
-        color: b.accent, emissive: b.accent, emissiveIntensity: 5.0,
+        color: b.accent, emissive: b.accent, emissiveIntensity: 1.2,
       }),
     );
     strip.position.set(door.x + out.x * 15, CURB_H + DOOR_H + 0.7, door.z + out.z * 15);
@@ -212,7 +212,7 @@ export function buildBlock(): BlockGeometry {
   }
 
   // ---- Block-interior filler mass ----
-  const fillerMat = new THREE.MeshStandardMaterial({ color: 0x2d3038, roughness: 0.95 });
+  const fillerMat = new THREE.MeshStandardMaterial({ color: 0x8f9298, roughness: 0.95 });
   for (const f of FILLER) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(f.w, f.h, f.d), fillerMat);
     m.position.set(f.x, CURB_H + f.h / 2, f.z);
@@ -243,7 +243,7 @@ export function buildBlock(): BlockGeometry {
     const sign = new THREE.Mesh(
       new THREE.PlaneGeometry(2.6, 0.7),
       new THREE.MeshStandardMaterial({
-        map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 1.4,
+        map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.8,
       }),
     );
     sign.position.set(k.x - k.w / 2 - 0.01, CURB_H + k.h - 0.5, k.z);
@@ -257,10 +257,8 @@ export function buildBlock(): BlockGeometry {
 
   // ---- Streetlights ----
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x22242a, roughness: 0.6, metalness: 0.6 });
-  const headMat = new THREE.MeshStandardMaterial({
-    color: 0xffd9a0, emissive: 0xffc26e, emissiveIntensity: 6.0,
-  });
-  LAMPS.forEach((l, i) => {
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xe8e9ec, roughness: 0.4 });
+  LAMPS.forEach((l) => {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 5.4, 8), poleMat);
     pole.position.set(l.x, 2.7, l.z);
     pole.castShadow = true;
@@ -268,14 +266,6 @@ export function buildBlock(): BlockGeometry {
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), headMat);
     head.position.set(l.x, 5.5, l.z);
     group.add(head);
-    const light = new THREE.PointLight(0xffc27a, 320, 34, 2.0);
-    light.position.set(l.x, 5.4, l.z);
-    // Two shadow-casting lamps near the main corner keep the budget sane in M0
-    if (i === 1 || i === 4) {
-      light.castShadow = true;
-      light.shadow.mapSize.set(1024, 1024);
-    }
-    group.add(light);
     colliders.push({ minX: l.x - 0.18, maxX: l.x + 0.18, minZ: l.z - 0.18, maxZ: l.z + 0.18 });
   });
 

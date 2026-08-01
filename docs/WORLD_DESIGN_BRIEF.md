@@ -10,15 +10,15 @@ tooling, and iteration, and is expected to self-test visually.
 ## 1. Vision
 
 - **Fantasy**: stepping into the website. GTA-style third-person navigation of
-  one dense, rain-slicked, neon-soaked city block at night. Buildings are
-  legible from the street — the cinema announces itself with a lit marquee
-  showing real movie posters; the arcade spills glowing cabinet light onto the
-  sidewalk; the climbing gym has a floodlit wall visible through glass.
-- **Tone**: stylized-realistic urban night. Not photoreal, not cartoon
-  low-poly. References: GTA's environmental mood, Sifu's stylized materials,
-  neon-noir demo scenes. Confident lighting is the art style: emissive
-  signage, wet-street reflections, volumetric glow, warm interiors against
-  cool night.
+  one dense city block under bright daylight — GTA 5's sunny, high-contrast
+  SoCal look. Buildings are legible from the street: the cinema announces
+  itself with a marquee showing real movie posters; the arcade's cabinet art
+  fills its windows; the climbing gym's wall is visible through glass.
+- **Tone**: stylized-realistic urban daytime. Not photoreal, not cartoon
+  low-poly. References: GTA 5 daylight, sunny promotional-shot energy.
+  Confident lighting is the art style: strong warm sun, crisp long shadows,
+  saturated facade colors against a blue sky, cool interiors that invite you
+  out of the heat.
 - **It is a place, not a menu**: content surfaces diegetically (posters on
   walls, records in bins, covers on cabinets). Deep links to the regular site
   pages appear as in-world interactions, never as floating UI chrome.
@@ -37,8 +37,8 @@ tooling, and iteration, and is expected to self-test visually.
 ## 3. The Block
 
 One rectangular city block, walkable perimeter street plus one cut-through
-alley. Fixed nighttime. Light rain state permitted if it serves the look
-(wet ground is required regardless). Building lineup, each with a street-legible
+alley. Fixed bright daytime (late-morning sun from the south-east so the main
+frontage is lit). Building lineup, each with a street-legible
 exterior and an enterable interior furnished from build data:
 
 | Building | Site section | Exterior identity | Interior data furnishing |
@@ -100,16 +100,20 @@ corresponding page on the 2D site.
 
 Screenshot-judged. Acceptance means all of:
 
-- Wet asphalt with real reflections of signage (SSR or planar; puddle detail
-  encouraged) — this is the signature shot.
-- Emissive neon and marquee lighting that actually illuminates surroundings
-  (bloom + local lights); readable text on signage.
-- Dynamic shadows from at least the key street lights; interiors relit on
-  entry with their own warm scheme.
-- Volumetric or convincingly faked light shafts / fog glow around major signs.
-- Post stack: tonemapped HDR, bloom, subtle vignette + grain; no raw-Three.js
-  default look anywhere.
-- Cohesion: one palette discipline across all buildings (cool night base,
+- Bright, believable daylight: physical sky, strong warm sun, crisp
+  high-resolution shadows with soft edges — the sunny street corner is the
+  signature shot.
+- Material variety that reads in daylight: facade textures/trim, asphalt and
+  sidewalk surface detail, storefront glass with visible interiors or
+  convincing reflections.
+- Signage readable as printed/built objects (marquee letters, painted signs,
+  window art) rather than night neon; subtle emissive only where a lit sign
+  would plausibly be on during the day.
+- Ambient occlusion (SSAO or baked) grounding buildings and props; interiors
+  with their own cooler, softer light scheme on entry.
+- Post stack: tonemapped HDR, gentle bloom on highlights, subtle vignette +
+  grain; no raw-Three.js default look anywhere.
+- Cohesion: one palette discipline across all buildings (warm sun-washed base,
   per-building accent hues). A screenshot of any corner should look composed.
 
 ## 8. Performance & quality policy
@@ -167,7 +171,7 @@ next begins.
 1. **Ambient life**: none in v1. Empty, quiet block; pets only.
 2. **Pets**: the actual pets, stylized from their photos (see §3 table) —
    recognizability is the point.
-3. **Time**: locked night. Build-seeded daily variation is a possible later
-   addition, not v1.
+3. **Time**: locked bright daytime (revised from night during M0 review).
+   Build-seeded variation is a possible later addition, not v1.
 4. **Entry**: `/world` is unlisted — no links from the site, no sitemap entry,
    `noindex` meta. Shared by URL only, in the ?audio=on tradition.

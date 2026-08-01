@@ -3,6 +3,7 @@
 // (screenshot bookmarks, teleport, scripted walk, frame stats).
 
 import * as THREE from 'three';
+import { Sky } from 'three/addons/objects/Sky.js';
 import { buildBlock } from './graybox';
 import { loadCharacter } from './character';
 import { PlayerController } from './controller';
@@ -33,26 +34,40 @@ export async function boot(container: HTMLElement): Promise<void> {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.35;
+  renderer.toneMappingExposure = 0.85;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0c14);
-  scene.fog = new THREE.FogExp2(0x0a0c14, 0.0065);
+  // Light distance haze only — bright day, long sightlines
+  scene.fog = new THREE.FogExp2(0xc4d7ea, 0.0016);
 
-  // Night base light: faint cool moon + soft sky bounce
-  const moon = new THREE.DirectionalLight(0x8fa5cc, 1.5);
-  moon.position.set(-60, 90, -40);
-  moon.castShadow = true;
-  moon.shadow.mapSize.set(2048, 2048);
-  moon.shadow.camera.left = -80;
-  moon.shadow.camera.right = 80;
-  moon.shadow.camera.top = 80;
-  moon.shadow.camera.bottom = -80;
-  moon.shadow.camera.far = 250;
-  moon.shadow.bias = -0.0004;
-  scene.add(moon);
-  scene.add(new THREE.HemisphereLight(0x2a3a54, 0x101216, 1.1));
+  // GTA-5-style bright daylight: physical sky + strong warm sun
+  const sky = new Sky();
+  sky.scale.setScalar(2000);
+  const sunDir = new THREE.Vector3().setFromSphericalCoords(
+    1, THREE.MathUtils.degToRad(44), THREE.MathUtils.degToRad(28),
+  );
+  const skyU = (sky.material as THREE.ShaderMaterial).uniforms;
+  skyU.sunPosition.value.copy(sunDir);
+  skyU.turbidity.value = 6;
+  skyU.rayleigh.value = 2.2;
+  skyU.mieCoefficient.value = 0.004;
+  skyU.mieDirectionalG.value = 0.8;
+  scene.add(sky);
+
+  const sun = new THREE.DirectionalLight(0xfff2dd, 3.2);
+  sun.position.copy(sunDir).multiplyScalar(160);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(4096, 4096);
+  sun.shadow.camera.left = -90;
+  sun.shadow.camera.right = 90;
+  sun.shadow.camera.top = 90;
+  sun.shadow.camera.bottom = -90;
+  sun.shadow.camera.far = 400;
+  sun.shadow.bias = -0.0003;
+  sun.shadow.normalBias = 0.02;
+  scene.add(sun);
+  scene.add(new THREE.HemisphereLight(0x9ec2ee, 0x6b6f66, 1.3));
 
   const block = buildBlock();
   scene.add(block.group);

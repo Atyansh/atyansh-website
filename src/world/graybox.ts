@@ -407,11 +407,11 @@ export function buildBlock(glassEnv?: THREE.Texture): BlockGeometry {
   const headMat = new THREE.MeshStandardMaterial({ color: 0xe8e9ec, roughness: 0.4 });
   for (const l of LAMPS) {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 5.4, 8), poleMat);
-    pole.position.set(l.x, 2.7, l.z);
+    pole.position.set(l.x, CURB_H + 2.7, l.z);
     pole.castShadow = true;
     group.add(pole);
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), headMat);
-    head.position.set(l.x, 5.5, l.z);
+    head.position.set(l.x, CURB_H + 5.5, l.z);
     group.add(head);
     colliders.push({ minX: l.x - 0.18, maxX: l.x + 0.18, minZ: l.z - 0.18, maxZ: l.z + 0.18 });
   }

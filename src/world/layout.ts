@@ -71,10 +71,10 @@ export const KIOSK = {
   w: 3.4, d: 3.0, h: 3.2,
 };
 
-// Streetlight positions (perimeter, staggered)
+// Streetlight positions: on the block sidewalk at the curb edge
 export const LAMPS: Array<{ x: number; z: number }> = [
-  { x: -30, z: 38 }, { x: 0, z: 38 }, { x: 30, z: 38 },
-  { x: -30, z: -38 }, { x: 0, z: -38 }, { x: 30, z: -38 },
-  { x: -53, z: 15 }, { x: -53, z: -15 },
-  { x: 53, z: 15 }, { x: 53, z: -15 },
+  { x: -30, z: 33.7 }, { x: 0, z: 33.7 }, { x: 30, z: 33.7 },
+  { x: -30, z: -33.7 }, { x: 0, z: -33.7 }, { x: 30, z: -33.7 },
+  { x: -48.7, z: 15 }, { x: -48.7, z: -15 },
+  { x: 48.7, z: 15 }, { x: 48.7, z: -15 },
 ];

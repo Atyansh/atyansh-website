@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import type { ColliderRect } from './types';
 import { sampleGroundY } from './graybox';
 
-const WALK_SPEED = 2.2;
-const RUN_SPEED = 5.2;
+const WALK_SPEED = 3.0;
+const RUN_SPEED = 6.8;
 const ACCEL = 18;
 const DECEL = 22;
 const TURN_RATE = 12; // rad/s toward desired heading

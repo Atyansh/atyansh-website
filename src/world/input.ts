@@ -7,9 +7,12 @@ export class Input {
   dy = 0;
   pointerLocked = false;
 
+  private jumpQueued = false;
+
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.repeat) return;
     this.keys.add(e.code);
+    if (e.code === 'Space') this.jumpQueued = true;
   };
   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.code);
   private onMouseMove = (e: MouseEvent) => {
@@ -83,6 +86,13 @@ export class Input {
 
   get sprinting(): boolean {
     return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+  }
+
+  /** True once per Space press */
+  consumeJump(): boolean {
+    const j = this.jumpQueued;
+    this.jumpQueued = false;
+    return j;
   }
 
   /** Read and clear accumulated mouse deltas */

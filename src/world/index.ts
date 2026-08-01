@@ -216,7 +216,7 @@ export async function boot(container: HTMLElement): Promise<void> {
       sprint = script.sprint;
     }
 
-    controller.update(dt, move, sprint, followCam.yaw);
+    controller.update(dt, move, sprint, followCam.yaw, script ? false : input.consumeJump());
     character.update(dt, controller.speed);
     character.root.position.copy(controller.position);
     character.root.rotation.y = controller.heading;

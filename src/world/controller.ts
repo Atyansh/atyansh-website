@@ -12,12 +12,16 @@ const ACCEL = 18;
 const DECEL = 22;
 const TURN_RATE = 12; // rad/s toward desired heading
 const RADIUS = 0.42;  // player capsule radius (XZ)
+const JUMP_SPEED = 7.2; // m/s up (apex ~1.3m at GRAVITY 20 — comfortably vaults the park fence)
+const GRAVITY = 20;     // m/s^2, game-y for a snappy arc
 
 export class PlayerController {
   position = new THREE.Vector3(0, 0, 0);
   /** Facing angle around Y (0 = +Z) */
   heading = 0;
   speed = 0;
+  grounded = true;
+  private vy = 0;
   private groundY = 0;
 
   constructor(private colliders: ColliderRect[], spawn: THREE.Vector3) {
@@ -31,6 +35,7 @@ export class PlayerController {
     move: { x: number; y: number },
     sprinting: boolean,
     cameraYaw: number,
+    jump = false,
   ): void {
     const wish = Math.hypot(move.x, move.y);
     const targetSpeed = wish > 0 ? (sprinting ? RUN_SPEED : WALK_SPEED) * wish : 0;
@@ -57,10 +62,26 @@ export class PlayerController {
       this.moveWithCollision(dx, dz);
     }
 
-    // Ground height (curbs): smooth vertical follow so steps don't pop
+    // Vertical: grounded follows terrain smoothly; airborne integrates
     const targetY = sampleGroundY(this.position.x, this.position.z);
-    this.groundY += (targetY - this.groundY) * Math.min(1, dt * 14);
-    this.position.y = this.groundY;
+    if (this.grounded && jump) {
+      this.grounded = false;
+      this.vy = JUMP_SPEED;
+    }
+    if (this.grounded) {
+      // Smooth curb step-up so steps don't pop
+      this.groundY += (targetY - this.groundY) * Math.min(1, dt * 14);
+      this.position.y = this.groundY;
+    } else {
+      this.vy -= GRAVITY * dt;
+      this.position.y += this.vy * dt;
+      if (this.vy <= 0 && this.position.y <= targetY) {
+        this.position.y = targetY;
+        this.groundY = targetY;
+        this.vy = 0;
+        this.grounded = true;
+      }
+    }
   }
 
   private moveWithCollision(dx: number, dz: number): void {
@@ -73,6 +94,8 @@ export class PlayerController {
 
   private resolve(axis: 'x' | 'z'): void {
     for (const c of this.colliders) {
+      // Height-limited obstacles (fences) are cleared once feet pass their top
+      if (c.top !== undefined && this.position.y >= c.top) continue;
       const nx = clamp(this.position.x, c.minX, c.maxX);
       const nz = clamp(this.position.z, c.minZ, c.maxZ);
       const ddx = this.position.x - nx;

@@ -18,7 +18,7 @@ export class Hud {
       'transition:opacity .3s;text-align:center;';
     this.gate.innerHTML =
       '<div style="font-size:28px;font-weight:700;letter-spacing:.12em">THE BLOCK</div>' +
-      '<div style="opacity:.75;font-size:14px">click to walk — WASD move · mouse look · shift run · esc release</div>';
+      '<div style="opacity:.75;font-size:14px">click to walk — WASD move · mouse look · shift run · space jump · esc release</div>';
     this.root.appendChild(this.gate);
 
     this.prompt = document.createElement('div');

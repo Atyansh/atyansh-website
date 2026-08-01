@@ -126,15 +126,15 @@ export function buildBlock(): BlockGeometry {
   // Park bench-height fence along its inner edges (visual only, low)
   const fenceMat = new THREE.MeshStandardMaterial({ color: 0x2c2f36, roughness: 0.8 });
   const fenceS = new THREE.Mesh(
-    new THREE.BoxGeometry(PARK.maxX - PARK.minX, 0.9, 0.15), fenceMat);
-  fenceS.position.set((PARK.minX + PARK.maxX) / 2, CURB_H + 0.45, PARK.maxZ);
+    new THREE.BoxGeometry(PARK.maxX - PARK.minX, 0.62, 0.15), fenceMat);
+  fenceS.position.set((PARK.minX + PARK.maxX) / 2, CURB_H + 0.31, PARK.maxZ);
   group.add(fenceS);
-  colliders.push({ minX: PARK.minX, maxX: PARK.maxX, minZ: PARK.maxZ - 0.1, maxZ: PARK.maxZ + 0.1 });
+  colliders.push({ minX: PARK.minX, maxX: PARK.maxX, minZ: PARK.maxZ - 0.1, maxZ: PARK.maxZ + 0.1, top: CURB_H + 0.66 });
   const fenceW = new THREE.Mesh(
-    new THREE.BoxGeometry(0.15, 0.9, PARK.maxZ - PARK.minZ), fenceMat);
-  fenceW.position.set(PARK.minX, CURB_H + 0.45, (PARK.minZ + PARK.maxZ) / 2);
+    new THREE.BoxGeometry(0.15, 0.62, PARK.maxZ - PARK.minZ), fenceMat);
+  fenceW.position.set(PARK.minX, CURB_H + 0.31, (PARK.minZ + PARK.maxZ) / 2);
   group.add(fenceW);
-  colliders.push({ minX: PARK.minX - 0.1, maxX: PARK.minX + 0.1, minZ: PARK.minZ, maxZ: PARK.maxZ });
+  colliders.push({ minX: PARK.minX - 0.1, maxX: PARK.minX + 0.1, minZ: PARK.minZ, maxZ: PARK.maxZ, top: CURB_H + 0.66 });
 
   // ---- Buildings ----
   const shellMats = new Map<string, THREE.MeshStandardMaterial>();

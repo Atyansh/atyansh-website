@@ -28,6 +28,9 @@ export interface ColliderRect {
   maxX: number;
   minZ: number;
   maxZ: number;
+  /** World-space top of the obstacle; omitted = infinitely tall.
+      A jumping player whose feet clear `top` passes over. */
+  top?: number;
 }
 
 export interface DoorTrigger {

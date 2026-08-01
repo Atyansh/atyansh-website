@@ -271,12 +271,12 @@ export function buildBlock(glassEnv?: THREE.Texture): BlockGeometry {
     // Awning (shops only)
     if (AWNINGS.has(b.id)) {
       const awn = new THREE.Mesh(
-        new THREE.BoxGeometry(glassLen * 0.7, 0.08, 1.5),
+        new THREE.BoxGeometry(glassLen * 0.7, 0.08, 1.15),
         new THREE.MeshStandardMaterial({
           map: awningTexture(b.accent), roughness: 0.9, side: THREE.DoubleSide,
         }),
       );
-      awn.position.set(door.x + out.x * 0.9, CURB_H + GF_H - 0.55, door.z + out.z * 0.9);
+      awn.position.set(door.x + out.x * 0.75, CURB_H + 3.42, door.z + out.z * 0.75);
       awn.rotation.y = rot;
       // Tilt down toward the street in the facade's local frame
       awn.rotateX(0.3);
@@ -336,7 +336,7 @@ export function buildBlock(glassEnv?: THREE.Texture): BlockGeometry {
           }),
           frameMat],
       );
-      sign.position.set(door.x + out.x * 0.35, CURB_H + GF_H - 0.62, door.z + out.z * 0.35);
+      sign.position.set(door.x + out.x * 0.35, CURB_H + GF_H - 0.28, door.z + out.z * 0.35);
       sign.rotation.y = rot;
       group.add(sign);
     }

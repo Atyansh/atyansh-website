@@ -29,8 +29,8 @@ tooling, and iteration, and is expected to self-test visually.
 - No ambient life in v1 — no pedestrians or background creatures. The block is
   a quiet night; the only living things are the pets in the park.
 - No multiplayer. No persistence beyond localStorage (settings, last position).
-- No replacement of the regular site: `/world` is an optional layer, linked
-  from the homepage; the 2D site remains canonical.
+- No replacement of the regular site: `/world` is an optional, unlisted
+  layer; the 2D site remains canonical.
 - No photorealism claims: quality bar is "cohesive and intentional," judged by
   screenshots, not by proximity to AAA.
 

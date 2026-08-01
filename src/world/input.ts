@@ -24,12 +24,27 @@ export class Input {
     this.pointerLocked = document.pointerLockElement === this.el;
     if (!this.pointerLocked) this.keys.clear();
   };
+  // Belt-and-suspenders: release capture and clear input state whenever the
+  // page is hidden, unloaded, or loses focus — the world must never hold the
+  // pointer or phantom keys beyond its own visible lifetime.
+  private releaseAll = () => {
+    this.keys.clear();
+    this.dx = 0;
+    this.dy = 0;
+    if (document.pointerLockElement) document.exitPointerLock();
+  };
+  private onVisibility = () => {
+    if (document.hidden) this.releaseAll();
+  };
 
   constructor(private el: HTMLElement) {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('mousemove', this.onMouseMove);
     document.addEventListener('pointerlockchange', this.onLockChange);
+    document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener('pagehide', this.releaseAll);
+    window.addEventListener('blur', this.releaseAll);
     // Any click on the page is a valid gesture to (re)acquire the lock.
     document.addEventListener('click', () => {
       if (this.pointerLocked) return;
@@ -68,9 +83,13 @@ export class Input {
   }
 
   dispose(): void {
+    this.releaseAll();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('mousemove', this.onMouseMove);
     document.removeEventListener('pointerlockchange', this.onLockChange);
+    document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener('pagehide', this.releaseAll);
+    window.removeEventListener('blur', this.releaseAll);
   }
 }

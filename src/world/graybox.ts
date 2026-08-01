@@ -269,6 +269,52 @@ export function buildBlock(): BlockGeometry {
     colliders.push({ minX: l.x - 0.18, maxX: l.x + 0.18, minZ: l.z - 0.18, maxZ: l.z + 0.18 });
   });
 
+  // ---- Surroundings: the city continues beyond the playable block ----
+  // Extended ground to the horizon plus two rings of distant massing, so no
+  // sightline ever hits the sky's below-horizon void. Non-collidable,
+  // shadow-free, fog does the depth work.
+  {
+    const groundFar = new THREE.Mesh(
+      new THREE.PlaneGeometry(3000, 3000),
+      new THREE.MeshStandardMaterial({ color: 0x44464c, roughness: 0.95 }),
+    );
+    groundFar.rotation.x = -Math.PI / 2;
+    groundFar.position.y = -0.05;
+    group.add(groundFar);
+
+    // Deterministic pseudo-random so every build renders the same skyline
+    let seed = 1337;
+    const rand = () => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    };
+    const skyline = new THREE.Group();
+    const tints = [0x9aa2ae, 0x8b929e, 0xa6a8ad, 0x7e8894, 0xb0b3b8];
+    for (let ring = 0; ring < 2; ring++) {
+      const rMin = ring === 0 ? 120 : 260;
+      const rMax = ring === 0 ? 220 : 460;
+      const count = ring === 0 ? 42 : 30;
+      for (let k = 0; k < count; k++) {
+        const ang = (k / count) * Math.PI * 2 + rand() * 0.2;
+        const r = rMin + rand() * (rMax - rMin);
+        const w = 18 + rand() * 42;
+        const d = 18 + rand() * 42;
+        const h = ring === 0
+          ? 14 + rand() * 46
+          : 30 + rand() * 110;
+        const mat = new THREE.MeshStandardMaterial({
+          color: tints[Math.floor(rand() * tints.length)],
+          roughness: 0.95,
+        });
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(Math.cos(ang) * r, h / 2 - 0.05, Math.sin(ang) * r);
+        m.rotation.y = rand() * Math.PI;
+        skyline.add(m);
+      }
+    }
+    group.add(skyline);
+  }
+
   // ---- World edge fence colliders (invisible) ----
   colliders.push(
     { minX: WORLD_EDGE.minX - 1, maxX: WORLD_EDGE.maxX + 1, minZ: WORLD_EDGE.minZ - 1, maxZ: WORLD_EDGE.minZ },

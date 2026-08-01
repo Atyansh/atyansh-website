@@ -4,6 +4,12 @@
 
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { buildBlock } from './graybox';
 import { loadCharacter } from './character';
 import { PlayerController } from './controller';
@@ -37,9 +43,30 @@ export async function boot(container: HTMLElement): Promise<void> {
   renderer.toneMappingExposure = 0.85;
   container.appendChild(renderer.domElement);
 
+  // Post stack (brief §7): GTAO grounding, gentle bloom, vignette + grain
+  const composer = new EffectComposer(renderer);
+  let composerCam: THREE.PerspectiveCamera | null = null;
+  const vignetteGrain = new ShaderPass(new THREE.ShaderMaterial({
+    uniforms: {
+      tDiffuse: { value: null },
+      time: { value: 0 },
+    },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `
+      uniform sampler2D tDiffuse; uniform float time; varying vec2 vUv;
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+      void main(){
+        vec4 c = texture2D(tDiffuse, vUv);
+        float d = distance(vUv, vec2(0.5));
+        c.rgb *= smoothstep(0.95, 0.42, d) * 0.18 + 0.86;      // vignette
+        c.rgb += (hash(vUv * 971.0 + time) - 0.5) * 0.012;      // grain
+        gl_FragColor = c;
+      }`,
+  }), 'tDiffuse');
+
   const scene = new THREE.Scene();
   // Light distance haze only — bright day, long sightlines
-  scene.fog = new THREE.FogExp2(0xc4d7ea, 0.0016);
+  scene.fog = new THREE.FogExp2(0xaec8e8, 0.0012);
 
   // GTA-5-style bright daylight: physical sky + strong warm sun
   const sky = new Sky();
@@ -49,11 +76,33 @@ export async function boot(container: HTMLElement): Promise<void> {
   );
   const skyU = (sky.material as THREE.ShaderMaterial).uniforms;
   skyU.sunPosition.value.copy(sunDir);
-  skyU.turbidity.value = 6;
-  skyU.rayleigh.value = 2.2;
+  skyU.turbidity.value = 2.5;
+  skyU.rayleigh.value = 1.6;
   skyU.mieCoefficient.value = 0.004;
   skyU.mieDirectionalG.value = 0.8;
   scene.add(sky);
+
+  // Image-based lighting from the sky itself: sun-tinted ambient with real
+  // directionality, and something for glass/metal to reflect.
+  {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envScene = new THREE.Scene();
+    const envSky = new Sky();
+    envSky.scale.setScalar(2000);
+    const u = (envSky.material as THREE.ShaderMaterial).uniforms;
+    u.sunPosition.value.copy(sunDir);
+    u.turbidity.value = 2.5;
+    u.rayleigh.value = 1.6;
+    // No mie scattering in the env sky: kills the sun DISK so the IBL is the
+    // blue dome only — direct sun stays the DirectionalLight's job.
+    u.mieCoefficient.value = 0.00001;
+    envScene.add(envSky);
+    // Not used for scene-wide lighting (it washed out the frame — the sky
+    // dome integrates to a huge diffuse term). Stashed for selective use as
+    // envMap on glass/metal materials in the facade pass.
+    scene.userData.skyEnv = pmrem.fromScene(envScene, 0.02).texture;
+    pmrem.dispose();
+  }
 
   const sun = new THREE.DirectionalLight(0xfff2dd, 3.2);
   sun.position.copy(sunDir).multiplyScalar(160);
@@ -134,6 +183,7 @@ export async function boot(container: HTMLElement): Promise<void> {
   // ---- Resize ----
   const onResize = () => {
     renderer.setSize(container.clientWidth, container.clientHeight);
+    composer.setSize(container.clientWidth, container.clientHeight);
     followCam.setAspect(container.clientWidth / container.clientHeight);
   };
   window.addEventListener('resize', onResize);
@@ -183,12 +233,26 @@ export async function boot(container: HTMLElement): Promise<void> {
     hud.showDoorPrompt(nearDoor ? nearDoor.name : null);
     hud.setLocked(input.pointerLocked || camOverride !== null || script !== null);
 
-    let cam = followCam.camera;
+    const cam = followCam.camera;
     if (camOverride) {
       cam.position.set(...camOverride.pos);
       cam.lookAt(...camOverride.look);
-      cam = followCam.camera;
     }
-    renderer.render(scene, cam);
+    if (composerCam !== cam) {
+      composerCam = cam;
+      composer.passes.length = 0;
+      composer.addPass(new RenderPass(scene, cam));
+      const gtao = new GTAOPass(scene, cam, container.clientWidth, container.clientHeight);
+      gtao.output = GTAOPass.OUTPUT.Default;
+      composer.addPass(gtao);
+      composer.addPass(new UnrealBloomPass(
+        new THREE.Vector2(container.clientWidth, container.clientHeight),
+        0.08, 0.5, 1.0,
+      ));
+      composer.addPass(vignetteGrain);
+      composer.addPass(new OutputPass());
+    }
+    (vignetteGrain.material as THREE.ShaderMaterial).uniforms.time.value = clock.elapsedTime % 10;
+    composer.render();
   });
 }

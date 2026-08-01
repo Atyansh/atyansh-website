@@ -118,7 +118,7 @@ export async function boot(container: HTMLElement): Promise<void> {
   scene.add(sun);
   scene.add(new THREE.HemisphereLight(0x9ec2ee, 0x6b6f66, 1.3));
 
-  const block = buildBlock();
+  const block = buildBlock(scene.userData.skyEnv as THREE.Texture);
   scene.add(block.group);
 
   const character = await loadCharacter();

@@ -20,7 +20,7 @@ export class FollowCamera {
   private ray = new THREE.Raycaster();
   private currentBoom = BOOM_LENGTH;
 
-  constructor(aspect: number, private blockers: THREE.Object3D[]) {
+  constructor(aspect: number, public blockers: THREE.Object3D[]) {
     this.camera = new THREE.PerspectiveCamera(62, aspect, 0.1, 400);
   }
 

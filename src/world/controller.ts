@@ -4,7 +4,6 @@
 
 import * as THREE from 'three';
 import type { ColliderRect } from './types';
-import { sampleGroundY } from './graybox';
 
 const WALK_SPEED = 3.0;
 const RUN_SPEED = 6.8;
@@ -24,10 +23,25 @@ export class PlayerController {
   private vy = 0;
   private groundY = 0;
 
-  constructor(private colliders: ColliderRect[], spawn: THREE.Vector3) {
+  constructor(
+    public colliders: ColliderRect[],
+    spawn: THREE.Vector3,
+    public groundFn: (x: number, z: number) => number,
+  ) {
     this.position.copy(spawn);
-    this.groundY = sampleGroundY(spawn.x, spawn.z);
+    this.groundY = this.groundFn(spawn.x, spawn.z);
     this.position.y = this.groundY;
+  }
+
+  /** Hard swap for level transitions */
+  setLevel(colliders: ColliderRect[], groundFn: (x: number, z: number) => number, x: number, z: number, heading: number): void {
+    this.colliders = colliders;
+    this.groundFn = groundFn;
+    this.position.set(x, groundFn(x, z), z);
+    this.groundY = this.position.y;
+    this.heading = heading;
+    this.speed = 0;
+    this.grounded = true;
   }
 
   update(
@@ -63,7 +77,7 @@ export class PlayerController {
     }
 
     // Vertical: grounded follows terrain smoothly; airborne integrates
-    const targetY = sampleGroundY(this.position.x, this.position.z);
+    const targetY = this.groundFn(this.position.x, this.position.z);
     if (this.grounded && jump) {
       this.grounded = false;
       this.vy = JUMP_SPEED;

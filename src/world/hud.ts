@@ -40,6 +40,20 @@ export class Hud {
     this.root.style.display = 'none';
   }
 
+  /** Quick black fade for level transitions; midpoint callback swaps the world */
+  fade(mid: () => void, ms = 260): void {
+    const f = document.createElement('div');
+    f.style.cssText =
+      `position:absolute;inset:0;background:#04050a;opacity:0;transition:opacity ${ms}ms;z-index:10;`;
+    this.root.appendChild(f);
+    requestAnimationFrame(() => { f.style.opacity = '1'; });
+    setTimeout(() => {
+      mid();
+      f.style.opacity = '0';
+      setTimeout(() => f.remove(), ms + 60);
+    }, ms + 30);
+  }
+
   showDoorPrompt(name: string | null): void {
     if (name) {
       this.prompt.textContent = `⏎  enter ${name}`;

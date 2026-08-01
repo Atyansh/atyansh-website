@@ -18,6 +18,9 @@ const path = require('path');
 const CACHE = '.cache';
 const OUT_DIR = path.join('dist', 'world');
 const ART_DIR = path.join(OUT_DIR, 'art');
+// Persistent download cache: survives rebuilds locally and rides the
+// build-cache GCS sync in CI, so ~800 images aren't re-fetched every build.
+const DL_CACHE = path.join(CACHE, 'world-art');
 
 function readCache(name) {
   try {
@@ -28,36 +31,48 @@ function readCache(name) {
   }
 }
 
-async function download(url, file) {
+const crypto = require('crypto');
+
+async function fetchCached(url) {
+  const key = crypto.createHash('md5').update(url).digest('hex');
+  const cached = path.join(DL_CACHE, `${key}.jpg`);
+  if (fs.existsSync(cached)) return cached;
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' },
       signal: AbortSignal.timeout(15000),
     });
-    if (!res.ok) return false;
+    if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length < 500) return false; // not an image
-    fs.writeFileSync(file, buf);
-    return true;
+    if (buf.length < 500) return null; // not an image
+    fs.writeFileSync(cached, buf);
+    return cached;
   } catch {
-    return false;
+    return null;
   }
 }
 
-async function collect(category, items, limit) {
-  const out = [];
-  const queue = items.slice(0, limit * 2); // headroom for failures
-  let i = 0;
-  for (const item of queue) {
-    if (out.length >= limit) break;
-    if (!item.url) continue;
-    const file = `${category}-${i}.jpg`;
-    if (await download(item.url, path.join(ART_DIR, file))) {
-      out.push({ title: item.title, art: `/world/art/${file}`, ...item.extra });
-      i++;
+/** Download all items (bounded concurrency), copy into dist, keep order */
+async function collect(category, items) {
+  const queue = items.filter((it) => it.url);
+  const results = new Array(queue.length).fill(null);
+  let next = 0;
+  const workers = Array.from({ length: 10 }, async () => {
+    for (;;) {
+      const idx = next++;
+      if (idx >= queue.length) return;
+      results[idx] = await fetchCached(queue[idx].url);
     }
-  }
-  console.log(`  ${category}: ${out.length} items`);
+  });
+  await Promise.all(workers);
+  const out = [];
+  queue.forEach((item, idx) => {
+    if (!results[idx]) return;
+    const file = `${category}-${out.length}.jpg`;
+    fs.copyFileSync(results[idx], path.join(ART_DIR, file));
+    out.push({ title: item.title, art: `/world/art/${file}`, ...item.extra });
+  });
+  console.log(`  ${category}: ${out.length}/${queue.length} items`);
   return out;
 }
 
@@ -67,6 +82,7 @@ async function main() {
     return;
   }
   fs.mkdirSync(ART_DIR, { recursive: true });
+  fs.mkdirSync(DL_CACHE, { recursive: true });
   console.log('Building world-data...');
 
   const letterboxd = readCache('letterboxd-data');
@@ -82,18 +98,18 @@ async function main() {
 
   if (letterboxd?.movies) {
     data.movies = await collect('movies',
-      letterboxd.movies.map((m) => ({ title: m.title, url: m.posterImage })), 24);
+      letterboxd.movies.map((m) => ({ title: m.title, url: m.posterImage })));
   }
   if (tmdb?.shows) {
     data.tv = await collect('tv',
-      tmdb.shows.map((s) => ({ title: s.title, url: s.posterImage })), 10);
+      tmdb.shows.map((s) => ({ title: s.title, url: s.posterImage })));
   }
   if (spotify?.savedAlbums) {
     data.music = await collect('music',
       spotify.savedAlbums.map((a) => ({
         title: a.name, url: a.images?.[0]?.url,
         extra: { artist: a.artists?.[0]?.name },
-      })), 12);
+      })));
   }
   if (steam?.games && igdb) {
     const sorted = [...steam.games].sort((a, b) => b.playtime_forever - a.playtime_forever);
@@ -102,15 +118,15 @@ async function main() {
         title: g.name,
         url: igdb[`steam:${g.appid}`]?.url,
         extra: { hours: Math.round(g.playtime_forever / 60) },
-      })).filter((g) => g.url), 10);
+      })).filter((g) => g.url));
   }
   if (books?.books) {
     data.books = await collect('books',
-      books.books.map((b) => ({ title: b.title, url: b.coverImage })), 10);
+      books.books.map((b) => ({ title: b.title, url: b.coverImage })));
   }
   if (anime?.anime) {
     data.anime = await collect('anime',
-      anime.anime.map((a) => ({ title: a.title, url: a.imageUrl })), 10);
+      anime.anime.map((a) => ({ title: a.title, url: a.imageUrl })));
   }
   if (kaya?.pyramid) {
     data.climbing = kaya.pyramid

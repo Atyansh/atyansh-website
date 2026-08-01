@@ -10,7 +10,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { buildBlock } from './graybox';
+import { buildBlock, sampleGroundY } from './graybox';
+import { buildInteriorLevels, type InteriorLevel } from './environments';
 import { loadCharacter } from './character';
 import { PlayerController } from './controller';
 import { FollowCamera } from './camera';
@@ -31,10 +32,10 @@ const BOOKMARKS: Record<string, CamBookmark> = {
   park: { pos: [50, 2.6, -2], look: [32, 2, -16] },
   alley: { pos: [2, 2.2, 44], look: [2, 3, -30] },
   overview: { pos: [-70, 55, 80], look: [0, 0, 0] },
-  cinemaIn: { pos: [-11, 2.6, 29], look: [-11, 2.2, 12] },
-  arcadeIn: { pos: [25, 2.4, 29], look: [25, 1.6, 14] },
-  climbIn: { pos: [-34, 3.4, -27], look: [-34, 4.2, -9] },
-  recordsIn: { pos: [11, 2.4, 29.5], look: [11, 1.8, 16] },
+  cinemaIn: { pos: [2000, 3.0, 22], look: [2000, 2.2, -24] },
+  recordsIn: { pos: [2500, 2.6, 13], look: [2500, 1.6, -14] },
+  arcadeIn: { pos: [3000, 2.6, 15], look: [3000, 1.6, -16] },
+  climbIn: { pos: [5000, 4.5, 19], look: [5000, 5.5, -20] },
 };
 
 export async function boot(container: HTMLElement): Promise<void> {
@@ -120,7 +121,8 @@ export async function boot(container: HTMLElement): Promise<void> {
   sun.shadow.bias = -0.0003;
   sun.shadow.normalBias = 0.02;
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0x9ec2ee, 0x6b6f66, 1.3));
+  const hemi = new THREE.HemisphereLight(0x9ec2ee, 0x6b6f66, 1.3);
+  scene.add(hemi);
 
   const worldData = await fetch('/world/world-data.json')
     .then((r) => (r.ok ? r.json() : null))
@@ -128,11 +130,14 @@ export async function boot(container: HTMLElement): Promise<void> {
   const block = buildBlock(scene.userData.skyEnv as THREE.Texture, worldData ?? undefined);
   scene.add(block.group);
 
+  const levels = buildInteriorLevels(worldData ?? undefined);
+  for (const lvl of levels.values()) scene.add(lvl.group);
+
   const character = await loadCharacter();
   scene.add(character.root);
 
   const spawn = new THREE.Vector3(-11, 0, 40); // street in front of the cinema
-  const controller = new PlayerController(block.colliders, spawn);
+  const controller = new PlayerController(block.colliders, spawn, sampleGroundY);
   const followCam = new FollowCamera(
     container.clientWidth / container.clientHeight,
     block.cameraBlockers,
@@ -140,14 +145,49 @@ export async function boot(container: HTMLElement): Promise<void> {
   const input = new Input(renderer.domElement);
   const hud = new Hud(container);
 
-  // ---- Door proximity + enter ----
+  // ---- Levels: Enter at a door goes inside; Enter at the exit returns ----
   let nearDoor: DoorTrigger | null = null;
+  let activeLevel: InteriorLevel | null = null;
+  let returnPoint: { x: number; z: number; heading: number } | null = null;
+  const outdoorLight = { sun: sun.intensity, hemi: hemi.intensity };
+
+  const enterLevel = (lvl: InteriorLevel): void => {
+    returnPoint = {
+      x: controller.position.x, z: controller.position.z,
+      heading: controller.heading,
+    };
+    hud.fade(() => {
+      activeLevel = lvl;
+      controller.setLevel(lvl.colliders, () => 0, lvl.spawn.x, lvl.spawn.z, lvl.spawn.heading);
+      followCam.blockers = lvl.blockers;
+      followCam.yaw = lvl.spawn.heading + Math.PI;
+      sun.intensity = 0.05;
+      hemi.intensity = 0.22;
+    });
+  };
+  const exitLevel = (): void => {
+    const rp = returnPoint;
+    hud.fade(() => {
+      activeLevel = null;
+      controller.setLevel(
+        block.colliders, sampleGroundY,
+        rp?.x ?? -11, rp?.z ?? 40, rp?.heading ?? 0,
+      );
+      followCam.blockers = block.cameraBlockers;
+      followCam.yaw = (rp?.heading ?? 0) + Math.PI;
+      sun.intensity = outdoorLight.sun;
+      hemi.intensity = outdoorLight.hemi;
+    });
+  };
+
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'Enter' && nearDoor) {
-      // Release capture first, then open the 2D page in a new tab so the
-      // world session (position, loaded state) survives the visit.
-      if (document.pointerLockElement) document.exitPointerLock();
-      window.open(nearDoor.route, '_blank', 'noopener');
+    if (e.code !== 'Enter') return;
+    if (activeLevel) {
+      const dx = activeLevel.exit.x - controller.position.x;
+      const dz = activeLevel.exit.z - controller.position.z;
+      if (dx * dx + dz * dz < activeLevel.exit.radius ** 2) exitLevel();
+    } else if (nearDoor && levels.has(nearDoor.buildingId)) {
+      enterLevel(levels.get(nearDoor.buildingId)!);
     }
   });
 
@@ -163,7 +203,14 @@ export async function boot(container: HTMLElement): Promise<void> {
     },
     bookmarks: Object.keys(BOOKMARKS),
     teleport(x: number, z: number): void {
-      controller.position.set(x, 0, z);
+      controller.position.set(x, controller.groundFn(x, z), z);
+    },
+    enter(id: string): void {
+      const lvl = levels.get(id);
+      if (lvl) enterLevel(lvl);
+    },
+    exit(): void {
+      if (activeLevel) exitLevel();
     },
     /** Scripted walk through waypoints (used by the FPS probe) */
     autowalk(sprint = false): void {
@@ -233,14 +280,22 @@ export async function boot(container: HTMLElement): Promise<void> {
       input.consumeMouse(),
     );
 
-    // Door proximity
+    // Door / exit proximity prompts
     nearDoor = null;
-    for (const d of block.doors) {
-      const dx = d.x - controller.position.x;
-      const dz = d.z - controller.position.z;
-      if (dx * dx + dz * dz < d.radius * d.radius) { nearDoor = d; break; }
+    if (activeLevel) {
+      const dx = activeLevel.exit.x - controller.position.x;
+      const dz = activeLevel.exit.z - controller.position.z;
+      hud.showDoorPrompt(
+        dx * dx + dz * dz < activeLevel.exit.radius ** 2 ? 'exit to street' : null,
+      );
+    } else {
+      for (const d of block.doors) {
+        const dx = d.x - controller.position.x;
+        const dz = d.z - controller.position.z;
+        if (dx * dx + dz * dz < d.radius * d.radius) { nearDoor = d; break; }
+      }
+      hud.showDoorPrompt(nearDoor && levels.has(nearDoor.buildingId) ? nearDoor.name : null);
     }
-    hud.showDoorPrompt(nearDoor ? nearDoor.name : null);
     hud.setLocked(input.pointerLocked || camOverride !== null || script !== null);
 
     const cam = followCam.camera;

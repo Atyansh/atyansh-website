@@ -14,7 +14,6 @@ import {
 import {
   asphaltTexture, awningTexture, grassTexture, sidewalkTexture, windowsTexture,
 } from './textures';
-import { buildInteriorShell, furnishInterior, gfHeight } from './interiors';
 
 const DOOR_W = 2.6;
 const DOOR_H = 3.2;
@@ -241,15 +240,22 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
     const rot = facingRotation(b.facing);
     const door = doorPosition(b);
     const out = outwardOffset(b.facing, 1);
-    const bGF = gfHeight(b.id);
-    const upperH = b.h - bGF;
+    const upperH = b.h - GF_H;
     const floors = Math.max(1, Math.round(upperH / FLOOR_H));
 
-    // Ground floor: hollow, enterable interior (M2b)
+    // Ground floor: solid base (interiors are separate levels — see environments.ts)
     const baseColor = new THREE.Color(0x9c968b).lerp(new THREE.Color(b.accent), 0.22);
-    const ctx = { group, colliders, blockers: cameraBlockers, doors };
-    const frame = buildInteriorShell(b, ctx, baseColor, interiorFloorColor(b.id));
-    furnishInterior(b, ctx, data, frame);
+    const gfMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.85 });
+    const gf = new THREE.Mesh(new THREE.BoxGeometry(b.w, GF_H, b.d), gfMat);
+    gf.position.set(b.x, CURB_H + GF_H / 2, b.z);
+    gf.castShadow = true;
+    gf.receiveShadow = true;
+    group.add(gf);
+    cameraBlockers.push(gf);
+    colliders.push({
+      minX: b.x - b.w / 2, maxX: b.x + b.w / 2,
+      minZ: b.z - b.d / 2, maxZ: b.z + b.d / 2,
+    });
 
     // Upper floors: window-grid texture per face, repeats matched to size
     if (upperH > 0.5) {
@@ -266,7 +272,7 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
         new THREE.BoxGeometry(b.w, upperH, b.d),
         [matX, matX, roofMat, roofMat, matZ, matZ],
       );
-      upper.position.set(b.x, CURB_H + bGF + upperH / 2, b.z);
+      upper.position.set(b.x, CURB_H + GF_H + upperH / 2, b.z);
       upper.castShadow = true;
       upper.receiveShadow = true;
       group.add(upper);
@@ -274,7 +280,7 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
 
       // Parapet cap
       const cap = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.4, 0.35, b.d + 0.4), parapetMat);
-      cap.position.set(b.x, CURB_H + b.h + 0.17, b.z);
+      cap.position.set(b.x, CURB_H + b.h + 0.178, b.z);
       group.add(cap);
     }
 
@@ -282,18 +288,17 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
     const facadeLen = b.facing === 's' || b.facing === 'n' ? b.w : b.d;
     const glassLen = facadeLen * 0.82;
     const glassH = 2.7;
-    const segLen = (glassLen - 3.0) / 2; // flank the real door opening
-    for (const side of [-1, 1]) {
-      const glass = new THREE.Mesh(new THREE.BoxGeometry(segLen, glassH, 0.12), glassMat);
-      const along = side * (3.0 / 2 + segLen / 2);
-      glass.position.set(
-        door.x + out.x * 0.08 + Math.cos(rot) * along,
-        CURB_H + 0.5 + glassH / 2,
-        door.z + out.z * 0.08 - Math.sin(rot) * along,
-      );
-      glass.rotation.y = rot;
-      group.add(glass);
-    }
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(glassLen, glassH, 0.12), glassMat);
+    glass.position.set(door.x + out.x * 0.08, CURB_H + 0.5 + glassH / 2, door.z + out.z * 0.08);
+    glass.rotation.y = rot;
+    group.add(glass);
+    const recess = new THREE.Mesh(
+      new THREE.BoxGeometry(DOOR_W, DOOR_H, 0.35),
+      new THREE.MeshStandardMaterial({ color: 0x101114, roughness: 0.5 }),
+    );
+    recess.position.set(door.x + out.x * 0.16, CURB_H + DOOR_H / 2, door.z + out.z * 0.16);
+    recess.rotation.y = rot;
+    group.add(recess);
     // Frame: header + sill + end pillars
     const header = new THREE.Mesh(new THREE.BoxGeometry(glassLen + 0.4, 0.45, 0.3), frameMat);
     header.position.set(door.x + out.x * 0.1, CURB_H + 0.5 + glassH + 0.2, door.z + out.z * 0.1);
@@ -436,6 +441,10 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
       }
     }
 
+    doors.push({
+      buildingId: b.id, name: b.name, route: b.route,
+      x: door.x + out.x * 0.9, z: door.z + out.z * 0.9, radius: 2.2,
+    });
   }
 
   // ---- Block-interior filler mass (windowed, muted) ----
@@ -487,10 +496,6 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
     sign.position.set(k.x - k.w / 2 - 0.01, CURB_H + k.h - 0.5, k.z);
     sign.rotation.y = -Math.PI / 2;
     group.add(sign);
-    doors.push({
-      buildingId: k.id, name: k.name, route: k.route,
-      x: k.x - k.w / 2 - 1.2, z: k.z, radius: 1.8,
-    });
   }
 
   // ---- Streetlights ----

@@ -13,9 +13,12 @@ export class Input {
   };
   private onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.code);
   private onMouseMove = (e: MouseEvent) => {
-    if (!this.pointerLocked) return;
-    this.dx += e.movementX;
-    this.dy += e.movementY;
+    // Locked: raw deltas. Unlocked fallback: drag-look with the left button
+    // held, so the camera works even where pointer lock fails.
+    if (this.pointerLocked || (e.buttons & 1) !== 0) {
+      this.dx += e.movementX;
+      this.dy += e.movementY;
+    }
   };
   private onLockChange = () => {
     this.pointerLocked = document.pointerLockElement === this.el;
@@ -27,8 +30,15 @@ export class Input {
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('mousemove', this.onMouseMove);
     document.addEventListener('pointerlockchange', this.onLockChange);
-    el.addEventListener('click', () => {
-      if (!this.pointerLocked) el.requestPointerLock();
+    // Any click on the page is a valid gesture to (re)acquire the lock.
+    document.addEventListener('click', () => {
+      if (this.pointerLocked) return;
+      try {
+        const p = this.el.requestPointerLock() as unknown as Promise<void> | undefined;
+        p?.catch?.((err) => console.warn('pointer lock refused:', err));
+      } catch (err) {
+        console.warn('pointer lock unavailable:', err);
+      }
     });
   }
 

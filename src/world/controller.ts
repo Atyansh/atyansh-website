@@ -43,8 +43,9 @@ export class PlayerController {
     }
 
     if (wish > 0) {
-      // Desired heading is camera-relative: forward = camera forward on XZ
-      const desired = Math.atan2(move.x, move.y) + cameraYaw;
+      // Desired heading is camera-relative. cameraYaw is the boom direction
+      // (pivot -> camera); the view direction is its opposite, hence +PI.
+      const desired = Math.atan2(move.x, move.y) + cameraYaw + Math.PI;
       this.heading = dampAngle(this.heading, desired, TURN_RATE, dt);
     }
 

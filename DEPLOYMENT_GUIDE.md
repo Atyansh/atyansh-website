@@ -367,6 +367,17 @@ gcloud builds submit --config cloudbuild.yaml .
 - Compare the preview URL (https://personal-website-334502.web.app) with atyansh.com — if the preview is fresh but the domain is stale, it's browser HTML cache (1 hour); hard-refresh
 - Clear browser cache or try incognito mode
 
+## Historical Data Snapshots
+
+Every build appends the day's API caches (gzipped, ~0.4 MB/day) to
+`gs://personal-website-334502_cloudbuild/snapshots/YYYY-MM-DD/` — an append-only
+archive for future stats/"wrapped" pages. Dates use America/Los_Angeles to match
+the daily 2 AM PT cron; same-day builds overwrite the same directory (latest
+state wins), and a failed source simply keeps that day's earlier upload. The
+`build-cache/` prefix in the same bucket is a separate mechanism (rolling
+last-known-good for the stale-cache fallback) and is overwritten, not archived.
+First snapshot: 2026-07-31.
+
 ## Firebase Hosting
 
 The site is served by Firebase Hosting (Blaze plan) — its global CDN terminates TLS for atyansh.com, and every `firebase deploy` automatically purges the CDN, so new content is live immediately with no invalidation step.

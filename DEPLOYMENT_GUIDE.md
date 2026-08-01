@@ -17,7 +17,7 @@
 13. ✅ Added TV shows page with TMDB integration
 14. ✅ Added climbing page with Kaya integration
 15. ✅ Moved TV show tracking to a TMDB list + account ratings (July 2026)
-16. 🔄 Migrating hosting from GCS + Load Balancer + Cloud CDN to Firebase Hosting (July 2026 — see "Firebase Hosting Migration" below)
+16. ✅ Migrated hosting from GCS + Load Balancer + Cloud CDN to Firebase Hosting (July 2026)
 
 ## Working Configuration
 
@@ -383,29 +383,6 @@ The site is served by Firebase Hosting (Blaze plan) — its global CDN terminate
 **Cost:** hosting transfer has a 10 GB/month free allowance, then $0.15/GB. The site's real (domain-addressed) traffic is ~3.5 GB/month, so the expected bill is $0. Note that bare-IP scanner noise — which was ~60% of egress on the old load balancer — never reaches Firebase billing at all.
 
 **Analytics:** Firebase Hosting has no per-request logs — the old load balancer's logs/metrics (user agents, countries, bytes per path) are gone after teardown; the Firebase console shows only aggregate storage/transfer. Human page-view analytics come from GoatCounter (cookieless, no consent banner; snippet in BaseLayout.astro with View Transitions support). Dashboard: https://atyansh.goatcounter.com (login required).
-
-## Firebase Hosting Migration (transition state & cutover)
-
-The pipeline currently deploys to BOTH Firebase Hosting and the legacy GCS bucket. atyansh.com serves from the GCS/LB path until DNS is cut over.
-
-**Cutover steps (manual, in the Firebase console):**
-1. Hosting → Add custom domain → `atyansh.com`: add the TXT verification record and the two A records it provides to the Cloud DNS zone for atyansh.com
-2. Wait for the TLS certificate to provision (minutes to ~1 hour), verify https://atyansh.com serves from Firebase (`curl -sI https://atyansh.com | grep -i x-served-by` — Firebase responds with its own headers, no `x-goog-*`)
-
-**Post-cutover cleanup (once verified):**
-1. Remove from `cloudbuild.yaml`: the `deploy-to-gcs`, `set-asset-cache`, `set-html-cache`, and `invalidate-cdn-cache` steps
-2. Remove the legacy GCS block from `deploy.sh` and delete `scripts/invalidate-cache.sh`
-3. Tear down the load balancer stack (saves ~$18/month):
-   ```bash
-   gcloud compute forwarding-rules delete atyansh-website-forwarding-rule atyansh-website-forwarding-rul-forwarding-rule --global
-   gcloud compute target-https-proxies delete atyansh-website-target-proxy
-   gcloud compute target-http-proxies delete atyansh-website-forwarding-rul-target-proxy
-   gcloud compute url-maps delete atyansh-website
-   gcloud compute backend-buckets delete <backend-bucket-name>
-   gcloud compute ssl-certificates delete <cert-name>
-   gcloud compute addresses delete atyansh-website-ip --global
-   ```
-4. Delete the `gs://atyansh.com` bucket (the site now lives in Firebase; the `_cloudbuild` staging bucket stays — it holds the build cache)
 
 ## Files Created
 

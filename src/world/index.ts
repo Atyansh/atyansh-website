@@ -140,10 +140,11 @@ export async function boot(container: HTMLElement): Promise<void> {
       if (Math.hypot(dx, dz) < 1.5) {
         script.i = (script.i + 1) % script.targets.length;
       }
-      // Steer in camera-relative input space
+      // Steer in camera-relative input space (inverse of the controller's
+      // heading formula: desired = yaw + PI - atan2(mx, my))
       const desired = Math.atan2(dx, dz);
-      const rel = desired - followCam.yaw;
-      move = { x: Math.sin(rel), y: Math.cos(rel) };
+      const a = followCam.yaw + Math.PI - desired;
+      move = { x: Math.sin(a), y: Math.cos(a) };
       sprint = script.sprint;
     }
 

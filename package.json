@@ -19,6 +19,7 @@
     "@google-cloud/secret-manager": "^6.1.1",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.1.14",
+    "@types/three": "^0.185.3",
     "astro": "^5.14.4",
     "dotenv": "^16.4.5",
     "fast-xml-parser": "^4.5.0",
@@ -31,7 +32,8 @@
     "react-dom": "^19.2.0",
     "satori": "^0.18.3",
     "shiki": "^3.13.0",
-    "tailwindcss": "^4.1.14"
+    "tailwindcss": "^4.1.14",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.2",

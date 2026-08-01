@@ -8,7 +8,10 @@ import mdx from '@astrojs/mdx';
 // https://astro.build/config
 export default defineConfig({
   site: 'https://atyansh.com',
-  integrations: [react(), mdx(), sitemap()],
+  integrations: [react(), mdx(), sitemap({
+    // /world is unlisted (see docs/WORLD_DESIGN_BRIEF.md §12)
+    filter: (page) => !page.includes('/world'),
+  })],
   server: {
     host: true, // Allow access from local network
   },

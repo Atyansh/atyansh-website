@@ -1,0 +1,92 @@
+// Player character: Soldier.glb rig (M0 stand-in) with a speed-driven
+// idle / walk / run blend. Foot sliding is a defect (brief §4): clip
+// timescales are matched to actual ground speed.
+
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// Ground speeds (m/s) the Walk/Run clips were authored for; used to scale
+// playback so feet track the ground at any blended speed.
+const WALK_CLIP_SPEED = 1.6;
+const RUN_CLIP_SPEED = 4.4;
+
+export interface Character {
+  root: THREE.Group;
+  update(dt: number, speed: number): void;
+}
+
+export async function loadCharacter(): Promise<Character> {
+  const loader = new GLTFLoader();
+  const gltf = await loader.loadAsync('/world/soldier.glb');
+
+  const root = new THREE.Group();
+  const model = gltf.scene;
+  model.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = false;
+    }
+  });
+  // The Soldier file's forward is -Z; our controller treats +Z as forward.
+  model.rotation.y = Math.PI;
+  root.add(model);
+
+  const mixer = new THREE.AnimationMixer(model);
+  const byName = new Map(gltf.animations.map((c) => [c.name, c]));
+  const idleClip = byName.get('Idle') ?? gltf.animations[0];
+  const walkClip = byName.get('Walk') ?? gltf.animations[0];
+  const runClip = byName.get('Run') ?? walkClip;
+
+  const idle = mixer.clipAction(idleClip);
+  const walk = mixer.clipAction(walkClip);
+  const run = mixer.clipAction(runClip);
+  for (const a of [idle, walk, run]) {
+    a.enabled = true;
+    a.setEffectiveWeight(0);
+    a.play();
+  }
+  idle.setEffectiveWeight(1);
+
+  let smoothedSpeed = 0;
+
+  function update(dt: number, speed: number): void {
+    // Smooth the speed a touch so weight changes never pop
+    const k = 1 - Math.exp(-dt * 10);
+    smoothedSpeed += (speed - smoothedSpeed) * k;
+    const s = smoothedSpeed;
+
+    // Weights: idle below walk speed, walk->run crossfade above
+    let wIdle: number;
+    let wWalk: number;
+    let wRun: number;
+    if (s <= 0.1) {
+      wIdle = 1; wWalk = 0; wRun = 0;
+    } else if (s < WALK_CLIP_SPEED) {
+      const t = s / WALK_CLIP_SPEED;
+      wIdle = 1 - t; wWalk = t; wRun = 0;
+    } else {
+      const t = Math.min(1, (s - WALK_CLIP_SPEED) / (RUN_CLIP_SPEED - WALK_CLIP_SPEED));
+      wIdle = 0; wWalk = 1 - t; wRun = t;
+    }
+    idle.setEffectiveWeight(wIdle);
+    walk.setEffectiveWeight(wWalk);
+    run.setEffectiveWeight(wRun);
+
+    // Match stride to ground speed: timescale clips relative to authored speeds
+    if (s > 0.1) {
+      const clipSpeed = wRun > 0
+        ? THREE.MathUtils.lerp(WALK_CLIP_SPEED, RUN_CLIP_SPEED, wRun)
+        : WALK_CLIP_SPEED * Math.max(wWalk, 0.001) / Math.max(wWalk, 0.001);
+      const scale = THREE.MathUtils.clamp(s / clipSpeed, 0.6, 1.6);
+      walk.setEffectiveTimeScale(scale);
+      run.setEffectiveTimeScale(scale);
+    } else {
+      walk.setEffectiveTimeScale(1);
+      run.setEffectiveTimeScale(1);
+    }
+
+    mixer.update(dt);
+  }
+
+  return { root, update };
+}

@@ -1,0 +1,38 @@
+---
+// The Block — unlisted 3D world (see docs/WORLD_DESIGN_BRIEF.md).
+// No links point here and it is excluded from the sitemap; noindex below.
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>The Block</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
+      #world { position: fixed; inset: 0; }
+      #world canvas { display: block; width: 100%; height: 100%; }
+      #boot-error {
+        position: fixed; inset: 0; display: none; color: #dde;
+        font-family: system-ui, sans-serif; text-align: center;
+        flex-direction: column; justify-content: center; gap: 8px; padding: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="world"></div>
+    <div id="boot-error">
+      <div style="font-size:22px;font-weight:700">The Block needs a desktop browser</div>
+      <div style="opacity:.7">This experience requires hardware WebGL. Try Chrome or Firefox on a computer.</div>
+    </div>
+    <script>
+      const container = document.getElementById('world');
+      import('../world/index').then(({ boot }) => boot(container)).catch((err) => {
+        console.error('world boot failed:', err);
+        document.getElementById('boot-error').style.display = 'flex';
+      });
+    </script>
+  </body>
+</html>

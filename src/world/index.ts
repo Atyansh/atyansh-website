@@ -303,6 +303,14 @@ export async function boot(container: HTMLElement): Promise<void> {
       cam.position.set(...camOverride.pos);
       cam.lookAt(...camOverride.look);
     }
+
+    // Only the cell the camera is in gets rendered (and lit): every visible
+    // light in the scene is compiled into every material's shader, so leaving
+    // all eight interiors on would make the street pay for ~40 unseen lights.
+    const camX = camOverride ? camOverride.pos[0] : controller.position.x;
+    for (const lvl of levels.values()) {
+      lvl.group.visible = lvl === activeLevel || Math.abs(camX - lvl.spawn.x) < 250;
+    }
     if (composerCam !== cam) {
       composerCam = cam;
       composer.passes.length = 0;

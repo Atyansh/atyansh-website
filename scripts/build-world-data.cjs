@@ -102,12 +102,12 @@ async function main() {
   }
   if (tmdb?.shows) {
     data.tv = await collect('tv',
-      tmdb.shows.map((s) => ({ title: s.title, url: s.posterImage })));
+      tmdb.shows.map((s) => ({ title: s.title, url: s.posterImage?.replace('/t/p/w500/', '/t/p/w342/') })));
   }
   if (spotify?.savedAlbums) {
     data.music = await collect('music',
       spotify.savedAlbums.map((a) => ({
-        title: a.name, url: a.images?.[0]?.url,
+        title: a.name, url: (a.images?.[1] ?? a.images?.[0])?.url,
         extra: { artist: a.artists?.[0]?.name },
       })));
   }
@@ -116,7 +116,7 @@ async function main() {
     data.games = await collect('games',
       sorted.map((g) => ({
         title: g.name,
-        url: igdb[`steam:${g.appid}`]?.url,
+        url: igdb[`steam:${g.appid}`]?.url?.replace('t_cover_big_2x', 't_cover_big'),
         extra: { hours: Math.round(g.playtime_forever / 60) },
       })).filter((g) => g.url));
   }
@@ -126,7 +126,7 @@ async function main() {
   }
   if (anime?.anime) {
     data.anime = await collect('anime',
-      anime.anime.map((a) => ({ title: a.title, url: a.imageUrl })));
+      anime.anime.map((a) => ({ title: a.title, url: a.imageUrl?.replace(/l\.jpg$/, '.jpg') })));
   }
   if (kaya?.pyramid) {
     data.climbing = kaya.pyramid

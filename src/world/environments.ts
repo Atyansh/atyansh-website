@@ -698,28 +698,30 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     bx: number, bz: number, rx: number, ry: number, rz: number,
     colorHex: number, holdCount: number, topOut = false,
   ): void => {
+    // Layered rings of points -> chunky faceted MASS (a dome with a single
+    // apex point reads at half its nominal height). Radii bulge at
+    // mid-height and stay fat near the top so the silhouette is a mesa,
+    // not a cone.
     const pts: THREE.Vector3[] = [];
-    for (let p = 0; p < 18; p++) {
-      const th = rnd() * Math.PI * 2;
-      const u = rnd() * 2 - 1;
-      const s = Math.sqrt(1 - u * u);
-      pts.push(new THREE.Vector3(
-        Math.cos(th) * s * rx * (0.75 + rnd() * 0.25),
-        Math.max(0, u) * ry,
-        Math.sin(th) * s * rz * (0.75 + rnd() * 0.25),
-      ));
+    const layers: Array<[number, number]> = topOut
+      ? [[0, 0.85], [0.55, 1.0], [1, 0.75]]
+      : [[0, 0.85], [0.3, 1.0], [0.62, 0.92], [1, 0.5]];
+    for (const [ly, lr] of layers) {
+      const ringN = 7;
+      for (let k = 0; k < ringN; k++) {
+        const ang = (k / ringN) * Math.PI * 2 + rnd() * 0.7;
+        const jr = 0.82 + rnd() * 0.18;
+        pts.push(new THREE.Vector3(
+          Math.cos(ang) * rx * lr * jr,
+          ly * ry * (0.95 + rnd() * 0.05),
+          Math.sin(ang) * rz * lr * jr,
+        ));
+      }
     }
-    // Footprint corners so the hull reaches the floor; peak or plateau on top
-    pts.push(
-      new THREE.Vector3(rx * 0.8, 0, 0), new THREE.Vector3(-rx * 0.8, 0, 0),
-      new THREE.Vector3(0, 0, rz * 0.8), new THREE.Vector3(0, 0, -rz * 0.8),
-    );
     if (topOut) {
       for (const [px, pz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
         pts.push(new THREE.Vector3(px * rx * 0.5, ry, pz * rz * 0.5));
       }
-    } else {
-      pts.push(new THREE.Vector3(0, ry, 0));
     }
     const geo = new ConvexGeometry(pts);
     const hull = new THREE.Mesh(
@@ -771,10 +773,10 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     }
   };
 
-  // Island scale matches the walls (walls ~10m): serious freestanding masses
-  mkBoulder(-7, -9, 6.5, 7.5, 5.5, 0xe8e4da, 110);         // big cream island
-  mkBoulder(10, 3, 5.0, 6.2, 4.5, 0x8fa3b8, 80);           // steel-blue island
-  mkBoulder(-4.5, 13, 3.2, 1.12, 3.0, 0xcfd4c9, 24, true); // low top-out slab (jumpable)
+  // Island scale matches the walls (~10m): serious freestanding masses
+  mkBoulder(-7, -9, 8.5, 9.2, 6.5, 0xe8e4da, 150);         // big cream ridge
+  mkBoulder(10, 3, 6.0, 7.8, 5.5, 0x8fa3b8, 110);          // steel-blue tower
+  mkBoulder(-5, 14, 4.5, 1.12, 3.6, 0xcfd4c9, 30, true);   // low top-out slab (jumpable)
 
   // Crash pads: strips under every wall + aprons under the boulder islands.
   // Standable — feet stay on top. Aprons sit 2cm taller than the wall
@@ -783,9 +785,9 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     [0, -c.halfD + 3.9, c.halfW * 2 - 2, 6, 0.24],
     [-c.halfW + 3.9, 1, 6, c.halfD * 2 - 8, 0.24],
     [c.halfW - 3.9, 1, 6, c.halfD * 2 - 8, 0.24],
-    [-7, -9, 17.4, 15.4, 0.26],
-    [10, 3, 14.4, 13.4, 0.26],
-    [-4.5, 13, 10.8, 10.4, 0.26],
+    [-7, -9, 19, 15, 0.26],
+    [10, 3, 14, 13, 0.26],
+    [-5, 14, 12.6, 10.2, 0.26],
   ];
   for (const [px, pz, pw, pd, top] of padZones) {
     const padMesh = new THREE.Mesh(new THREE.BoxGeometry(pw, top - 0.02, pd), padMat);

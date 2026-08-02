@@ -35,8 +35,8 @@ const BOOKMARKS: Record<string, CamBookmark> = {
   cinemaIn: { pos: [2000, 3.0, 22], look: [2000, 2.2, -24] },
   recordsIn: { pos: [2500, 2.6, 13], look: [2500, 1.6, -14] },
   arcadeIn: { pos: [3000, 2.6, 15], look: [3000, 1.6, -16] },
-  climbIn: { pos: [5000, 4.5, 19], look: [5000, 5.5, -20] },
-  climbBeta: { pos: [5000, 3.4, -6], look: [5000, 3.6, 22] },
+  climbIn: { pos: [5000, 5.0, 25], look: [5000, 4.5, -26] },
+  climbBeta: { pos: [5000, 3.2, -16], look: [5000, 3.6, 28] },
   studioIn: { pos: [5500, 2.4, 10], look: [5500, 1.8, -13] },
   cinemaDoor: { pos: [2000, 1.8, 18], look: [2000, 1.9, 26] },
 };

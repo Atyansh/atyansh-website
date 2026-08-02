@@ -7,6 +7,7 @@
 // All furniture gets real colliders. No web links — the game holds it all.
 
 import * as THREE from 'three';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { plyPanelTexture } from './textures';
 import type { ArtItem, ColliderRect, WorldData } from './types';
 
@@ -211,7 +212,7 @@ class Cell {
         this.add(p, lx, h - 0.06, lz);
       }
     }
-    const lights = Math.min(6, Math.max(2, Math.floor((halfW * halfD * 4) / 160)));
+    const lights = Math.min(8, Math.max(2, Math.floor((halfW * halfD * 4) / 160)));
     for (let i = 0; i < lights; i++) {
       const lp = new THREE.PointLight(
         opts.lightColor ?? 0xfff1dd,
@@ -540,7 +541,7 @@ function tvLevel(i: number, data?: WorldData): InteriorLevel {
 
 function climbLevel(i: number, data?: WorldData): InteriorLevel {
   const pyramid = data?.climbing ?? [];
-  const c = new Cell(i, 17, 11, 22);
+  const c = new Cell(i, 22, 12, 28);
   c.shell({
     floor: 0x2d4b8f, wall: 0x9aa3ad, ceiling: 0x3a3d44,
     lightColor: 0xf2f5ff, lightIntensity: 72, panelEvery: 8,
@@ -649,9 +650,10 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
         hx += (rnd() - 0.5) * 0.55;
         hx = Math.max(-width / 2 + 0.3, Math.min(width / 2 - 0.3, hx));
         const hold = new THREE.Mesh(holdGeo[Math.floor(rnd() * holdGeo.length)], holdMat);
-        hold.position.set(hx, hy * cL - 0.24 * sL, hy * sL + 0.24 * cL);
+        hold.position.set(hx, hy * cL - 0.215 * sL, hy * sL + 0.215 * cL);
+        hold.rotation.x = lean;             // seat flat on the leaned face
         hold.rotation.y = rnd() * Math.PI;
-        hold.rotation.z = (rnd() - 0.5) * 0.6;
+        hold.rotation.z = (rnd() - 0.5) * 0.3;
         pivot.add(hold);
       }
     }
@@ -675,36 +677,107 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
   };
 
   // Varied sections around the perimeter: slab, vert, overhang, steep cave
-  wallSection(-8, -c.halfD + 1.1, 15, 9.5, -0.1, 0, 7);     // gentle slab, back-left
-  wallSection(8, -c.halfD + 1.1, 15, 10, 0.2, 0, 7);        // overhang, back-right
-  wallSection(-c.halfW + 1.1, -6, 13, 8.5, 0.04, Math.PI / 2, 6);   // left vert
-  wallSection(-c.halfW + 1.1, 8, 10, 9.5, 0.38, Math.PI / 2, 5);    // left steep cave
-  wallSection(c.halfW - 1.1, -4, 14, 9, 0.15, -Math.PI / 2, 6);     // right overhang
-  wallSection(c.halfW - 1.1, 9, 8, 7, -0.08, -Math.PI / 2, 4);      // right slab
+  wallSection(-11, -c.halfD + 1.1, 18, 10, -0.1, 0, 8);     // gentle slab, back-left
+  wallSection(9, -c.halfD + 1.1, 18, 10.5, 0.2, 0, 8);      // overhang, back-right
+  wallSection(-c.halfW + 1.1, -14, 16, 9, 0.04, Math.PI / 2, 7);   // left vert
+  wallSection(-c.halfW + 1.1, 4, 14, 10, 0.38, Math.PI / 2, 6);    // left steep cave
+  wallSection(-c.halfW + 1.1, 17, 9, 8, -0.06, Math.PI / 2, 4);    // left slab by the door
+  wallSection(c.halfW - 1.1, -12, 16, 9.5, 0.15, -Math.PI / 2, 7); // right overhang
+  wallSection(c.halfW - 1.1, 6, 12, 8.5, -0.08, -Math.PI / 2, 5);  // right slab
 
-  // Central boulder
-  const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(2.4, 1), mat(0x98a1ac, 0.95));
-  boulder.scale.set(1.4, 0.85, 1.1);
-  c.add(boulder, 1, 1.7, -2);
-  c.collide(-2.4, 4.4, -4.7, 0.7);
-  for (let hi = 0; hi < 26; hi++) {
-    const color = gradePalette[hi % gradePalette.length];
-    const hold = new THREE.Mesh(holdGeo[hi % holdGeo.length], mat(color, 0.55));
-    const ang = rnd() * Math.PI * 2;
-    const elev = rnd() * 1.1;
-    hold.position.set(
-      1 + Math.cos(ang) * 3.4 * 0.98,
-      0.5 + elev * 1.6,
-      -2 + Math.sin(ang) * 2.6 * 0.98,
+  // Freestanding faceted boulder islands — the modern-gym signature:
+  // angular plywood polyhedra climbable from all sides, sitting on pads.
+  // Low-poly convex hulls; holds are placed ON facets, oriented along the
+  // facet normal, so nothing floats.
+  const upAxis = new THREE.Vector3(0, 1, 0);
+  const mkBoulder = (
+    bx: number, bz: number, rx: number, ry: number, rz: number,
+    colorHex: number, holdCount: number, topOut = false,
+  ): void => {
+    const pts: THREE.Vector3[] = [];
+    for (let p = 0; p < 18; p++) {
+      const th = rnd() * Math.PI * 2;
+      const u = rnd() * 2 - 1;
+      const s = Math.sqrt(1 - u * u);
+      pts.push(new THREE.Vector3(
+        Math.cos(th) * s * rx * (0.75 + rnd() * 0.25),
+        Math.max(0, u) * ry,
+        Math.sin(th) * s * rz * (0.75 + rnd() * 0.25),
+      ));
+    }
+    // Footprint corners so the hull reaches the floor; peak or plateau on top
+    pts.push(
+      new THREE.Vector3(rx * 0.8, 0, 0), new THREE.Vector3(-rx * 0.8, 0, 0),
+      new THREE.Vector3(0, 0, rz * 0.8), new THREE.Vector3(0, 0, -rz * 0.8),
     );
-    c.group.add(hold);
-  }
+    if (topOut) {
+      for (const [px, pz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        pts.push(new THREE.Vector3(px * rx * 0.5, ry, pz * rz * 0.5));
+      }
+    } else {
+      pts.push(new THREE.Vector3(0, ry, 0));
+    }
+    const geo = new ConvexGeometry(pts);
+    const hull = new THREE.Mesh(
+      geo,
+      new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.9, flatShading: true }),
+    );
+    hull.receiveShadow = true;
+    c.add(hull, bx, 0.24, bz);   // sits on its pad
+    c.blockers.push(hull);
+    if (topOut) {
+      const top = 0.24 + ry;
+      c.collide(bx - rx, bx + rx, bz - rz, bz + rz, top);
+      c.platform(bx - rx * 0.55, bx + rx * 0.55, bz - rz * 0.55, bz + rz * 0.55, top);
+    } else {
+      c.collide(bx - rx, bx + rx, bz - rz, bz + rz);
+    }
 
-  // Crash pads under everything — standable, feet stay on top
+    // Holds across the facets: pick triangles, random barycentric point,
+    // seat along the facet normal
+    const posAttr = geo.getAttribute('position');
+    const triCount = posAttr.count / 3;
+    const v0 = new THREE.Vector3(), v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
+    const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), n = new THREE.Vector3();
+    let placed = 0, guard = 0;
+    while (placed < holdCount && guard++ < holdCount * 40) {
+      const tri = Math.floor(rnd() * triCount);
+      v0.fromBufferAttribute(posAttr, tri * 3);
+      v1.fromBufferAttribute(posAttr, tri * 3 + 1);
+      v2.fromBufferAttribute(posAttr, tri * 3 + 2);
+      e1.subVectors(v1, v0);
+      e2.subVectors(v2, v0);
+      n.crossVectors(e1, e2).normalize();
+      if (n.y < -0.2) continue;                 // skip undersides
+      let a = rnd(), b = rnd();
+      if (a + b > 1) { a = 1 - a; b = 1 - b; }
+      const point = v0.clone().addScaledVector(e1, a).addScaledVector(e2, b);
+      if (point.y < 0.2) continue;              // clear of the pad line
+      const hold = new THREE.Mesh(
+        holdGeo[Math.floor(rnd() * holdGeo.length)],
+        mat(gradePalette[Math.floor(rnd() * gradePalette.length)], 0.55),
+      );
+      hold.position.copy(point).addScaledVector(n, 0.02);
+      hold.quaternion.setFromUnitVectors(upAxis, n);
+      hold.rotateY(rnd() * Math.PI * 2);
+      hull.add(hold);
+      placed++;
+    }
+  };
+
+  mkBoulder(-5, -8, 3.2, 3.6, 2.8, 0xe8e4da, 46);          // big cream island
+  mkBoulder(9, 1, 2.6, 3.0, 2.4, 0x8fa3b8, 34);            // steel-blue island
+  mkBoulder(-3, 12, 2.2, 1.12, 2.0, 0xcfd4c9, 16, true);   // low top-out slab (jumpable)
+
+  // Crash pads: strips under every wall + aprons under the boulder islands.
+  // Standable — feet stay on top.
   const pads: Array<[number, number, number, number]> = [
-    [0, -c.halfD + 3.4, c.halfW * 2 - 2, 5],
-    [-c.halfW + 3.4, 1, 5, c.halfD * 2 - 6],
-    [c.halfW - 3.4, 1, 5, c.halfD * 2 - 6],
+    [0, -c.halfD + 3.9, c.halfW * 2 - 2, 6],
+    [-c.halfW + 3.9, 1, 6, c.halfD * 2 - 8],
+    [c.halfW - 3.9, 1, 6, c.halfD * 2 - 8],
+    [-5, -8, 11, 10.2],
+    [9, 1, 9.8, 9.4],
+    [-3, 12, 9, 8.6],
   ];
   for (const [px, pz, pw, pd] of pads) {
     const padMesh = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.22, pd), padMat);
@@ -767,13 +840,19 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
       screenMat.emissiveMap = tex;
       screenMat.needsUpdate = true;
     };
+    // Swap poster -> live texture on EVERY 'playing' (not once): show() sets
+    // the poster back each time the src changes, so a once-listener would
+    // leave every video after the first frozen on its thumbnail.
+    let videoTex: THREE.VideoTexture | null = null;
     el.addEventListener('playing', () => {
-      const vt = new THREE.VideoTexture(el);
-      vt.colorSpace = THREE.SRGBColorSpace;
-      screenMat.map = vt;
-      screenMat.emissiveMap = vt;
+      if (!videoTex) {
+        videoTex = new THREE.VideoTexture(el);
+        videoTex.colorSpace = THREE.SRGBColorSpace;
+      }
+      screenMat.map = videoTex;
+      screenMat.emissiveMap = videoTex;
       screenMat.needsUpdate = true;
-    }, { once: true });
+    });
 
     // Now-playing plaque, redrawn per send
     const plaqueCanvas = document.createElement('canvas');

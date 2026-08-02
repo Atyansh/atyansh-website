@@ -776,7 +776,7 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
   // Island scale matches the walls (~10m): serious freestanding masses
   mkBoulder(-7, -9, 8.5, 9.2, 6.5, 0xe8e4da, 150);         // big cream ridge
   mkBoulder(10, 3, 6.0, 7.8, 5.5, 0x8fa3b8, 110);          // steel-blue tower
-  mkBoulder(-5, 14, 4.5, 1.12, 3.6, 0xcfd4c9, 30, true);   // low top-out slab (jumpable)
+  mkBoulder(-5, 14, 5.0, 4.2, 4.0, 0xcfd4c9, 60);          // low sage island
 
   // Crash pads: strips under every wall + aprons under the boulder islands.
   // Standable — feet stay on top. Aprons sit 2cm taller than the wall
@@ -787,7 +787,7 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     [c.halfW - 3.9, 1, 6, c.halfD * 2 - 8, 0.24],
     [-7, -9, 19, 15, 0.26],
     [10, 3, 14, 13, 0.26],
-    [-5, 14, 12.6, 10.2, 0.26],
+    [-5, 14, 14, 12, 0.26],
   ];
   for (const [px, pz, pw, pd, top] of padZones) {
     const padMesh = new THREE.Mesh(new THREE.BoxGeometry(pw, top - 0.02, pd), padMat);

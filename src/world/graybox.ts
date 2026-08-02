@@ -496,6 +496,52 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
     sign.position.set(k.x - k.w / 2 - 0.01, CURB_H + k.h - 0.5, k.z);
     sign.rotation.y = -Math.PI / 2;
     group.add(sign);
+
+    // Front page pinned to the kiosk: the actual latest blog post
+    const post = data?.posts?.[0];
+    if (post) {
+      const pc = document.createElement('canvas');
+      pc.width = 640; pc.height = 448;
+      const pg = pc.getContext('2d')!;
+      pg.fillStyle = '#efe9da'; pg.fillRect(0, 0, 640, 448);
+      pg.fillStyle = '#191b21';
+      pg.textAlign = 'center';
+      pg.font = 'bold 44px Georgia, serif';
+      pg.fillText('THE DAILY BUILD', 320, 56);
+      pg.fillRect(30, 76, 580, 3);
+      pg.textAlign = 'left';
+      pg.font = 'bold 36px Georgia, serif';
+      let ty = 130;
+      let line = '';
+      for (const w of post.title.split(' ')) {
+        if (pg.measureText(`${line}${w} `).width > 580) {
+          pg.fillText(line, 30, ty); ty += 44; line = '';
+        }
+        line += `${w} `;
+      }
+      pg.fillText(line, 30, ty);
+      pg.font = '24px Georgia, serif';
+      pg.fillStyle = '#4a4e58';
+      ty += 46;
+      line = '';
+      for (const w of (post.description ?? '').split(' ')) {
+        if (pg.measureText(`${line}${w} `).width > 580) {
+          pg.fillText(line, 30, ty); ty += 30; line = '';
+          if (ty > 420) break;
+        }
+        line += `${w} `;
+      }
+      if (ty <= 420) pg.fillText(line, 30, ty);
+      const pTex = new THREE.CanvasTexture(pc);
+      pTex.colorSpace = THREE.SRGBColorSpace;
+      const page = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.0, 1.4),
+        new THREE.MeshStandardMaterial({ map: pTex, emissive: 0xffffff, emissiveMap: pTex, emissiveIntensity: 0.25 }),
+      );
+      page.position.set(k.x - k.w / 2 - 0.02, CURB_H + 1.55, k.z);
+      page.rotation.y = -Math.PI / 2;
+      group.add(page);
+    }
   }
 
   // ---- Streetlights ----

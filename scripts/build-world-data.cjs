@@ -33,9 +33,9 @@ function readCache(name) {
 
 const crypto = require('crypto');
 
-async function fetchCached(url) {
+async function fetchCached(url, ext = 'jpg') {
   const key = crypto.createHash('md5').update(url).digest('hex');
-  const cached = path.join(DL_CACHE, `${key}.jpg`);
+  const cached = path.join(DL_CACHE, `${key}.${ext}`);
   if (fs.existsSync(cached)) return cached;
   try {
     const res = await fetch(url, {
@@ -139,6 +139,85 @@ async function main() {
       .sort((a, b) => a.ordering - b.ordering)
       .map(({ grade, count }) => ({ grade, count }));
   }
+
+  if (kaya?.ascentsWithVideos?.length) {
+    // Beta wall: the hardest sends plus the most recent ones, videos self-hosted
+    const ord = (a) => a.climb?.grade?.ordering ?? 0;
+    const byHard = [...kaya.ascentsWithVideos].sort(
+      (a, b) => ord(b) - ord(a) || new Date(b.date) - new Date(a.date));
+    const byRecent = [...kaya.ascentsWithVideos].sort(
+      (a, b) => new Date(b.date) - new Date(a.date));
+    const picks = [];
+    const seen = new Set();
+    for (const a of [...byHard.slice(0, 5), ...byRecent]) {
+      if (!a.video?.video_url || seen.has(a.id)) continue;
+      seen.add(a.id);
+      picks.push(a);
+      if (picks.length >= 8) break;
+    }
+    const vids = [];
+    for (const a of picks) {
+      const [vf, tf] = await Promise.all([
+        fetchCached(a.video.video_url, 'mp4'),
+        a.video.thumb_url ? fetchCached(a.video.thumb_url) : null,
+      ]);
+      if (!vf) continue;
+      const vname = `climb-vid-${vids.length}.mp4`;
+      fs.copyFileSync(vf, path.join(ART_DIR, vname));
+      let thumb;
+      if (tf) {
+        thumb = `climb-thumb-${vids.length}.jpg`;
+        fs.copyFileSync(tf, path.join(ART_DIR, thumb));
+      }
+      vids.push({
+        grade: String(a.climb?.grade?.name ?? ''),
+        date: String(a.date ?? '').slice(0, 10),
+        gym: a.climb?.gym?.name ?? '',
+        video: `/world/art/${vname}`,
+        thumb: thumb ? `/world/art/${thumb}` : undefined,
+      });
+    }
+    data.climbVideos = vids;
+    console.log(`  climbVideos: ${vids.length} sends`);
+  }
+  if (kaya?.stats) data.climbStats = kaya.stats;
+
+  // Studio + newsstand content straight from the content collections
+  const fmField = (fm, key) =>
+    (fm.match(new RegExp(`^${key}:\\s*['"]?(.*?)['"]?\\s*$`, 'm')) ?? [])[1];
+  const readFrontmatters = (dir) => {
+    try {
+      return fs.readdirSync(dir)
+        .filter((f) => /\.mdx?$/.test(f) && !f.startsWith('_'))
+        .map((f) => (fs.readFileSync(path.join(dir, f), 'utf-8')
+          .match(/^---\r?\n([\s\S]*?)\r?\n---/) ?? [])[1] ?? '');
+    } catch {
+      return [];
+    }
+  };
+  data.projects = readFrontmatters('src/content/projects')
+    .map((fm) => {
+      const tech = (fm.match(/technologies:\s*\[(.*)\]/) ?? [])[1];
+      return {
+        title: fmField(fm, 'title'),
+        description: fmField(fm, 'description'),
+        tech: tech ? tech.split(',').map((t) => t.trim().replace(/^['"]|['"]$/g, '')) : [],
+        featured: /featured:\s*true/.test(fm),
+        start: fmField(fm, 'startDate'),
+      };
+    })
+    .filter((p) => p.title)
+    .sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0)
+      || String(b.start ?? '').localeCompare(String(a.start ?? '')));
+  data.posts = readFrontmatters('src/content/blog')
+    .filter((fm) => !/draft:\s*true/.test(fm))
+    .map((fm) => ({
+      title: fmField(fm, 'title'),
+      description: fmField(fm, 'description'),
+      date: fmField(fm, 'pubDate'),
+    }))
+    .filter((p) => p.title);
+  console.log(`  projects: ${data.projects.length}, posts: ${data.posts.length}`);
 
   data.generatedAt = new Date().toISOString();
   fs.writeFileSync(path.join(OUT_DIR, 'world-data.json'), JSON.stringify(data));

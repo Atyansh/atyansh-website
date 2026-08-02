@@ -71,5 +71,17 @@ export interface WorldData {
   books?: ArtItem[];
   anime?: ArtItem[];
   climbing?: Array<{ grade: string; count: number }>;
+  climbStats?: {
+    totalSends: number; totalFlashes: number; flashRate: number;
+    maxGrade: string; totalVideos: number;
+  };
+  climbVideos?: Array<{
+    grade: string; date: string; gym: string; video: string; thumb?: string;
+  }>;
+  projects?: Array<{
+    title: string; description?: string; tech: string[];
+    featured: boolean; start?: string;
+  }>;
+  posts?: Array<{ title: string; description?: string; date?: string }>;
   generatedAt?: string;
 }

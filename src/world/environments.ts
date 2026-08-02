@@ -23,7 +23,17 @@ export interface InteriorLevel {
   /** Walk here + Enter returns to the street */
   exit: { x: number; z: number; radius: number };
   lights: THREE.Light[];
+  /** Ground height inside the level (crash pads, standable furniture tops) */
+  groundFn: (x: number, z: number) => number;
+  onEnter?: () => void;
+  onExit?: () => void;
 }
+
+/** Horizontal surface the player can stand on (world XZ, top height) */
+interface Platform { minX: number; maxX: number; minZ: number; maxZ: number; y: number }
+
+/** Furniture at or below this top height is jumpable and standable */
+const STANDABLE_MAX = 1.35;
 
 const loader = new THREE.TextureLoader();
 
@@ -64,6 +74,7 @@ class Cell {
   colliders: ColliderRect[] = [];
   blockers: THREE.Object3D[] = [];
   lights: THREE.Light[] = [];
+  platforms: Platform[] = [];
   readonly ox: number;
 
   constructor(index: number, public readonly halfW: number, public readonly h: number, public readonly halfD: number) {
@@ -89,7 +100,15 @@ class Cell {
     this.colliders.push(r);
   }
 
-  /** Solid box with matching collider */
+  /** Standable surface (local coords) — groundFn returns its top inside it */
+  platform(lx0: number, lx1: number, lz0: number, lz1: number, y: number): void {
+    this.platforms.push({
+      minX: this.wx(Math.min(lx0, lx1)), maxX: this.wx(Math.max(lx0, lx1)),
+      minZ: Math.min(lz0, lz1), maxZ: Math.max(lz0, lz1), y,
+    });
+  }
+
+  /** Solid box with matching collider; low furniture is jumpable + standable */
   box(w: number, h: number, d: number, mat: THREE.Material, lx: number, ly: number, lz: number, ry = 0): THREE.Mesh {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     m.castShadow = false;
@@ -97,7 +116,13 @@ class Cell {
     this.add(m, lx, ly, lz, ry);
     // Axis-aligned collider approximation (fine for ry ~ 0 or PI/2 furniture)
     const [cw, cd] = Math.abs(Math.sin(ry)) > 0.5 ? [d, w] : [w, d];
-    this.collide(lx - cw / 2, lx + cw / 2, lz - cd / 2, lz + cd / 2);
+    const top = ly + h / 2;
+    if (top <= STANDABLE_MAX) {
+      this.collide(lx - cw / 2, lx + cw / 2, lz - cd / 2, lz + cd / 2, top);
+      this.platform(lx - cw / 2, lx + cw / 2, lz - cd / 2, lz + cd / 2, top);
+    } else {
+      this.collide(lx - cw / 2, lx + cw / 2, lz - cd / 2, lz + cd / 2);
+    }
     return m;
   }
 
@@ -153,13 +178,25 @@ class Cell {
       new THREE.MeshStandardMaterial({ color: 0x3ddc7b, emissive: 0x3ddc7b, emissiveIntensity: 1.4 }),
     );
     this.add(exitBar, 0, 3.2, halfD - wallT - 0.06);
+    // Closed double door in the gap — Enter swaps the level under the fade,
+    // so it never needs to visibly open; it just can't be walked through.
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0x23262c, roughness: 0.55, metalness: 0.25 });
+    const barMat = new THREE.MeshStandardMaterial({ color: 0x9aa0aa, roughness: 0.35, metalness: 0.7 });
+    for (const s of [-1, 1]) {
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(doorW / 2 - 0.05, 3.3, 0.12), doorMat);
+      this.add(leaf, s * doorW / 4, 1.65, halfD - 0.3);
+      this.blockers.push(leaf);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(doorW / 2 - 0.5, 0.09, 0.07), barMat);
+      this.add(bar, s * doorW / 4, 1.05, halfD - 0.21);
+    }
+    this.collide(-doorW / 2, doorW / 2, halfD - 0.5, halfD);
 
     // Ceiling light panels + point lights
     const every = opts.panelEvery ?? 6;
     const panelMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       emissive: opts.lightColor ?? 0xfff2dc,
-      emissiveIntensity: 1.7,
+      emissiveIntensity: 2.4,
     });
     const rows = Math.max(1, Math.floor((halfD * 2) / every));
     const cols = Math.max(1, Math.floor((halfW * 2) / every));
@@ -171,11 +208,11 @@ class Cell {
         this.add(p, lx, h - 0.06, lz);
       }
     }
-    const lights = Math.min(4, Math.max(2, Math.floor((halfW * halfD * 4) / 220)));
+    const lights = Math.min(6, Math.max(2, Math.floor((halfW * halfD * 4) / 160)));
     for (let i = 0; i < lights; i++) {
       const lp = new THREE.PointLight(
         opts.lightColor ?? 0xfff1dd,
-        opts.lightIntensity ?? 42,
+        opts.lightIntensity ?? 58,
         Math.max(halfW, halfD) * 2.6, 1.9,
       );
       const lz = -halfD + ((i + 0.5) * (halfD * 2)) / lights;
@@ -245,14 +282,24 @@ class Cell {
   }
 
   finish(id: string, name: string): InteriorLevel {
+    const platforms = this.platforms;
     return {
       id, name,
       group: this.group,
       colliders: this.colliders,
       blockers: this.blockers,
       lights: this.lights,
+      groundFn: (x, z) => {
+        // Highest standable surface underfoot (small margin ~ capsule radius)
+        let y = 0;
+        for (const p of platforms) {
+          if (x >= p.minX - 0.2 && x <= p.maxX + 0.2
+            && z >= p.minZ - 0.2 && z <= p.maxZ + 0.2 && p.y > y) y = p.y;
+        }
+        return y;
+      },
       spawn: { x: this.wx(0), z: this.halfD - 2.2, heading: Math.PI },
-      exit: { x: this.wx(0), z: this.halfD - 1.2, radius: 1.6 },
+      exit: { x: this.wx(0), z: this.halfD - 1.4, radius: 1.9 },
     };
   }
 }
@@ -333,7 +380,7 @@ function arcadeLevel(i: number, data?: WorldData): InteriorLevel {
   const c = new Cell(i, 13, 4.8, 18);
   c.shell({
     floor: 0x1c1e26, wall: 0x232630, ceiling: 0x14151b,
-    lightColor: 0xb44df0, lightIntensity: 26, panelEvery: 9,
+    lightColor: 0xb44df0, lightIntensity: 38, panelEvery: 9,
   });
 
   const title = textTexture('ARCADE', `${games.length} games · most played first`, 1024, '#c77df5');
@@ -384,7 +431,7 @@ function arcadeLevel(i: number, data?: WorldData): InteriorLevel {
 function booksLevel(i: number, data?: WorldData): InteriorLevel {
   const books = data?.books ?? [];
   const c = new Cell(i, 11, 4.6, 15);
-  c.shell({ floor: 0x6d5334, wall: 0x54462f, ceiling: 0x2a251c, lightColor: 0xffe2b8, lightIntensity: 30 });
+  c.shell({ floor: 0x6d5334, wall: 0x54462f, ceiling: 0x2a251c, lightColor: 0xffe2b8, lightIntensity: 44 });
 
   const title = textTexture('LIBRARY', `${books.length} books read`, 1024, '#e8c56a');
   const sign = new THREE.Mesh(
@@ -422,7 +469,7 @@ function booksLevel(i: number, data?: WorldData): InteriorLevel {
 function animeLevel(i: number, data?: WorldData): InteriorLevel {
   const anime = data?.anime ?? [];
   const c = new Cell(i, 13, 4.6, 17);
-  c.shell({ floor: 0x6e4a52, wall: 0x4e3a44, ceiling: 0x291f26, lightColor: 0xffc4da, lightIntensity: 30 });
+  c.shell({ floor: 0x6e4a52, wall: 0x4e3a44, ceiling: 0x291f26, lightColor: 0xffc4da, lightIntensity: 44 });
 
   const title = textTexture('ANIME CAFÉ', `${anime.length} series watched`, 1024, '#ff7ab8');
   const sign = new THREE.Mesh(
@@ -443,7 +490,8 @@ function animeLevel(i: number, data?: WorldData): InteriorLevel {
     c.add(top, lx, 0.8, lz);
     const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.8, 8), mat(0x2c2325));
     c.add(leg, lx, 0.4, lz);
-    c.collide(lx - 0.7, lx + 0.7, lz - 0.7, lz + 0.7);
+    c.collide(lx - 0.7, lx + 0.7, lz - 0.7, lz + 0.7, 0.84);
+    c.platform(lx - 0.7, lx + 0.7, lz - 0.7, lz + 0.7, 0.84);
   }
   // Paper lanterns
   for (const lx of [-8, -4, 0, 4, 8]) {
@@ -461,7 +509,7 @@ function tvLevel(i: number, data?: WorldData): InteriorLevel {
   const c = new Cell(i, 12, 4.6, 15);
   c.shell({
     floor: 0x39404e, wall: 0x2c313c, ceiling: 0x191c22,
-    lightColor: 0x9cc8ff, lightIntensity: 22, panelEvery: 9,
+    lightColor: 0x9cc8ff, lightIntensity: 34, panelEvery: 9,
   });
 
   const title = textTexture('TV LOUNGE', `${shows.length} shows tracked`, 1024, '#4db8f0');
@@ -492,10 +540,14 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
   const c = new Cell(i, 17, 11, 22);
   c.shell({
     floor: 0x2d4b8f, wall: 0x9aa3ad, ceiling: 0x3a3d44,
-    lightColor: 0xf2f5ff, lightIntensity: 55, panelEvery: 8,
+    lightColor: 0xf2f5ff, lightIntensity: 72, panelEvery: 8,
   });
 
-  const title = textTexture('CLIMBING GYM', 'bouldering · real send pyramid on the wall', 1024, '#ffa53a');
+  const stats = data?.climbStats;
+  const sub = stats
+    ? `${stats.totalSends} sends · ${stats.flashRate}% flash · max ${stats.maxGrade}`
+    : 'bouldering · real send pyramid on the wall';
+  const title = textTexture('CLIMBING GYM', sub, 1024, '#ffa53a');
   const sign = new THREE.Mesh(
     new THREE.PlaneGeometry(9, 1.9),
     new THREE.MeshStandardMaterial({ map: title, emissive: 0xffffff, emissiveMap: title, emissiveIntensity: 0.55 }),
@@ -519,28 +571,47 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     new THREE.ConeGeometry(0.13, 0.2, 6),
   ];
 
-  /** An angled wall section with clustered routes of colored holds */
+  /**
+   * An angled wall section with clustered routes of colored holds.
+   * Built inside a yawed pivot group so every hold/volume computes in the
+   * wall's own frame and stays glued to the face at any lean.
+   * lean > 0 = overhang (top tips toward the room), < 0 = slab.
+   * The wall's bottom edge sits on the floor at (lx, lz).
+   */
   const wallSection = (
     lx: number, lz: number, width: number, height: number, lean: number, ry: number, routes: number,
   ) => {
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.4), wallMat);
-    slab.rotation.order = 'YXZ';
-    slab.rotation.y = ry;
-    slab.rotation.x = -lean;
-    slab.position.set(lx, height / 2 * Math.cos(lean), lz);
-    slab.castShadow = false;
-    slab.receiveShadow = true;
-    c.group.add(slab);
-    c.blockers.push(slab);
-    // Collider: base strip, generous depth to cover the lean
-    const depth = 0.6 + Math.sin(Math.abs(lean)) * height;
-    const cx = Math.cos(ry), sz = Math.sin(ry);
-    // Approximate axis-aligned footprint
-    const hw = (Math.abs(cx) * width + Math.abs(sz) * 0.4) / 2 + 0.2;
-    const hd = (Math.abs(sz) * width + Math.abs(cx) * (0.4 + depth)) / 2 + 0.2;
-    c.collide(lx - hw, lx + hw, lz - hd, lz + hd);
+    const pivot = new THREE.Group();
+    pivot.position.set(lx, 0, lz);
+    pivot.rotation.y = ry;
+    c.group.add(pivot);
+    const cL = Math.cos(lean), sL = Math.sin(lean);
 
-    // Routes: clusters of same-colored holds meandering up the section
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.4), wallMat);
+    slab.rotation.x = lean;
+    slab.position.set(0, (height / 2) * cL, (height / 2) * sL);
+    slab.receiveShadow = true;
+    pivot.add(slab);
+    c.blockers.push(slab);
+
+    // Collider: local footprint from base line to the top edge's overhang
+    // reach, rotated into a world AABB (walls sit at axis-aligned yaws).
+    const zNear = Math.min(-0.4, height * sL - 0.4);
+    const zFar = Math.max(0.4, height * sL + 0.4);
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [px, pz] of [
+      [-width / 2, zNear], [width / 2, zNear],
+      [-width / 2, zFar], [width / 2, zFar],
+    ] as Array<[number, number]>) {
+      const wx = px * Math.cos(ry) + pz * Math.sin(ry);
+      const wz = -px * Math.sin(ry) + pz * Math.cos(ry);
+      minX = Math.min(minX, wx); maxX = Math.max(maxX, wx);
+      minZ = Math.min(minZ, wz); maxZ = Math.max(maxZ, wz);
+    }
+    c.collide(lx + minX, lx + maxX, lz + minZ, lz + maxZ);
+
+    // Face-frame -> pivot-local: a point at climb-height hy, offset `off`
+    // out of the face, lands at (hx, hy*cL - off*sL, hy*sL + off*cL).
     for (let rt = 0; rt < routes; rt++) {
       const color = gradePalette[Math.floor(rnd() * gradePalette.length)];
       const holdMat = mat(color, 0.55);
@@ -552,44 +623,30 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
         hx += (rnd() - 0.5) * 0.55;
         hx = Math.max(-width / 2 + 0.3, Math.min(width / 2 - 0.3, hx));
         const hold = new THREE.Mesh(holdGeo[Math.floor(rnd() * holdGeo.length)], holdMat);
-        // Position on the leaned face, pushed slightly off the slab
-        const off = 0.28;
-        const yLocal = hy * Math.cos(lean);
-        const zLocal = hy * Math.sin(lean) + off;
-        hold.position.set(
-          lx + hx * Math.cos(ry) + zLocal * Math.sin(ry),
-          yLocal,
-          lz - hx * Math.sin(ry) + zLocal * Math.cos(ry),
-        );
+        hold.position.set(hx, hy * cL - 0.26 * sL, hy * sL + 0.26 * cL);
         hold.rotation.y = rnd() * Math.PI;
-        c.group.add(hold);
+        pivot.add(hold);
       }
     }
-    // A couple of volumes
+    // A couple of volumes, axis pointed along the face normal
     for (let v = 0; v < Math.max(1, Math.floor(width / 7)); v++) {
       const vw = 0.9 + rnd() * 0.8;
       const vol = new THREE.Mesh(new THREE.ConeGeometry(vw / 2, 0.5, 4), mat(0xd8d5cc, 0.9));
       const vx = -width / 2 + 1 + rnd() * (width - 2);
       const vy = 1 + rnd() * (height - 2.5);
-      const zLocal = vy * Math.sin(lean) + 0.35;
-      vol.rotation.z = Math.PI / 2;
-      vol.rotation.y = rnd() * Math.PI;
-      vol.position.set(
-        lx + vx * Math.cos(ry) + zLocal * Math.sin(ry),
-        vy * Math.cos(lean),
-        lz - vx * Math.sin(ry) + zLocal * Math.cos(ry),
-      );
-      c.group.add(vol);
+      vol.rotation.x = Math.PI / 2 + lean;
+      vol.position.set(vx, vy * cL - 0.42 * sL, vy * sL + 0.42 * cL);
+      pivot.add(vol);
     }
   };
 
   // Varied sections around the perimeter: slab, vert, overhang, steep cave
   wallSection(-8, -c.halfD + 1.1, 15, 9.5, -0.1, 0, 7);     // gentle slab, back-left
-  wallSection(8, -c.halfD + 1.1, 15, 10, 0.18, 0, 7);       // overhang, back-right
-  wallSection(-c.halfW + 1.1, -6, 13, 8.5, 0.05, Math.PI / 2, 6);   // left vert
-  wallSection(-c.halfW + 1.6, 8, 10, 9.5, 0.35, Math.PI / 2, 5);    // left steep cave
-  wallSection(c.halfW - 1.1, -4, 14, 9, 0.12, -Math.PI / 2, 6);     // right overhang
-  wallSection(c.halfW - 1.4, 9, 8, 7, -0.08, -Math.PI / 2, 4);      // right slab
+  wallSection(8, -c.halfD + 1.1, 15, 10, 0.2, 0, 7);        // overhang, back-right
+  wallSection(-c.halfW + 1.1, -6, 13, 8.5, 0.04, Math.PI / 2, 6);   // left vert
+  wallSection(-c.halfW + 1.1, 8, 10, 9.5, 0.38, Math.PI / 2, 5);    // left steep cave
+  wallSection(c.halfW - 1.1, -4, 14, 9, 0.15, -Math.PI / 2, 6);     // right overhang
+  wallSection(c.halfW - 1.1, 9, 8, 7, -0.08, -Math.PI / 2, 4);      // right slab
 
   // Central boulder
   const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(2.4, 1), mat(0x98a1ac, 0.95));
@@ -609,13 +666,17 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     c.group.add(hold);
   }
 
-  // Crash pads under everything
-  const pad1 = new THREE.Mesh(new THREE.BoxGeometry(c.halfW * 2 - 2, 0.22, 5), padMat);
-  c.add(pad1, 0, 0.13, -c.halfD + 3.4);
-  const pad2 = new THREE.Mesh(new THREE.BoxGeometry(5, 0.22, c.halfD * 2 - 6), padMat);
-  c.add(pad2, -c.halfW + 3.4, 0.13, 1);
-  const pad3 = new THREE.Mesh(new THREE.BoxGeometry(5, 0.22, c.halfD * 2 - 6), padMat);
-  c.add(pad3, c.halfW - 3.4, 0.13, 1);
+  // Crash pads under everything — standable, feet stay on top
+  const pads: Array<[number, number, number, number]> = [
+    [0, -c.halfD + 3.4, c.halfW * 2 - 2, 5],
+    [-c.halfW + 3.4, 1, 5, c.halfD * 2 - 6],
+    [c.halfW - 3.4, 1, 5, c.halfD * 2 - 6],
+  ];
+  for (const [px, pz, pw, pd] of pads) {
+    const padMesh = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.22, pd), padMat);
+    c.add(padMesh, px, 0.13, pz);
+    c.platform(px - pw / 2, px + pw / 2, pz - pd / 2, pz + pd / 2, 0.24);
+  }
 
   // The send-pyramid chart (kept, framed, near the entrance)
   if (pyramid.length) {
@@ -643,24 +704,158 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
       new THREE.PlaneGeometry(3.6, 1.8),
       new THREE.MeshStandardMaterial({ map: chartTex, emissive: 0xffffff, emissiveMap: chartTex, emissiveIntensity: 0.5 }),
     );
-    c.add(framed, 6.5, 2.4, c.halfD - 0.6, Math.PI);
+    c.add(framed, 0, 5.6, c.halfD - 0.6, Math.PI);
   }
 
-  return c.finish('climb', 'CLIMBING GYM');
+  // Beta wall: actual send videos on portrait screens flanking the door.
+  // Self-hosted mp4s; paused unless the player is in the gym.
+  const videoEls: HTMLVideoElement[] = [];
+  const vids = data?.climbVideos ?? [];
+  vids.slice(0, 8).forEach((v, vi) => {
+    const side = vi < 4 ? -1 : 1;
+    const lx = side * (7.6 + (vi % 4) * 2.0);
+    const el = document.createElement('video');
+    el.src = v.video;
+    el.muted = true;
+    el.loop = true;
+    el.playsInline = true;
+    el.preload = 'none';
+    videoEls.push(el);
+
+    const screenMat = new THREE.MeshStandardMaterial({
+      color: 0x0c0d10, roughness: 0.6,
+      emissive: 0xffffff, emissiveIntensity: 0.85,
+    });
+    if (v.thumb) {
+      const thumbTex = loader.load(v.thumb);
+      thumbTex.colorSpace = THREE.SRGBColorSpace;
+      screenMat.map = thumbTex;
+      screenMat.emissiveMap = thumbTex;
+    }
+    el.addEventListener('playing', () => {
+      const vt = new THREE.VideoTexture(el);
+      vt.colorSpace = THREE.SRGBColorSpace;
+      screenMat.map = vt;
+      screenMat.emissiveMap = vt;
+      screenMat.needsUpdate = true;
+    }, { once: true });
+
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.55, 2.6, 0.08), mat(0x1b1d22, 0.5));
+    c.add(frame, lx, 3.55, c.halfD - 0.56);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 2.4), screenMat);
+    c.add(screen, lx, 3.55, c.halfD - 0.61, Math.PI);
+    const label = textTexture(v.grade.toUpperCase(), `${v.gym} · ${v.date}`, 512, '#ffa53a');
+    const plaque = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.35, 0.34),
+      new THREE.MeshStandardMaterial({ map: label, emissive: 0xffffff, emissiveMap: label, emissiveIntensity: 0.5 }),
+    );
+    c.add(plaque, lx, 2.05, c.halfD - 0.61, Math.PI);
+  });
+  if (vids.length) {
+    const betaSign = textTexture('BETA WALL', 'real footage of these sends', 1024, '#3fa7dd');
+    const bs = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.5, 1.35),
+      new THREE.MeshStandardMaterial({ map: betaSign, emissive: 0xffffff, emissiveMap: betaSign, emissiveIntensity: 0.6 }),
+    );
+    c.add(bs, -11.5, 6.3, c.halfD - 0.6, Math.PI);
+  }
+
+  const lvl = c.finish('climb', 'CLIMBING GYM');
+  lvl.onEnter = () => videoEls.forEach((el) => { el.play().catch(() => {}); });
+  lvl.onExit = () => videoEls.forEach((el) => el.pause());
+  return lvl;
 }
 
-function studioLevel(i: number, _data?: WorldData): InteriorLevel {
-  const c = new Cell(i, 10, 4.2, 13);
-  c.shell({ floor: 0x8a8378, wall: 0x6f7480, ceiling: 0x2c2e33, lightColor: 0xeef2ff, lightIntensity: 34 });
+/** Paper project plaque: title, tech list, wrapped description */
+function plaqueTexture(p: { title: string; description?: string; tech: string[]; featured: boolean }): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 768; c.height = 512;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#f2efe6'; g.fillRect(0, 0, 768, 512);
+  g.fillStyle = '#242832';
+  g.fillRect(0, 0, 768, 10);
+  g.font = 'bold 52px system-ui, sans-serif';
+  g.fillStyle = '#1c1f28';
+  g.fillText(p.title + (p.featured ? ' ★' : ''), 36, 88, 700);
+  g.font = '30px system-ui, sans-serif';
+  g.fillStyle = '#5a6b8c';
+  g.fillText(p.tech.slice(0, 4).join(' · '), 36, 140, 700);
+  g.font = '32px system-ui, sans-serif';
+  g.fillStyle = '#3b3f4a';
+  const words = (p.description ?? '').split(' ');
+  let line = '', ty = 208;
+  for (const w of words) {
+    if (g.measureText(`${line}${w} `).width > 700) {
+      g.fillText(line, 36, ty); ty += 44; line = '';
+      if (ty > 480) break;
+    }
+    line += `${w} `;
+  }
+  if (ty <= 480) g.fillText(line, 36, ty);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
-  const title = textTexture('STUDIO', 'where the site gets built', 1024, '#9fb6ff');
+function studioLevel(i: number, data?: WorldData): InteriorLevel {
+  const c = new Cell(i, 10, 4.2, 13);
+  c.shell({ floor: 0x8a8378, wall: 0x6f7480, ceiling: 0x2c2e33, lightColor: 0xeef2ff, lightIntensity: 46 });
+
+  const title = textTexture('STUDIO', 'projects & how the site gets built', 1024, '#9fb6ff');
   const sign = new THREE.Mesh(
     new THREE.PlaneGeometry(6, 1.5),
     new THREE.MeshStandardMaterial({ map: title, emissive: 0xffffff, emissiveMap: title, emissiveIntensity: 0.55 }),
   );
-  c.add(sign, 0, 3.2, -c.halfD + 0.57);
+  c.add(sign, 0, 3.4, -c.halfD + 0.57);
 
-  for (const [lx, lz] of [[-4, -2], [4, -2], [-4, 3], [4, 3]]) {
+  // Project plaques down both side walls
+  const projects = data?.projects ?? [];
+  projects.slice(0, 6).forEach((p, pi) => {
+    const side = pi % 2 === 0 ? -1 : 1;
+    const lz = -c.halfD + 3.5 + Math.floor(pi / 2) * 4.4;
+    const tex = plaqueTexture(p);
+    const plaque = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.7, 1.8),
+      new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.42 }),
+    );
+    c.add(plaque, side * (c.halfW - 0.58), 2.0, lz, side < 0 ? Math.PI / 2 : -Math.PI / 2);
+  });
+
+  // Site-by-the-numbers board on the back wall
+  const nums = document.createElement('canvas');
+  nums.width = 1024; nums.height = 512;
+  const g = nums.getContext('2d')!;
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 1024, 512);
+  g.font = 'bold 56px system-ui, sans-serif';
+  g.fillStyle = '#1c1f28';
+  g.textAlign = 'center';
+  g.fillText('THE SITE, BY THE NUMBERS', 512, 76);
+  const rows: string[] = [];
+  const count = (k: 'movies' | 'tv' | 'music' | 'games' | 'books' | 'anime', label: string): void => {
+    const n = data?.[k]?.length;
+    if (n) rows.push(`${n} ${label}`);
+  };
+  count('movies', 'films watched');
+  count('tv', 'shows tracked');
+  count('music', 'albums on rotation');
+  count('games', 'games played');
+  count('books', 'books read');
+  count('anime', 'anime series');
+  const s = data?.climbStats;
+  if (s) rows.push(`${s.totalSends} boulders sent · ${s.flashRate}% flash · max ${s.maxGrade}`);
+  g.font = '42px system-ui, sans-serif';
+  g.fillStyle = '#3b4252';
+  rows.forEach((r, ri) => g.fillText(r, 512, 150 + ri * 52));
+  const numsTex = new THREE.CanvasTexture(nums);
+  numsTex.colorSpace = THREE.SRGBColorSpace;
+  const board = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.6, 2.3),
+    new THREE.MeshStandardMaterial({ map: numsTex, emissive: 0xffffff, emissiveMap: numsTex, emissiveIntensity: 0.4 }),
+  );
+  c.add(board, 0, 1.4, -c.halfD + 0.57);
+
+  // Work desks in the middle
+  for (const [lx, lz] of [[-4, 0], [4, 0], [-4, 4.5], [4, 4.5]]) {
     c.box(2.4, 0.85, 1.2, mat(0x8a7a63), lx, 0.45, lz);
     const monitor = new THREE.Mesh(
       new THREE.PlaneGeometry(1.1, 0.65),
@@ -668,8 +863,6 @@ function studioLevel(i: number, _data?: WorldData): InteriorLevel {
     );
     c.add(monitor, lx, 1.35, lz - 0.35);
   }
-  const board = new THREE.Mesh(new THREE.PlaneGeometry(5, 2.4), mat(0xf0ede4, 0.95));
-  c.add(board, -c.halfW + 0.58, 2.1, 0, Math.PI / 2);
   return c.finish('studio', 'STUDIO');
 }
 

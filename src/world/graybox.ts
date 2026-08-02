@@ -12,7 +12,8 @@ import {
   SIDEWALK_W, WORLD_EDGE,
 } from './layout';
 import {
-  asphaltTexture, awningTexture, grassTexture, sidewalkTexture, windowsTexture,
+  asphaltTexture, awningTexture, grassTexture, metalPanelTexture, sidewalkTexture,
+  windowsTexture,
 } from './textures';
 
 const DOOR_W = 2.6;
@@ -20,6 +21,58 @@ const DOOR_H = 3.2;
 const GF_H = 4.4;          // storefront ground-floor height
 const FLOOR_H = 3.2;       // upper floor height (window tile)
 const BAY_W = 4.0;         // window bay width (window tile)
+
+/**
+ * Angular rock-facet mural + giant wordmark for the climbing gym's front
+ * face — the purpose-built-gym look: charcoal field, bold shard graphics.
+ */
+function climbMuralTexture(accent: number): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 640;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#2e3136';
+  g.fillRect(0, 0, 1024, 640);
+  // Faceted "boulder" shards climbing from the lower right
+  const a = new THREE.Color(accent);
+  const shades = [
+    `#${a.getHexString()}`,
+    `#${a.clone().multiplyScalar(0.72).getHexString()}`,
+    `#${a.clone().lerp(new THREE.Color(0xffffff), 0.3).getHexString()}`,
+    '#43464d', '#54585f',
+  ];
+  let seed = 77;
+  const rnd = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  for (let i = 0; i < 14; i++) {
+    const bx = 320 + rnd() * 660;
+    const by = 640 - rnd() * 520;
+    const s = 90 + rnd() * 190;
+    g.fillStyle = shades[Math.floor(rnd() * shades.length)];
+    g.globalAlpha = 0.85 + rnd() * 0.15;
+    g.beginPath();
+    g.moveTo(bx, by);
+    g.lineTo(bx + s * (0.5 + rnd() * 0.6), by - s * (0.3 + rnd() * 0.5));
+    g.lineTo(bx + s * (0.1 + rnd() * 0.5), by - s * (0.8 + rnd() * 0.4));
+    g.closePath();
+    g.fill();
+  }
+  g.globalAlpha = 1;
+  // Giant wordmark
+  g.fillStyle = '#f2efe8';
+  g.font = 'bold 104px system-ui, sans-serif';
+  g.fillText('CLIMBING GYM', 48, 150);
+  g.fillStyle = `#${a.getHexString()}`;
+  g.fillRect(52, 180, 420, 14);
+  g.font = 'bold 52px system-ui, sans-serif';
+  g.fillStyle = '#b9bec7';
+  g.fillText('BOULDERING', 52, 268);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
 
 /** Canvas-texture nameplate used for signage */
 function makeSignTexture(text: string, accent: number, wide = false): THREE.CanvasTexture {
@@ -257,9 +310,17 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
       minZ: b.z - b.d / 2, maxZ: b.z + b.d / 2,
     });
 
-    // Upper floors: window-grid texture per face, repeats matched to size
+    // Upper floors: window-grid texture per face, repeats matched to size.
+    // The gym is the exception: purpose-built gyms read as windowless
+    // industrial boxes in ribbed metal panel with a mural + giant wordmark.
     if (upperH > 0.5) {
       const mkWin = (spanMeters: number) => {
+        if (b.id === 'climb') {
+          return new THREE.MeshStandardMaterial({
+            map: metalPanelTexture(spanMeters / 2.4, upperH / 3.4),
+            roughness: 0.65, metalness: 0.25,
+          });
+        }
         const tex = windowsTexture(
           0x9c968b, b.accent, 7000 + Math.abs(b.x) * 13 + Math.abs(b.z) * 7,
           spanMeters / BAY_W, floors,
@@ -282,6 +343,24 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
       const cap = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.4, 0.35, b.d + 0.4), parapetMat);
       cap.position.set(b.x, CURB_H + b.h + 0.178, b.z);
       group.add(cap);
+
+      // Gym mural across the whole street face, wordmark included
+      if (b.id === 'climb') {
+        const muralTex = climbMuralTexture(b.accent);
+        const mural = new THREE.Mesh(
+          new THREE.PlaneGeometry(b.w - 0.4, upperH - 0.5),
+          new THREE.MeshStandardMaterial({
+            map: muralTex, roughness: 0.8,
+            emissive: 0xffffff, emissiveMap: muralTex, emissiveIntensity: 0.12,
+          }),
+        );
+        const half = (b.facing === 'n' || b.facing === 's' ? b.d : b.w) / 2 + 0.07;
+        mural.position.set(
+          b.x + out.x * half, CURB_H + GF_H + upperH / 2, b.z + out.z * half,
+        );
+        mural.rotation.y = rot;
+        group.add(mural);
+      }
     }
 
     // Storefront: glass band across the facing side
@@ -319,6 +398,76 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
       );
       p.rotation.y = rot;
       group.add(p);
+    }
+
+    // Gym storefront: accent entry portal + colorful display walls with
+    // holds visible through the glass (real gyms sell the walls from the
+    // street — glazing transparency is the whole point of their facades)
+    if (b.id === 'climb') {
+      const portalMat = new THREE.MeshStandardMaterial({
+        color: b.accent, roughness: 0.5, emissive: b.accent, emissiveIntensity: 0.18,
+      });
+      for (const side of [-1, 1]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.45, DOOR_H + 0.7, 0.45), portalMat);
+        const along = side * (DOOR_W / 2 + 0.5);
+        post.position.set(
+          door.x + out.x * 0.3 + Math.cos(rot) * along,
+          CURB_H + (DOOR_H + 0.7) / 2,
+          door.z + out.z * 0.3 - Math.sin(rot) * along,
+        );
+        group.add(post);
+      }
+      const lintel = new THREE.Mesh(new THREE.BoxGeometry(DOOR_W + 1.9, 0.5, 0.5), portalMat);
+      lintel.position.set(door.x + out.x * 0.3, CURB_H + DOOR_H + 0.95, door.z + out.z * 0.3);
+      lintel.rotation.y = rot;
+      group.add(lintel);
+
+      const wallColors = [0x3fa7dd, 0xef8f3a, 0x3ddc7b];
+      const holdColors = [0xf3d34a, 0xe8443a, 0xb44df0, 0x24262d, 0xf2efe8];
+      let ds = 913;
+      const drnd = () => { ds = (ds * 16807) % 2147483647; return ds / 2147483647; };
+      // Short display walls leaning back against the facade in the window
+      // band, holds facing the street. Local +z is outward; the top edge
+      // lands roughly flush with the building face.
+      [-1, 1].forEach((side) => {
+        for (let wi = 0; wi < 2; wi++) {
+          const along = side * (DOOR_W / 2 + 2.6 + wi * 2.7);
+          const lean = 0.08 + drnd() * 0.07;
+          const cL = Math.cos(lean), sL = Math.sin(lean);
+          const panel = new THREE.Group();
+          panel.position.set(
+            door.x + Math.cos(rot) * along,
+            CURB_H,
+            door.z - Math.sin(rot) * along,
+          );
+          panel.rotation.y = rot;
+          const slab = new THREE.Mesh(
+            new THREE.BoxGeometry(2.3, 2.6, 0.16),
+            new THREE.MeshStandardMaterial({
+              color: wallColors[(wi + (side > 0 ? 1 : 0)) % wallColors.length], roughness: 0.85,
+            }),
+          );
+          slab.rotation.x = -lean;
+          slab.position.set(0, 1.3 * cL, 0.42 - 1.3 * sL);
+          panel.add(slab);
+          for (let hi = 0; hi < 9; hi++) {
+            const hold = new THREE.Mesh(
+              new THREE.SphereGeometry(0.07 + drnd() * 0.05, 7, 6),
+              new THREE.MeshStandardMaterial({
+                color: holdColors[Math.floor(drnd() * holdColors.length)], roughness: 0.6,
+              }),
+            );
+            const hy = 0.3 + drnd() * 2.1;
+            hold.position.set(
+              -0.9 + drnd() * 1.8,
+              hy * cL,
+              0.54 - hy * sL,
+            );
+            panel.add(hold);
+          }
+          group.add(panel);
+        }
+      });
     }
 
     // Awning (shops only)
@@ -402,7 +551,7 @@ export function buildBlock(glassEnv?: THREE.Texture, data?: WorldData): BlockGeo
         addArtRow(group, posters.slice(2, 8), door, rot, outwardOffset(b.facing, 0.19),
           { y: CURB_H + 1.95, w: 1.35, h: 2.05, gap: 0.5, maxAlong: glassLen / 2 - 0.8 });
       }
-    } else {
+    } else if (b.id !== 'climb') {  // the gym's mural carries its wordmark
       const signTex = makeSignTexture(b.name, b.accent);
       const sign = new THREE.Mesh(
         new THREE.BoxGeometry(Math.min(facadeLen * 0.6, 9), 1.1, 0.28),

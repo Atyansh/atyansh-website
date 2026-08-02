@@ -169,6 +169,64 @@ export function grassTexture(repeatX: number, repeatY: number): THREE.CanvasText
   return finish(c, repeatX, repeatY);
 }
 
+/**
+ * Standing-seam metal panel for industrial facades (the climbing gym):
+ * charcoal field, vertical ribs, faint horizontal panel seams.
+ */
+export function metalPanelTexture(repeatX: number, repeatY: number): THREE.CanvasTexture {
+  const [c, g] = canvas(256, 256);
+  const rnd = mulberry(404);
+  g.fillStyle = '#383b41';
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1400; i++) {
+    const v = rnd();
+    g.fillStyle = v > 0.5 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.05)';
+    g.fillRect(rnd() * 256, rnd() * 256, 1.6, 1.6);
+  }
+  // Vertical standing-seam ribs
+  for (let x = 0; x < 256; x += 32) {
+    g.fillStyle = 'rgba(255,255,255,0.10)';
+    g.fillRect(x, 0, 2, 256);
+    g.fillStyle = 'rgba(0,0,0,0.28)';
+    g.fillRect(x + 3, 0, 3, 256);
+  }
+  // Horizontal panel seams
+  g.fillStyle = 'rgba(0,0,0,0.20)';
+  for (const y of [0, 128]) g.fillRect(0, y, 256, 2);
+  return finish(c, repeatX, repeatY);
+}
+
+/**
+ * Painted climbing-wall plywood: warm light field, faint 1.5m panel seams,
+ * and the t-nut grid every ~20cm that reads unmistakably as a gym wall.
+ * One tile = one 1.5m panel; set repeat = meters / 1.5 for constant density.
+ */
+export function plyPanelTexture(repeatX: number, repeatY: number): THREE.CanvasTexture {
+  const [c, g] = canvas(256, 256);
+  const rnd = mulberry(505);
+  g.fillStyle = '#ddd8cb';
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2600; i++) {
+    const v = rnd();
+    g.fillStyle = v > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)';
+    g.fillRect(rnd() * 256, rnd() * 256, 1.5, 1.5);
+  }
+  // Panel seams on the tile edges
+  g.strokeStyle = 'rgba(0,0,0,0.16)';
+  g.lineWidth = 2;
+  g.strokeRect(1, 1, 254, 254);
+  // T-nut grid: 7x7 per 1.5m panel (~21cm spacing)
+  g.fillStyle = 'rgba(40,38,34,0.5)';
+  for (let gx = 0; gx < 7; gx++) {
+    for (let gy = 0; gy < 7; gy++) {
+      g.beginPath();
+      g.arc(19 + gx * 36.5, 19 + gy * 36.5, 2.6, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  return finish(c, repeatX, repeatY);
+}
+
 /** Painted awning stripes in a building's accent. */
 export function awningTexture(accent: number): THREE.CanvasTexture {
   const [c, g] = canvas(256, 128);

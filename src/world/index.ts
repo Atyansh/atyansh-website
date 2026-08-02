@@ -193,7 +193,13 @@ export async function boot(container: HTMLElement): Promise<void> {
     if (activeLevel) {
       const dx = activeLevel.exit.x - controller.position.x;
       const dz = activeLevel.exit.z - controller.position.z;
-      if (dx * dx + dz * dz < activeLevel.exit.radius ** 2) exitLevel();
+      if (dx * dx + dz * dz < activeLevel.exit.radius ** 2) {
+        exitLevel();
+        return;
+      }
+      const it = activeLevel.interact?.find((i) =>
+        (i.x - controller.position.x) ** 2 + (i.z - controller.position.z) ** 2 < i.radius ** 2);
+      it?.action();
     } else if (nearDoor && levels.has(nearDoor.buildingId)) {
       enterLevel(levels.get(nearDoor.buildingId)!);
     }
@@ -309,9 +315,13 @@ export async function boot(container: HTMLElement): Promise<void> {
     if (activeLevel) {
       const dx = activeLevel.exit.x - controller.position.x;
       const dz = activeLevel.exit.z - controller.position.z;
-      hud.showDoorPrompt(
-        dx * dx + dz * dz < activeLevel.exit.radius ** 2 ? 'exit to street' : null,
-      );
+      if (dx * dx + dz * dz < activeLevel.exit.radius ** 2) {
+        hud.showDoorPrompt('exit to street');
+      } else {
+        const it = activeLevel.interact?.find((i) =>
+          (i.x - controller.position.x) ** 2 + (i.z - controller.position.z) ** 2 < i.radius ** 2);
+        hud.showDoorPrompt(it ? it.label : null);
+      }
     } else {
       for (const d of block.doors) {
         const dx = d.x - controller.position.x;

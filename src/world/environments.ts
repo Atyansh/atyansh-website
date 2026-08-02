@@ -7,6 +7,7 @@
 // All furniture gets real colliders. No web links — the game holds it all.
 
 import * as THREE from 'three';
+import { plyPanelTexture } from './textures';
 import type { ArtItem, ColliderRect, WorldData } from './types';
 
 const CELL_ORIGIN_X = 2000;
@@ -27,6 +28,8 @@ export interface InteriorLevel {
   groundFn: (x: number, z: number) => number;
   onEnter?: () => void;
   onExit?: () => void;
+  /** Walk-up spots where Enter triggers an action (prompt shows the label) */
+  interact?: Array<{ x: number; z: number; radius: number; label: string; action: () => void }>;
 }
 
 /** Horizontal surface the player can stand on (world XZ, top height) */
@@ -554,8 +557,8 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
   );
   c.add(sign, 0, 8.6, c.halfD - 0.6, Math.PI);
 
-  const wallMat = mat(0x8a97a8, 0.95);
   const padMat = mat(0x274487, 0.98);
+  const kickMat = mat(0x24262b, 0.9);
   const gradePalette = [0x3ddc7b, 0x3fa7dd, 0xf3d34a, 0xef8f3a, 0xe8443a, 0xb44df0, 0x6b4a2f, 0x24262d];
 
   // Seeded rng for hold placement
@@ -564,12 +567,18 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
   };
-  const holdGeo = [
-    new THREE.SphereGeometry(0.11, 8, 6),
-    new THREE.SphereGeometry(0.15, 8, 6),
-    new THREE.BoxGeometry(0.2, 0.12, 0.16),
-    new THREE.ConeGeometry(0.13, 0.2, 6),
-  ];
+  // Real hold vocabulary (weighted): footholds and crimps are everywhere,
+  // jugs common, slopers/pinches regular, the odd cone and macro blob.
+  const jug = new THREE.SphereGeometry(0.14, 10, 8);
+  const crimp = new THREE.BoxGeometry(0.24, 0.05, 0.09);
+  const sloper = new THREE.SphereGeometry(0.19, 12, 8);
+  sloper.scale(1, 0.45, 1);
+  const pinch = new THREE.BoxGeometry(0.09, 0.22, 0.1);
+  const foot = new THREE.SphereGeometry(0.05, 6, 5);
+  const cone5 = new THREE.ConeGeometry(0.12, 0.2, 5);
+  const macro = new THREE.DodecahedronGeometry(0.3, 0);
+  macro.scale(1, 0.55, 0.8);
+  const holdGeo = [foot, foot, crimp, crimp, jug, jug, sloper, pinch, cone5, macro];
 
   /**
    * An angled wall section with clustered routes of colored holds.
@@ -587,12 +596,25 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     c.group.add(pivot);
     const cL = Math.cos(lean), sL = Math.sin(lean);
 
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.4), wallMat);
+    // Painted-ply panel with t-nut grid; repeat matched so nut density is
+    // constant across differently sized sections
+    const slab = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, 0.4),
+      new THREE.MeshStandardMaterial({
+        map: plyPanelTexture(width / 1.5, height / 1.5), roughness: 0.88,
+      }),
+    );
     slab.rotation.x = lean;
     slab.position.set(0, (height / 2) * cL, (height / 2) * sL);
     slab.receiveShadow = true;
     pivot.add(slab);
     c.blockers.push(slab);
+
+    // Kickboard: the dark base strip every real wall has
+    const kick = new THREE.Mesh(new THREE.BoxGeometry(width, 0.36, 0.1), kickMat);
+    kick.rotation.x = lean;
+    kick.position.set(0, 0.18 * cL - 0.27 * sL, 0.18 * sL + 0.27 * cL);
+    pivot.add(kick);
 
     // Collider: local footprint from base line to the top edge's overhang
     // reach, rotated into a world AABB (walls sit at axis-aligned yaws).
@@ -616,27 +638,39 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
       const color = gradePalette[Math.floor(rnd() * gradePalette.length)];
       const holdMat = mat(color, 0.55);
       let hx = -width / 2 + (rt + 0.5) * (width / routes) + (rnd() - 0.5) * 0.4;
-      const holds = 7 + Math.floor(rnd() * 7);
+      // Route tag plate at the start holds, like a set problem
+      const tag = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.03), holdMat);
+      tag.position.set(hx, 0.55 * cL - 0.23 * sL, 0.55 * sL + 0.23 * cL);
+      pivot.add(tag);
+      const holds = 8 + Math.floor(rnd() * 6);
       for (let hi = 0; hi < holds; hi++) {
         const t = hi / (holds - 1);
-        const hy = 0.35 + t * (height - 0.9);
+        const hy = 0.45 + t * (height - 1.0);
         hx += (rnd() - 0.5) * 0.55;
         hx = Math.max(-width / 2 + 0.3, Math.min(width / 2 - 0.3, hx));
         const hold = new THREE.Mesh(holdGeo[Math.floor(rnd() * holdGeo.length)], holdMat);
-        hold.position.set(hx, hy * cL - 0.26 * sL, hy * sL + 0.26 * cL);
+        hold.position.set(hx, hy * cL - 0.24 * sL, hy * sL + 0.24 * cL);
         hold.rotation.y = rnd() * Math.PI;
+        hold.rotation.z = (rnd() - 0.5) * 0.6;
         pivot.add(hold);
       }
     }
-    // A couple of volumes, axis pointed along the face normal
-    for (let v = 0; v < Math.max(1, Math.floor(width / 7)); v++) {
-      const vw = 0.9 + rnd() * 0.8;
-      const vol = new THREE.Mesh(new THREE.ConeGeometry(vw / 2, 0.5, 4), mat(0xd8d5cc, 0.9));
+    // Plywood volumes: matte white/charcoal pyramids and wedges bolted to
+    // the face, apex out along the normal, spun randomly around it
+    for (let v = 0; v < Math.max(2, Math.floor(width / 4.5)); v++) {
+      const vw = 0.8 + rnd() * 1.0;
+      const volGroup = new THREE.Group();
       const vx = -width / 2 + 1 + rnd() * (width - 2);
       const vy = 1 + rnd() * (height - 2.5);
-      vol.rotation.x = Math.PI / 2 + lean;
-      vol.position.set(vx, vy * cL - 0.42 * sL, vy * sL + 0.42 * cL);
-      pivot.add(vol);
+      volGroup.position.set(vx, vy * cL - 0.2 * sL, vy * sL + 0.2 * cL);
+      volGroup.rotation.x = Math.PI / 2 + lean;
+      const vol = new THREE.Mesh(
+        new THREE.ConeGeometry(vw / 2, 0.3 + rnd() * 0.22, rnd() > 0.5 ? 3 : 4),
+        mat(rnd() > 0.35 ? 0xf2efe8 : 0x2c2e33, 0.9),
+      );
+      vol.rotation.y = rnd() * Math.PI;
+      volGroup.add(vol);
+      pivot.add(volGroup);
     }
   };
 
@@ -707,31 +741,32 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     c.add(framed, 0, 5.6, c.halfD - 0.6, Math.PI);
   }
 
-  // Beta wall: actual send videos on portrait screens flanking the door.
-  // Self-hosted mp4s; paused unless the player is in the gym.
-  const videoEls: HTMLVideoElement[] = [];
+  // Beta theater: one big portrait screen playing one send at a time (a
+  // single video decoder instead of eight), auto-advancing through the
+  // playlist, with a static up-next thumbnail rail and a bench to watch
+  // from. Enter at the bench skips to the next send.
   const vids = data?.climbVideos ?? [];
-  vids.slice(0, 8).forEach((v, vi) => {
-    const side = vi < 4 ? -1 : 1;
-    const lx = side * (7.6 + (vi % 4) * 2.0);
+  const lvl = c.finish('climb', 'CLIMBING GYM');
+  if (vids.length) {
     const el = document.createElement('video');
-    el.src = v.video;
     el.muted = true;
-    el.loop = true;
     el.playsInline = true;
     el.preload = 'none';
-    videoEls.push(el);
+    let cur = 0;
 
     const screenMat = new THREE.MeshStandardMaterial({
       color: 0x0c0d10, roughness: 0.6,
       emissive: 0xffffff, emissiveIntensity: 0.85,
     });
-    if (v.thumb) {
-      const thumbTex = loader.load(v.thumb);
-      thumbTex.colorSpace = THREE.SRGBColorSpace;
-      screenMat.map = thumbTex;
-      screenMat.emissiveMap = thumbTex;
-    }
+    const setPoster = (): void => {
+      const t = vids[cur].thumb;
+      if (!t) return;
+      const tex = loader.load(t);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      screenMat.map = tex;
+      screenMat.emissiveMap = tex;
+      screenMat.needsUpdate = true;
+    };
     el.addEventListener('playing', () => {
       const vt = new THREE.VideoTexture(el);
       vt.colorSpace = THREE.SRGBColorSpace;
@@ -740,29 +775,91 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
       screenMat.needsUpdate = true;
     }, { once: true });
 
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.55, 2.6, 0.08), mat(0x1b1d22, 0.5));
-    c.add(frame, lx, 3.55, c.halfD - 0.56);
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 2.4), screenMat);
-    c.add(screen, lx, 3.55, c.halfD - 0.61, Math.PI);
-    const label = textTexture(v.grade.toUpperCase(), `${v.gym} · ${v.date}`, 512, '#ffa53a');
-    const plaque = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.35, 0.34),
-      new THREE.MeshStandardMaterial({ map: label, emissive: 0xffffff, emissiveMap: label, emissiveIntensity: 0.5 }),
-    );
-    c.add(plaque, lx, 2.05, c.halfD - 0.61, Math.PI);
-  });
-  if (vids.length) {
-    const betaSign = textTexture('BETA WALL', 'real footage of these sends', 1024, '#3fa7dd');
-    const bs = new THREE.Mesh(
-      new THREE.PlaneGeometry(5.5, 1.35),
-      new THREE.MeshStandardMaterial({ map: betaSign, emissive: 0xffffff, emissiveMap: betaSign, emissiveIntensity: 0.6 }),
-    );
-    c.add(bs, -11.5, 6.3, c.halfD - 0.6, Math.PI);
-  }
+    // Now-playing plaque, redrawn per send
+    const plaqueCanvas = document.createElement('canvas');
+    plaqueCanvas.width = 1024;
+    plaqueCanvas.height = 192;
+    const plaqueTex = new THREE.CanvasTexture(plaqueCanvas);
+    plaqueTex.colorSpace = THREE.SRGBColorSpace;
+    const drawPlaque = (): void => {
+      const g = plaqueCanvas.getContext('2d')!;
+      const v = vids[cur];
+      g.fillStyle = '#191b21';
+      g.fillRect(0, 0, 1024, 192);
+      g.textAlign = 'center';
+      g.fillStyle = '#ffa53a';
+      g.font = 'bold 80px system-ui, sans-serif';
+      g.fillText(`NOW SHOWING · ${v.grade.toUpperCase()}`, 512, 82);
+      g.font = '40px system-ui, sans-serif';
+      g.fillStyle = '#8d93a3';
+      g.fillText(`${v.gym} · ${v.date} · ${cur + 1} of ${vids.length}`, 512, 150);
+      plaqueTex.needsUpdate = true;
+    };
 
-  const lvl = c.finish('climb', 'CLIMBING GYM');
-  lvl.onEnter = () => videoEls.forEach((el) => { el.play().catch(() => {}); });
-  lvl.onExit = () => videoEls.forEach((el) => el.pause());
+    // Up-next rail: static thumbnails, orange frame marks what's playing
+    const railX = (i: number): number => -4.6 - i * 1.5;
+    const hiFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(1.34, 2.28, 0.05),
+      new THREE.MeshStandardMaterial({ color: 0xffa53a, emissive: 0xffa53a, emissiveIntensity: 1.0 }),
+    );
+    c.add(hiFrame, railX(0), 3.55, c.halfD - 0.57);
+    vids.forEach((v, vi) => {
+      if (!v.thumb) return;
+      const t = loader.load(v.thumb);
+      t.colorSpace = THREE.SRGBColorSpace;
+      const thumb = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.2, 2.1),
+        new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.4 }),
+      );
+      c.add(thumb, railX(vi), 3.55, c.halfD - 0.61, Math.PI);
+      const lbl = textTexture(v.grade.toUpperCase(), v.date, 512, '#ffa53a');
+      const p = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.2, 0.3),
+        new THREE.MeshStandardMaterial({ map: lbl, emissive: 0xffffff, emissiveMap: lbl, emissiveIntensity: 0.45 }),
+      );
+      c.add(p, railX(vi), 2.25, c.halfD - 0.61, Math.PI);
+    });
+
+    const show = (i: number): void => {
+      cur = (i + vids.length) % vids.length;
+      el.src = vids[cur].video;
+      setPoster();
+      drawPlaque();
+      hiFrame.position.x = railX(cur);
+      el.play().catch(() => {});
+    };
+    el.addEventListener('ended', () => show(cur + 1));
+    // Dress the screen before first entry (no fetch/decode until then)
+    setPoster();
+    drawPlaque();
+
+    // The screen itself, right of the door
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(3.4, 5.7, 0.1), mat(0x1b1d22, 0.5));
+    c.add(frame, 8.6, 3.85, c.halfD - 0.56);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 5.3), screenMat);
+    c.add(screen, 8.6, 3.85, c.halfD - 0.62, Math.PI);
+    const plaque = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.0, 0.56),
+      new THREE.MeshStandardMaterial({ map: plaqueTex, emissive: 0xffffff, emissiveMap: plaqueTex, emissiveIntensity: 0.55 }),
+    );
+    c.add(plaque, 8.6, 0.82, c.halfD - 0.62, Math.PI);
+    const theaterSign = textTexture('BETA THEATER', 'real footage · Enter at the bench for the next send', 1024, '#3fa7dd');
+    const ts = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.8, 1.4),
+      new THREE.MeshStandardMaterial({ map: theaterSign, emissive: 0xffffff, emissiveMap: theaterSign, emissiveIntensity: 0.6 }),
+    );
+    c.add(ts, 8.6, 7.3, c.halfD - 0.6, Math.PI);
+
+    // Viewing bench (standable like any pad)
+    c.box(3.4, 0.45, 1.0, padMat, 8.6, 0.23, c.halfD - 7.5);
+
+    lvl.interact = [{
+      x: c.wx(8.6), z: c.halfD - 7.5, radius: 2.8,
+      label: 'next send', action: () => show(cur + 1),
+    }];
+    lvl.onEnter = () => show(cur);
+    lvl.onExit = () => el.pause();
+  }
   return lvl;
 }
 

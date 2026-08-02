@@ -17,6 +17,9 @@ export class FollowCamera {
   camera: THREE.PerspectiveCamera;
   yaw = Math.PI;                // start behind the player facing -Z->+Z scene
   pitch = 0.12;
+  /** Ground height sampler — keeps the boom from dipping below the floor.
+      Swapped on level transitions along with the blockers. */
+  groundFn: ((x: number, z: number) => number) | null = null;
   private ray = new THREE.Raycaster();
   private currentBoom = BOOM_LENGTH;
 
@@ -75,7 +78,17 @@ export class FollowCamera {
     else this.currentBoom += (boom - this.currentBoom) * Math.min(1, dt * 4);
 
     this.camera.position.copy(pivot).addScaledVector(dir, this.currentBoom);
-    this.camera.lookAt(pivot);
+
+    // Floor ride: never let the camera sink below the ground it's over.
+    // Aim along the orbit sight line rather than hard at the pivot, so once
+    // the camera is riding the floor further pitch still tilts the view up
+    // past the character (how third-person cameras handle looking skyward).
+    if (this.groundFn) {
+      const gy = this.groundFn(this.camera.position.x, this.camera.position.z);
+      this.camera.position.y = Math.max(this.camera.position.y, gy + 0.35);
+    }
+    const aim = this.camera.position.clone().addScaledVector(dir, -10);
+    this.camera.lookAt(aim);
     void desired;
   }
 

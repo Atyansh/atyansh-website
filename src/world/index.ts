@@ -148,6 +148,7 @@ export async function boot(container: HTMLElement): Promise<void> {
     container.clientWidth / container.clientHeight,
     block.cameraBlockers,
   );
+  followCam.groundFn = sampleGroundY;
   const input = new Input(renderer.domElement);
   const hud = new Hud(container);
 
@@ -166,6 +167,7 @@ export async function boot(container: HTMLElement): Promise<void> {
       activeLevel = lvl;
       controller.setLevel(lvl.colliders, lvl.groundFn, lvl.spawn.x, lvl.spawn.z, lvl.spawn.heading);
       followCam.blockers = lvl.blockers;
+      followCam.groundFn = lvl.groundFn;
       followCam.yaw = lvl.spawn.heading + Math.PI;
       sun.intensity = 0.05;
       hemi.intensity = 0.5;
@@ -182,6 +184,7 @@ export async function boot(container: HTMLElement): Promise<void> {
         rp?.x ?? -11, rp?.z ?? 40, rp?.heading ?? 0,
       );
       followCam.blockers = block.cameraBlockers;
+      followCam.groundFn = sampleGroundY;
       followCam.yaw = (rp?.heading ?? 0) + Math.PI;
       sun.intensity = outdoorLight.sun;
       hemi.intensity = outdoorLight.hemi;

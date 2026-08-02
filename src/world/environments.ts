@@ -617,10 +617,14 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     kick.position.set(0, 0.18 * cL - 0.27 * sL, 0.18 * sL + 0.27 * cL);
     pivot.add(kick);
 
-    // Collider: local footprint from base line to the top edge's overhang
-    // reach, rotated into a world AABB (walls sit at axis-aligned yaws).
+    // Collider: block only where the climbing surface is at body height.
+    // An overhang's upper reach hangs metres above the player's head — the
+    // full footprint would read as an invisible cuboid wall, so the strip
+    // ends where the underside clears ~1.9m. Slabs block at the base line.
     const zNear = Math.min(-0.4, height * sL - 0.4);
-    const zFar = Math.max(0.4, height * sL + 0.4);
+    const zFar = lean > 0
+      ? Math.min(height * sL, 1.9 * (sL / cL)) + 0.5
+      : 0.4;
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     for (const [px, pz] of [
       [-width / 2, zNear], [width / 2, zNear],
@@ -725,12 +729,14 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     hull.receiveShadow = true;
     c.add(hull, bx, 0.24, bz);   // sits on its pad
     c.blockers.push(hull);
+    // Octagon-ish footprint from three overlapping AABBs — a single square
+    // would leave big invisible corners around the rounded base
+    const top = topOut ? 0.24 + ry : undefined;
+    c.collide(bx - rx * 0.92, bx + rx * 0.92, bz - rz * 0.5, bz + rz * 0.5, top);
+    c.collide(bx - rx * 0.5, bx + rx * 0.5, bz - rz * 0.92, bz + rz * 0.92, top);
+    c.collide(bx - rx * 0.75, bx + rx * 0.75, bz - rz * 0.75, bz + rz * 0.75, top);
     if (topOut) {
-      const top = 0.24 + ry;
-      c.collide(bx - rx, bx + rx, bz - rz, bz + rz, top);
-      c.platform(bx - rx * 0.55, bx + rx * 0.55, bz - rz * 0.55, bz + rz * 0.55, top);
-    } else {
-      c.collide(bx - rx, bx + rx, bz - rz, bz + rz);
+      c.platform(bx - rx * 0.55, bx + rx * 0.55, bz - rz * 0.55, bz + rz * 0.55, 0.24 + ry);
     }
 
     // Holds across the facets: pick triangles, random barycentric point,
@@ -765,24 +771,26 @@ function climbLevel(i: number, data?: WorldData): InteriorLevel {
     }
   };
 
-  mkBoulder(-5, -8, 3.2, 3.6, 2.8, 0xe8e4da, 46);          // big cream island
-  mkBoulder(9, 1, 2.6, 3.0, 2.4, 0x8fa3b8, 34);            // steel-blue island
-  mkBoulder(-3, 12, 2.2, 1.12, 2.0, 0xcfd4c9, 16, true);   // low top-out slab (jumpable)
+  // Island scale matches the walls (walls ~10m): serious freestanding masses
+  mkBoulder(-7, -9, 6.5, 7.5, 5.5, 0xe8e4da, 110);         // big cream island
+  mkBoulder(10, 3, 5.0, 6.2, 4.5, 0x8fa3b8, 80);           // steel-blue island
+  mkBoulder(-4.5, 13, 3.2, 1.12, 3.0, 0xcfd4c9, 24, true); // low top-out slab (jumpable)
 
   // Crash pads: strips under every wall + aprons under the boulder islands.
-  // Standable — feet stay on top.
-  const pads: Array<[number, number, number, number]> = [
-    [0, -c.halfD + 3.9, c.halfW * 2 - 2, 6],
-    [-c.halfW + 3.9, 1, 6, c.halfD * 2 - 8],
-    [c.halfW - 3.9, 1, 6, c.halfD * 2 - 8],
-    [-5, -8, 11, 10.2],
-    [9, 1, 9.8, 9.4],
-    [-3, 12, 9, 8.6],
+  // Standable — feet stay on top. Aprons sit 2cm taller than the wall
+  // strips so overlapping pad tops never share a plane (z-fighting).
+  const padZones: Array<[number, number, number, number, number]> = [
+    [0, -c.halfD + 3.9, c.halfW * 2 - 2, 6, 0.24],
+    [-c.halfW + 3.9, 1, 6, c.halfD * 2 - 8, 0.24],
+    [c.halfW - 3.9, 1, 6, c.halfD * 2 - 8, 0.24],
+    [-7, -9, 17.4, 15.4, 0.26],
+    [10, 3, 14.4, 13.4, 0.26],
+    [-4.5, 13, 10.8, 10.4, 0.26],
   ];
-  for (const [px, pz, pw, pd] of pads) {
-    const padMesh = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.22, pd), padMat);
-    c.add(padMesh, px, 0.13, pz);
-    c.platform(px - pw / 2, px + pw / 2, pz - pd / 2, pz + pd / 2, 0.24);
+  for (const [px, pz, pw, pd, top] of padZones) {
+    const padMesh = new THREE.Mesh(new THREE.BoxGeometry(pw, top - 0.02, pd), padMat);
+    c.add(padMesh, px, (top - 0.02) / 2 + 0.01, pz);
+    c.platform(px - pw / 2, px + pw / 2, pz - pd / 2, pz + pd / 2, top);
   }
 
   // The send-pyramid chart (kept, framed, near the entrance)

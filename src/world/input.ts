@@ -95,6 +95,11 @@ export class Input {
     return j;
   }
 
+  /** Live user intent right now: keys held, jump pending, or unread mouse motion */
+  hasActivity(): boolean {
+    return this.keys.size > 0 || this.jumpQueued || this.dx !== 0 || this.dy !== 0;
+  }
+
   /** Read and clear accumulated mouse deltas */
   consumeMouse(): { dx: number; dy: number } {
     const d = { dx: this.dx, dy: this.dy };

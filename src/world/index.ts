@@ -44,7 +44,10 @@ const BOOKMARKS: Record<string, CamBookmark> = {
 export async function boot(container: HTMLElement): Promise<void> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // 1.5 instead of full retina 2: the post stack (GTAO especially) runs at
+  // canvas resolution, and 1.5² is ~44% fewer pixels for a difference that
+  // is nearly invisible on a high-DPI panel.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -252,8 +255,23 @@ export async function boot(container: HTMLElement): Promise<void> {
   window.addEventListener('resize', onResize);
 
   // ---- Main loop ----
+  // Frame pacing: cap at 60fps (a ProMotion display would otherwise run this
+  // at 120), and drop to 30fps once the player has been idle for 2s — any
+  // input snaps back instantly. Simulation uses real clock dt, so pacing
+  // never changes game speed. The gym is exempt from the idle drop so the
+  // beta-wall videos stay smooth.
   const clock = new THREE.Clock();
-  renderer.setAnimationLoop(() => {
+  let lastRender = -Infinity;
+  let lastActive = 0;
+  renderer.setAnimationLoop((now: number) => {
+    const active = input.hasActivity() || script !== null
+      || controller.speed > 0.01 || !controller.grounded;
+    if (active) lastActive = now;
+    const idle = now - lastActive > 2000 && activeLevel?.id !== 'climb';
+    const interval = idle ? 1000 / 30 : 1000 / 60;
+    if (now - lastRender < interval - 0.5) return;
+    lastRender = now;
+
     const dt = Math.min(clock.getDelta(), 0.05);
     frameTimes.push(dt * 1000);
     if (frameTimes.length > 4000) frameTimes.shift();

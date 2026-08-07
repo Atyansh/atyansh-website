@@ -60,6 +60,13 @@ for SECRET_NAME in "${SECRETS[@]}"; do
         if echo -n "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" --data-file=- &>/dev/null; then
             echo -e "${GREEN}✓${NC}"
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            # Destroy superseded versions: Secret Manager bills every
+            # non-DESTROYED version (disabled included) at ~$0.06/month
+            for OLD_VERSION in $(gcloud secrets versions list "$SECRET_NAME" \
+                --filter="state!=DESTROYED" --format="value(name)" | tail -n +2); do
+                gcloud secrets versions destroy "$OLD_VERSION" \
+                    --secret="$SECRET_NAME" --quiet &>/dev/null || true
+            done
         else
             echo -e "${RED}✗ Failed${NC}"
             ERROR_COUNT=$((ERROR_COUNT + 1))

@@ -112,6 +112,17 @@ const APIs = [
     requiresApiKey: false,
   },
   {
+    // Ascents come from the logged-in query; if it failed, the page still built
+    // from the capped public queries, but the token needs attention.
+    name: 'Kaya (Logged-in)',
+    cacheFile: 'kaya-data.json',
+    checkFn: (data) => !data.authError,
+    failReason: (data) => `Logged-in fetch failed, fell back to public queries: ${data.authError}`,
+    renewal: 'In Firefox on a Mac, sign in at kaya-app.kayaclimb.com, run copy(localStorage.getItem("refresh_token")) in the console, set KAYA_REFRESH_TOKEN in .env, then ./scripts/sync-secrets-to-gcloud.sh KAYA_REFRESH_TOKEN',
+    requiresApiKey: true,
+    selfHealing: false,
+  },
+  {
     name: 'TMDB (TV Shows)',
     cacheFile: 'tmdb-tv-data.json',
     checkFn: (data) => {
@@ -187,12 +198,12 @@ async function checkAPIHealth() {
       if (!isValid) {
         results.failed.push({
           name: api.name,
-          reason: 'Cache exists but contains no data - API call may have failed',
+          reason: api.failReason ? api.failReason(data) : 'Cache exists but contains no data - API call may have failed',
           renewal: api.renewal,
           requiresApiKey: api.requiresApiKey,
           selfHealing: api.selfHealing || false,
         });
-        console.log(`⚠️  ${api.name}: Empty data in cache`);
+        console.log(`⚠️  ${api.name}: ${api.failReason ? api.failReason(data) : 'Empty data in cache'}`);
         continue;
       }
 

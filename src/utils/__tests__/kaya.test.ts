@@ -1,4 +1,4 @@
-import { mergeAscents, type KayaAscent } from '../kaya';
+import { mergeAscents, redactTokens, type KayaAscent } from '../kaya';
 
 const ascent = (id: string, videoUrl: string | null = null): KayaAscent => ({
   id,
@@ -22,5 +22,21 @@ describe('mergeAscents', () => {
 
   it('returns the fresh list unchanged when there is no previous data', () => {
     expect(mergeAscents([ascent('1')], []).map(a => a.id)).toEqual(['1']);
+  });
+});
+
+describe('redactTokens', () => {
+  it('redacts JWT-shaped strings', () => {
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJpZCI6MX0.abc_DEF-123';
+    expect(redactTokens(`token refresh returned 401 ${jwt}`)).toBe('token refresh returned 401 <redacted>');
+  });
+
+  it('leaves ordinary error messages intact', () => {
+    const msg = 'token refresh returned 401 {"error":"Account not found or refresh token invalid."}';
+    expect(redactTokens(msg)).toBe(msg);
+  });
+
+  it('caps message length', () => {
+    expect(redactTokens('x'.repeat(1000))).toHaveLength(300);
   });
 });

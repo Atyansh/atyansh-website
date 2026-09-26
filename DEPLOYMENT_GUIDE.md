@@ -284,6 +284,7 @@ This script will:
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
 - TV Shows: `TMDB_READ_TOKEN`, `TMDB_ACCESS_TOKEN`, `TMDB_ACCOUNT_OBJECT_ID`, `TMDB_TV_LIST_ID`
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`, `KAYA_USERNAME`
+- Kaya login: `KAYA_REFRESH_TOKEN` (from Firefox on a Mac; long-lived, not rotated by builds)
 - Discord Notifications: `DISCORD_BOT_TOKEN`, `DISCORD_USER_ID`
 
 ### Pulling Secrets to Local .env

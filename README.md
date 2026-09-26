@@ -336,9 +336,11 @@ TV shows are tracked directly on TMDB: a public "TV Shows I've Watched" list hol
 3. Add to `.env`:
    ```bash
    KAYA_USERNAME=your_kaya_username
+   KAYA_REFRESH_TOKEN=your_kaya_refresh_token
    ```
+4. For `KAYA_REFRESH_TOKEN`: sign in at https://kaya-app.kayaclimb.com in **Firefox on a Mac** (Kaya binds the token to that browser) and run `copy(localStorage.getItem('refresh_token'))` in the DevTools console
 
-**Note:** Uses the public Kaya GraphQL API. No API key required.
+**Note:** Uses Kaya's GraphQL API. The public queries are capped at 200 results, so ascents come from the logged-in `ascentsForUser` query; without a working refresh token the build falls back to the public queries (fetched per grade) and the health check alerts.
 
 ### 11. Discord Notifications (API Health Monitoring)
 

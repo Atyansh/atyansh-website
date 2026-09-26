@@ -62,6 +62,7 @@ steps:
       - 'MAL_REFRESH_TOKEN'
       - 'GOODREADS_USER_ID'
       - 'KAYA_USERNAME'
+      - 'KAYA_REFRESH_TOKEN'
       - 'EXOPHASE_USERNAME'
       - 'TMDB_ACCESS_TOKEN'
       - 'TMDB_ACCOUNT_OBJECT_ID'
@@ -162,6 +163,9 @@ availableSecrets:
       env: 'GOODREADS_USER_ID'
     - versionName: projects/personal-website-334502/secrets/KAYA_USERNAME/versions/latest
       env: 'KAYA_USERNAME'
+    # Kaya login (refresh token from Firefox on a Mac; not rotated by builds)
+    - versionName: projects/personal-website-334502/secrets/KAYA_REFRESH_TOKEN/versions/latest
+      env: 'KAYA_REFRESH_TOKEN'
     - versionName: projects/personal-website-334502/secrets/EXOPHASE_USERNAME/versions/latest
       env: 'EXOPHASE_USERNAME'
     # TMDB API secrets (TV shows tracked via TMDB list + ratings)

@@ -196,20 +196,22 @@ async function getGradePyramid(userId: string): Promise<KayaGradeDistribution[]>
 }
 
 // Kaya's public API caps paging (since ~2026-09-10): count <= 50 ("Count Limit
-// Exceeded") and offset <= 150 ("Offset Limit Exceeded"). Only the 200 most
-// recent ascents are reachable, so older ones are carried over from the
-// previous build's data (see mergeAscents).
+// Exceeded") and offset <= 150 ("Offset Limit Exceeded") — at most 200 results
+// per query. The caps are per query, so ascents are fetched one grade at a
+// time (the same way Kaya's own profile page filters them). Only a grade with
+// 200+ ascents gets cut short; its older ascents are then carried over from
+// the previous build's data (see mergeAscents).
 const ASCENTS_PAGE_SIZE = 50;
 const ASCENTS_MAX_OFFSET = 150;
 
 /**
- * Get a user's bouldering ascents, newest first, as far as the API allows.
- * `complete` is false when the paging cap cut the list short.
+ * Get a user's bouldering ascents for the given grades, as far as the API
+ * allows. `complete` is false when the paging cap cut any grade short.
  */
-async function getAllAscents(userId: string): Promise<{ ascents: KayaAscent[]; complete: boolean }> {
+async function getAllAscents(userId: string, gradeIds: string[]): Promise<{ ascents: KayaAscent[]; complete: boolean }> {
   const query = `
-    query webAscentsForUser($user_id: ID!, $climb_type_id: ID, $count: Int!, $offset: Int!) {
-      webAscentsForUser(user_id: $user_id, climb_type_id: $climb_type_id, count: $count, offset: $offset) {
+    query webAscentsForUser($user_id: ID!, $climb_type_id: ID, $min_grade_id: ID, $max_grade_id: ID, $count: Int!, $offset: Int!) {
+      webAscentsForUser(user_id: $user_id, climb_type_id: $climb_type_id, min_grade_id: $min_grade_id, max_grade_id: $max_grade_id, count: $count, offset: $offset) {
         id
         date
         rating
@@ -229,33 +231,36 @@ async function getAllAscents(userId: string): Promise<{ ascents: KayaAscent[]; c
     }
   `;
 
-  const allAscents: KayaAscent[] = [];
-  let offset = 0;
-  const count = ASCENTS_PAGE_SIZE;
+  const fetchGrade = async (gradeId: string) => {
+    const gradeAscents: KayaAscent[] = [];
+    for (let offset = 0; offset <= ASCENTS_MAX_OFFSET; offset += ASCENTS_PAGE_SIZE) {
+      const data = await kayaGraphQL<{ webAscentsForUser: KayaAscent[] }>(
+        query,
+        { user_id: userId, climb_type_id: '1', min_grade_id: gradeId, max_grade_id: gradeId, count: ASCENTS_PAGE_SIZE, offset }
+      );
 
-  while (true) {
-    const data = await kayaGraphQL<{ webAscentsForUser: KayaAscent[] }>(
-      query,
-      { user_id: userId, climb_type_id: '1', count, offset }
-    );
+      // A failed page must not pass for "no more ascents" — that silently shipped
+      // a climbing page with zero videos while the stats still looked healthy.
+      if (!data) {
+        throw new Error(`Failed to fetch Kaya ascents for grade ${gradeId} at offset ${offset}`);
+      }
 
-    // A failed page must not pass for "no more ascents" — that silently shipped
-    // a climbing page with zero videos while the stats still looked healthy.
-    if (!data) {
-      throw new Error(`Failed to fetch Kaya ascents at offset ${offset}`);
+      const ascents = data.webAscentsForUser || [];
+      gradeAscents.push(...ascents);
+      if (ascents.length < ASCENTS_PAGE_SIZE) {
+        return { ascents: gradeAscents, complete: true };
+      }
     }
+    log.info(`Grade ${gradeId} has more ascents than the API pages to`);
+    return { ascents: gradeAscents, complete: false };
+  };
 
-    const ascents = data.webAscentsForUser || [];
-    allAscents.push(...ascents);
-
-    if (ascents.length < count) {
-      return { ascents: allAscents, complete: true };
-    }
-    offset += count;
-    if (offset > ASCENTS_MAX_OFFSET) {
-      return { ascents: allAscents, complete: false };
-    }
-  }
+  const results = await Promise.all(gradeIds.map(fetchGrade));
+  return {
+    // A grade filter can return a neighbouring grade's ascent too — dedupe by id
+    ascents: mergeAscents(results.flatMap(r => r.ascents), []),
+    complete: results.every(r => r.complete),
+  };
 }
 
 /**
@@ -349,18 +354,19 @@ export async function getKayaData(): Promise<KayaData | null> {
 
     log.info(`Found Kaya user: ${profile.fname} (ID: ${profile.id})`);
 
-    // Fetch pyramid and ascents in parallel
-    const [pyramid, fetched] = await Promise.all([
-      getGradePyramid(profile.id),
-      getAllAscents(profile.id)
-    ]);
+    // The pyramid lists every grade with ascents, which drives the per-grade fetch
+    const pyramid = await getGradePyramid(profile.id);
+    if (pyramid.length === 0) {
+      throw new Error('Kaya grade pyramid came back empty');
+    }
+    const fetched = await getAllAscents(profile.id, pyramid.map(g => g.grade.id));
 
     let ascents = fetched.ascents;
     let persist = true;
     if (!fetched.complete) {
       const previous = await cache.getStale();
       ascents = mergeAscents(fetched.ascents, previous?.ascents ?? []);
-      log.info(`Ascents capped at ${fetched.ascents.length} by the API; merged with ${previous?.ascents.length ?? 0} previous -> ${ascents.length}`);
+      log.info(`Ascents capped by the API at ${fetched.ascents.length}; merged with ${previous?.ascents.length ?? 0} previous -> ${ascents.length}`);
       if (!previous) {
         // Caching this would overwrite the last full list in the build-cache
         // bucket with a truncated one. Serve it, but skip the cache so the

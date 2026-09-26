@@ -8,7 +8,15 @@ import { createLogger } from './logger';
 const log = createLogger('Kaya');
 
 const KAYA_USERNAME = import.meta.env.KAYA_USERNAME;
-const KAYA_GRAPHQL_ENDPOINT = 'https://kaya-beta.kayaclimb.com/graphql';
+const KAYA_REFRESH_TOKEN = import.meta.env.KAYA_REFRESH_TOKEN;
+const KAYA_API_BASE = 'https://kaya-beta.kayaclimb.com';
+const KAYA_GRAPHQL_ENDPOINT = `${KAYA_API_BASE}/graphql`;
+
+// Kaya binds a refresh token to the browser that signed in: a token from
+// Firefox on macOS refreshes with any Mac Firefox UA, but a Chrome UA (or
+// Firefox on Linux) gets 401 "Account not found or refresh token invalid".
+// KAYA_REFRESH_TOKEN must therefore come from Firefox on a Mac.
+const KAYA_AUTH_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:155.0) Gecko/20100101 Firefox/155.0';
 
 // Kaya API types
 export interface KayaGrade {
@@ -83,6 +91,9 @@ export interface KayaData {
     maxGrade: string | null;
     totalVideos: number;
   };
+  // Why the logged-in fetch failed, when it did (ascents then came from the
+  // capped public queries). Token-free — see redactTokens. Drives an alert.
+  authError?: string;
   timestamp: number;
 }
 
@@ -195,21 +206,58 @@ async function getGradePyramid(userId: string): Promise<KayaGradeDistribution[]>
     .sort((a, b) => (a.grade.ordering || 0) - (b.grade.ordering || 0));
 }
 
-// Kaya's public API caps paging (since ~2026-09-10): count <= 50 ("Count Limit
-// Exceeded") and offset <= 150 ("Offset Limit Exceeded"). Only the 200 most
-// recent ascents are reachable, so older ones are carried over from the
-// previous build's data (see mergeAscents).
-const ASCENTS_PAGE_SIZE = 50;
-const ASCENTS_MAX_OFFSET = 150;
+/**
+ * Strip anything token-shaped from a message before it's logged, cached, or
+ * sent to Discord. Error messages are built without tokens, but a server
+ * could still echo one back.
+ */
+export function redactTokens(message: string): string {
+  let out = message.replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '<redacted>');
+  if (KAYA_REFRESH_TOKEN) out = out.split(KAYA_REFRESH_TOKEN).join('<redacted>');
+  return out.slice(0, 300);
+}
 
 /**
- * Get a user's bouldering ascents, newest first, as far as the API allows.
- * `complete` is false when the paging cap cut the list short.
+ * Exchange the long-lived refresh token for a 2-hour access token.
+ * The refresh token is reusable; nothing needs persisting.
  */
-async function getAllAscents(userId: string): Promise<{ ascents: KayaAscent[]; complete: boolean }> {
+async function getAccessToken(): Promise<string> {
+  if (!KAYA_REFRESH_TOKEN) {
+    throw new Error('KAYA_REFRESH_TOKEN is not configured');
+  }
+
+  const response = await fetchWithRetry(`${KAYA_API_BASE}/api/user/refresh-token`, {
+    method: 'POST',
+    headers: { ...GRAPHQL_HEADERS, 'User-Agent': KAYA_AUTH_USER_AGENT },
+    body: JSON.stringify({ refresh_token: KAYA_REFRESH_TOKEN }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`token refresh returned ${response.status} ${detail}`.trim());
+  }
+
+  const data = await response.json();
+  if (data.message !== 'ok' || !data.token) {
+    throw new Error(`token refresh returned no token (message: ${data.message})`);
+  }
+  return data.token;
+}
+
+// ascentsForUser silently caps count at 60, and has no offset cap
+const LOGGED_IN_PAGE_SIZE = 60;
+const LOGGED_IN_MAX_PAGES = 100; // runaway guard: 6000 ascents
+
+/**
+ * Fetch every bouldering ascent with the logged-in query the mobile app uses.
+ * Unlike the public webAscentsForUser it isn't capped at 200. Throws on any
+ * failure so the caller can fall back and record why.
+ */
+async function getAscentsLoggedIn(userId: string): Promise<KayaAscent[]> {
+  const accessToken = await getAccessToken();
   const query = `
-    query webAscentsForUser($user_id: ID!, $climb_type_id: ID, $count: Int!, $offset: Int!) {
-      webAscentsForUser(user_id: $user_id, climb_type_id: $climb_type_id, count: $count, offset: $offset) {
+    query ascentsForUser($user_id: ID!, $climb_type_id: ID, $count: Int!, $offset: Int!) {
+      ascentsForUser(user_id: $user_id, climb_type_id: $climb_type_id, count: $count, offset: $offset) {
         id
         date
         rating
@@ -229,33 +277,100 @@ async function getAllAscents(userId: string): Promise<{ ascents: KayaAscent[]; c
     }
   `;
 
-  const allAscents: KayaAscent[] = [];
-  let offset = 0;
-  const count = ASCENTS_PAGE_SIZE;
+  const ascents: KayaAscent[] = [];
+  for (let page = 0; page < LOGGED_IN_MAX_PAGES; page++) {
+    const response = await fetchWithRetry(KAYA_GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: { ...GRAPHQL_HEADERS, 'User-Agent': KAYA_AUTH_USER_AGENT, authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        query,
+        variables: { user_id: userId, climb_type_id: '1', count: LOGGED_IN_PAGE_SIZE, offset: page * LOGGED_IN_PAGE_SIZE },
+      }),
+    });
 
-  while (true) {
-    const data = await kayaGraphQL<{ webAscentsForUser: KayaAscent[] }>(
-      query,
-      { user_id: userId, climb_type_id: '1', count, offset }
-    );
-
-    // A failed page must not pass for "no more ascents" — that silently shipped
-    // a climbing page with zero videos while the stats still looked healthy.
-    if (!data) {
-      throw new Error(`Failed to fetch Kaya ascents at offset ${offset}`);
+    if (!response.ok) {
+      throw new Error(`ascentsForUser returned ${response.status}`);
+    }
+    const data = await response.json();
+    if (data.errors) {
+      throw new Error(`ascentsForUser error: ${data.errors.map((e: { message: string }) => e.message).join('; ')}`);
     }
 
-    const ascents = data.webAscentsForUser || [];
-    allAscents.push(...ascents);
-
-    if (ascents.length < count) {
-      return { ascents: allAscents, complete: true };
-    }
-    offset += count;
-    if (offset > ASCENTS_MAX_OFFSET) {
-      return { ascents: allAscents, complete: false };
+    const rows: KayaAscent[] = data.data?.ascentsForUser ?? [];
+    ascents.push(...rows);
+    if (rows.length < LOGGED_IN_PAGE_SIZE) {
+      return ascents;
     }
   }
+  throw new Error(`ascentsForUser still returning full pages after ${LOGGED_IN_MAX_PAGES} pages`);
+}
+
+// Fallback path. Kaya's public API caps paging (since ~2026-09-10): count <= 50 ("Count Limit
+// Exceeded") and offset <= 150 ("Offset Limit Exceeded") — at most 200 results
+// per query. The caps are per query, so ascents are fetched one grade at a
+// time (the same way Kaya's own profile page filters them). Only a grade with
+// 200+ ascents gets cut short; its older ascents are then carried over from
+// the previous build's data (see mergeAscents).
+const ASCENTS_PAGE_SIZE = 50;
+const ASCENTS_MAX_OFFSET = 150;
+
+/**
+ * Get a user's bouldering ascents for the given grades, as far as the API
+ * allows. `complete` is false when the paging cap cut any grade short.
+ */
+async function getAllAscents(userId: string, gradeIds: string[]): Promise<{ ascents: KayaAscent[]; complete: boolean }> {
+  const query = `
+    query webAscentsForUser($user_id: ID!, $climb_type_id: ID, $min_grade_id: ID, $max_grade_id: ID, $count: Int!, $offset: Int!) {
+      webAscentsForUser(user_id: $user_id, climb_type_id: $climb_type_id, min_grade_id: $min_grade_id, max_grade_id: $max_grade_id, count: $count, offset: $offset) {
+        id
+        date
+        rating
+        video {
+          id
+          thumb_url
+          video_url
+        }
+        climb {
+          id
+          name
+          gym { id name }
+          area { id name }
+          grade { id name ordering }
+        }
+      }
+    }
+  `;
+
+  const fetchGrade = async (gradeId: string) => {
+    const gradeAscents: KayaAscent[] = [];
+    for (let offset = 0; offset <= ASCENTS_MAX_OFFSET; offset += ASCENTS_PAGE_SIZE) {
+      const data = await kayaGraphQL<{ webAscentsForUser: KayaAscent[] }>(
+        query,
+        { user_id: userId, climb_type_id: '1', min_grade_id: gradeId, max_grade_id: gradeId, count: ASCENTS_PAGE_SIZE, offset }
+      );
+
+      // A failed page must not pass for "no more ascents" — that silently shipped
+      // a climbing page with zero videos while the stats still looked healthy.
+      if (!data) {
+        throw new Error(`Failed to fetch Kaya ascents for grade ${gradeId} at offset ${offset}`);
+      }
+
+      const ascents = data.webAscentsForUser || [];
+      gradeAscents.push(...ascents);
+      if (ascents.length < ASCENTS_PAGE_SIZE) {
+        return { ascents: gradeAscents, complete: true };
+      }
+    }
+    log.info(`Grade ${gradeId} has more ascents than the API pages to`);
+    return { ascents: gradeAscents, complete: false };
+  };
+
+  const results = await Promise.all(gradeIds.map(fetchGrade));
+  return {
+    // A grade filter can return a neighbouring grade's ascent too — dedupe by id
+    ascents: mergeAscents(results.flatMap(r => r.ascents), []),
+    complete: results.every(r => r.complete),
+  };
 }
 
 /**
@@ -349,18 +464,30 @@ export async function getKayaData(): Promise<KayaData | null> {
 
     log.info(`Found Kaya user: ${profile.fname} (ID: ${profile.id})`);
 
-    // Fetch pyramid and ascents in parallel
-    const [pyramid, fetched] = await Promise.all([
-      getGradePyramid(profile.id),
-      getAllAscents(profile.id)
-    ]);
+    // The pyramid lists every grade with ascents, which drives the per-grade fetch
+    const pyramid = await getGradePyramid(profile.id);
+    if (pyramid.length === 0) {
+      throw new Error('Kaya grade pyramid came back empty');
+    }
+    // Logged-in query first (uncapped); on any failure fall back to the public
+    // per-grade queries so the page still builds, and record why for the alert.
+    let fetched: { ascents: KayaAscent[]; complete: boolean };
+    let authError: string | undefined;
+    try {
+      fetched = { ascents: await getAscentsLoggedIn(profile.id), complete: true };
+      log.info(`Fetched ${fetched.ascents.length} ascents via logged-in query`);
+    } catch (error) {
+      authError = redactTokens((error as Error).message);
+      log.error(`Logged-in Kaya fetch failed (${authError}); falling back to public per-grade queries`);
+      fetched = await getAllAscents(profile.id, pyramid.map(g => g.grade.id));
+    }
 
     let ascents = fetched.ascents;
     let persist = true;
     if (!fetched.complete) {
       const previous = await cache.getStale();
       ascents = mergeAscents(fetched.ascents, previous?.ascents ?? []);
-      log.info(`Ascents capped at ${fetched.ascents.length} by the API; merged with ${previous?.ascents.length ?? 0} previous -> ${ascents.length}`);
+      log.info(`Ascents capped by the API at ${fetched.ascents.length}; merged with ${previous?.ascents.length ?? 0} previous -> ${ascents.length}`);
       if (!previous) {
         // Caching this would overwrite the last full list in the build-cache
         // bucket with a truncated one. Serve it, but skip the cache so the
@@ -402,6 +529,7 @@ export async function getKayaData(): Promise<KayaData | null> {
         maxGrade,
         totalVideos: ascentsWithVideos.length
       },
+      authError,
       timestamp: Date.now()
     };
 

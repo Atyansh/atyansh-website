@@ -59,6 +59,7 @@ One of the key technical challenges was managing OAuth tokens that expire at dif
 - **Retry logic** - All API calls include exponential backoff and serialized rate limiting for transient failures
 - **File-based caching** - Generic `FileCache<T>` with 24-hour TTL minimizes redundant API calls across builds
 - **Health monitoring** - Discord DM notifications when any API fails during the daily build
+- **Last-known-good fallback** - Each build restores the previous build's data, so a failed source serves yesterday's data instead of an empty page, and sources that can only be partly fetched (Letterboxd behind Cloudflare, Kaya's capped public API) merge onto it
 
 ## Architecture
 

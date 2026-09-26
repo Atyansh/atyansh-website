@@ -220,7 +220,7 @@ The build automatically monitors all 10 API integrations and sends Discord notif
 
 **Monitored APIs:**
 - With API keys (self-healing): Spotify, MyAnimeList, IGDB
-- With API keys (manual renewal): Steam, PSN, TMDB
+- With API keys (manual renewal): Steam, PSN, TMDB, Kaya login (`KAYA_REFRESH_TOKEN`)
 - Web scraping/public APIs: Letterboxd, Goodreads, Nintendo (Exophase), Kaya (climbing)
 
 **How it works:**
@@ -229,7 +229,9 @@ The build automatically monitors all 10 API integrations and sends Discord notif
 - Checks that data was successfully fetched
 - Sends a Discord DM via bot if any API fails
 - Never fails the build (just notifies)
-- If a scrape/API fails outright, the build serves the previous build's data (`.cache-fallback/`, restored from the Cloud Build staging bucket) so the page still renders — the alert still fires because the cache timestamp is stale
+- If a scrape/API fails outright, the build serves the previous build's data (`.cache-fallback/`, restored from the Cloud Build staging bucket) so the page still renders — the alert still fires because no fresh cache file is written
+- Partial sources merge onto that previous data instead of failing: Letterboxd pages 2+ are Cloudflare-blocked from Cloud Build IPs, so blocked builds merge page 1 + the RSS feed onto the last full list (`lastFullScrape` records when all pages last loaded). A partial result with no previous data to merge onto is served but never cached, so it can't overwrite the good copy in the bucket
+- Kaya ascents come from the logged-in `ascentsForUser` query (the public queries are capped at 200 results). If the login fails for any reason, the build falls back to the public queries fetched per grade, and the "Kaya (Logged-in)" check alerts with the reason
 
 **Discord notifications are sent when:**
 - API credentials are missing or expired
@@ -284,6 +286,7 @@ This script will:
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
 - TV Shows: `TMDB_READ_TOKEN`, `TMDB_ACCESS_TOKEN`, `TMDB_ACCOUNT_OBJECT_ID`, `TMDB_TV_LIST_ID`
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`, `KAYA_USERNAME`
+- Kaya login: `KAYA_REFRESH_TOKEN` (from Firefox on a Mac; long-lived, not rotated by builds)
 - Discord Notifications: `DISCORD_BOT_TOKEN`, `DISCORD_USER_ID`
 
 ### Pulling Secrets to Local .env

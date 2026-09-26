@@ -2,6 +2,7 @@
 title: 'Building a Personal Website Entirely with Claude Code'
 description: 'A deep dive into building a comprehensive personal website with real-time activity tracking from 11+ platforms, self-healing OAuth infrastructure, and automated deployments - all without writing a single line of code manually.'
 pubDate: 2026-01-19
+updatedDate: 2026-09-26
 tags: ['claude-code', 'web-development', 'infrastructure', 'oauth', 'astro']
 draft: false
 ---
@@ -72,6 +73,8 @@ The heart of the site is the activity tracking system. It pulls data from 11+ ex
 
 **Letterboxd** tracks movie watching and ratings. Letterboxd doesn't offer a public API, so the integration uses Puppeteer to scrape the profile pages. This required installing Chrome dependencies in the Cloud Build environment and handling lazy-loaded images - the scraper scrolls the page and waits for images to load before extracting data.
 
+*Update (September 2026):* Letterboxd started serving a Cloudflare challenge on profile pages 2+ to datacenter IPs. Page 1 and the RSS feed still load, so builds now merge those onto the previous build's full list instead of re-scraping everything.
+
 **MyAnimeList** provides anime tracking through their OAuth-protected API. This includes currently watching series, episode progress, and ratings.
 
 **Goodreads** tracks reading progress and book reviews. The integration pulls currently reading books and recent reviews.
@@ -79,6 +82,8 @@ The heart of the site is the activity tracking system. It pulls data from 11+ ex
 ### Fitness Integration
 
 **Kaya** is a climbing app that tracks bouldering sessions. The integration pulls grade pyramids, recent sends, and even video captures of climbs using their public GraphQL API. The main challenge was getting their CDN-hosted video thumbnails to load correctly.
+
+*Update (September 2026):* Kaya capped its public API at 200 results per query, which quietly dropped every video from the page. Ascents now come from the logged-in query the mobile app uses, found by reading the web app's JavaScript bundle. It's authenticated with a long-lived refresh token, falls back to the public queries fetched one grade at a time, and sends a Discord alert whenever the logged-in path fails.
 
 ## The OAuth Challenge
 

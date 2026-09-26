@@ -4,7 +4,7 @@ This guide explains how to set up Discord notifications for API health monitorin
 
 ## Overview
 
-The API health monitoring system checks all 8 API integrations after each build and sends Discord notifications if any APIs fail:
+The API health monitoring system runs 11 integration checks after each build and sends Discord notifications if any fail:
 
 **APIs with credentials (can expire):**
 1. Spotify (OAuth refresh token)
@@ -12,11 +12,14 @@ The API health monitoring system checks all 8 API integrations after each build 
 3. Steam (API key)
 4. PlayStation Network (refresh token, ~10 days; NPSSO only used to bootstrap)
 5. IGDB (access token for game covers)
+6. TMDB (long-lived access token)
+7. Kaya login (`KAYA_REFRESH_TOKEN`, from Firefox on a Mac) — alerts when the logged-in ascents query fails and the build fell back to the capped public queries. The alert shows the failure reason with tokens redacted.
 
-**Web scraping (no credentials):**
-6. Letterboxd (username-based)
-7. Goodreads (user ID-based)
-8. Nintendo Switch (Exophase scraping)
+**Web scraping / public APIs (no credentials):**
+8. Letterboxd (username-based; pages 2+ merge from the previous list when Cloudflare blocks them)
+9. Goodreads (user ID-based)
+10. Nintendo Switch (Exophase scraping)
+11. Kaya climbing stats (grade pyramid + send videos)
 
 ## How It Works
 

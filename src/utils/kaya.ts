@@ -195,10 +195,18 @@ async function getGradePyramid(userId: string): Promise<KayaGradeDistribution[]>
     .sort((a, b) => (a.grade.ordering || 0) - (b.grade.ordering || 0));
 }
 
+// Kaya's public API caps paging (since ~2026-09-10): count <= 50 ("Count Limit
+// Exceeded") and offset <= 150 ("Offset Limit Exceeded"). Only the 200 most
+// recent ascents are reachable, so older ones are carried over from the
+// previous build's data (see mergeAscents).
+const ASCENTS_PAGE_SIZE = 50;
+const ASCENTS_MAX_OFFSET = 150;
+
 /**
- * Get all bouldering ascents for a user (paginated)
+ * Get a user's bouldering ascents, newest first, as far as the API allows.
+ * `complete` is false when the paging cap cut the list short.
  */
-async function getAllAscents(userId: string): Promise<KayaAscent[]> {
+async function getAllAscents(userId: string): Promise<{ ascents: KayaAscent[]; complete: boolean }> {
   const query = `
     query webAscentsForUser($user_id: ID!, $climb_type_id: ID, $count: Int!, $offset: Int!) {
       webAscentsForUser(user_id: $user_id, climb_type_id: $climb_type_id, count: $count, offset: $offset) {
@@ -223,7 +231,7 @@ async function getAllAscents(userId: string): Promise<KayaAscent[]> {
 
   const allAscents: KayaAscent[] = [];
   let offset = 0;
-  const count = 100;
+  const count = ASCENTS_PAGE_SIZE;
 
   while (true) {
     const data = await kayaGraphQL<{ webAscentsForUser: KayaAscent[] }>(
@@ -231,14 +239,38 @@ async function getAllAscents(userId: string): Promise<KayaAscent[]> {
       { user_id: userId, climb_type_id: '1', count, offset }
     );
 
-    const ascents = data?.webAscentsForUser || [];
+    // A failed page must not pass for "no more ascents" — that silently shipped
+    // a climbing page with zero videos while the stats still looked healthy.
+    if (!data) {
+      throw new Error(`Failed to fetch Kaya ascents at offset ${offset}`);
+    }
+
+    const ascents = data.webAscentsForUser || [];
     allAscents.push(...ascents);
 
-    if (ascents.length < count) break;
+    if (ascents.length < count) {
+      return { ascents: allAscents, complete: true };
+    }
     offset += count;
+    if (offset > ASCENTS_MAX_OFFSET) {
+      return { ascents: allAscents, complete: false };
+    }
   }
+}
 
-  return allAscents;
+/**
+ * Merge freshly fetched ascents onto the previous full list, keyed by ascent
+ * id. Fresh entries win (current video URLs etc.); previous-only entries are
+ * the older ascents the API no longer pages to.
+ */
+export function mergeAscents(fresh: KayaAscent[], previous: KayaAscent[]): KayaAscent[] {
+  const merged = new Map<string, KayaAscent>();
+  for (const ascent of [...fresh, ...previous]) {
+    if (!merged.has(ascent.id)) {
+      merged.set(ascent.id, ascent);
+    }
+  }
+  return [...merged.values()];
 }
 
 /**
@@ -318,10 +350,25 @@ export async function getKayaData(): Promise<KayaData | null> {
     log.info(`Found Kaya user: ${profile.fname} (ID: ${profile.id})`);
 
     // Fetch pyramid and ascents in parallel
-    const [pyramid, ascents] = await Promise.all([
+    const [pyramid, fetched] = await Promise.all([
       getGradePyramid(profile.id),
       getAllAscents(profile.id)
     ]);
+
+    let ascents = fetched.ascents;
+    let persist = true;
+    if (!fetched.complete) {
+      const previous = await cache.getStale();
+      ascents = mergeAscents(fetched.ascents, previous?.ascents ?? []);
+      log.info(`Ascents capped at ${fetched.ascents.length} by the API; merged with ${previous?.ascents.length ?? 0} previous -> ${ascents.length}`);
+      if (!previous) {
+        // Caching this would overwrite the last full list in the build-cache
+        // bucket with a truncated one. Serve it, but skip the cache so the
+        // good copy survives and the health check flags the missing file.
+        log.error('No previous Kaya data to merge onto — serving recent ascents only, not caching');
+        persist = false;
+      }
+    }
 
     // Filter ascents with videos and sort by grade (highest first)
     const ascentsWithVideos = ascents
@@ -358,14 +405,22 @@ export async function getKayaData(): Promise<KayaData | null> {
       timestamp: Date.now()
     };
 
-    // Save to cache
-    await cache.set(data);
+    if (persist) {
+      await cache.set(data);
+    }
 
     log.info(`Fetched Kaya data: ${totalSends} sends, ${ascentsWithVideos.length} videos, max grade ${maxGrade}`);
 
     return data;
   } catch (error) {
     log.error('Error fetching Kaya data:', error);
+    // Serve last-known-good data rather than a page without videos. No fresh
+    // cache file is written, so the post-build health check still alerts.
+    const stale = await cache.getStale();
+    if (stale) {
+      log.error(`Falling back to stale Kaya data from ${new Date(stale.timestamp).toISOString()}`);
+      return stale;
+    }
     return null;
   }
 }

@@ -666,6 +666,8 @@ If you accidentally commit secrets:
 
 **Letterboxd, Goodreads, Exophase, Kaya rely on scraping/public APIs:**
 - If these fail, the site structure may have changed
+- Letterboxd pages 2+ are Cloudflare-blocked from Cloud Build IPs (they load fine from a home connection, so local builds won't reproduce it); builds merge page 1 + RSS onto the previous list instead
+- Kaya's public queries are capped at 200 results; the full list needs a working `KAYA_REFRESH_TOKEN`
 - Check the respective utility file in `src/utils/`
 - Update selectors or scraping logic
 - Consider implementing caching to reduce requests

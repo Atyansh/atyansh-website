@@ -1,7 +1,7 @@
 // Letterboxd web scraping integration
 // Fetches movie data by scraping Letterboxd profile pages with pagination
 
-import { withRetry } from './retry';
+import { withRetry, fetchWithRetry } from './retry';
 import { FileCache } from './cache';
 import { createLogger } from './logger';
 import { pLimit } from './concurrency';
@@ -28,6 +28,9 @@ export interface LetterboxdMovie {
 export interface LetterboxdData {
   movies: LetterboxdMovie[];
   timestamp: number;
+  // When every listing page was last scraped successfully. Builds that can't
+  // reach pages 2+ merge page 1 + RSS onto the previous list instead.
+  lastFullScrape?: number;
 }
 
 /**
@@ -35,7 +38,7 @@ export interface LetterboxdData {
  * Includes retry logic for transient failures
  * Accepts a shared browser instance and creates a new page (tab) per call.
  */
-async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('puppeteer-extra')>['default']['launch']>>, url: string): Promise<{films: LetterboxdMovie[], maxPage: number}> {
+async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('puppeteer-extra')>['default']['launch']>>, url: string, maxRetries = 2): Promise<{films: LetterboxdMovie[], maxPage: number}> {
   return withRetry(
     async () => {
       let page: Awaited<ReturnType<typeof browser.newPage>> | null = null;
@@ -173,7 +176,7 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
       }
     },
     {
-      maxRetries: 2,
+      maxRetries,
       // Long enough for a temporary Cloudflare flag on this IP to cool off —
       // 2s/4s retries were failing back-to-back against the same block.
       initialDelayMs: 10000,
@@ -210,6 +213,90 @@ async function fetchPosterFromFilmPage(filmLink: string): Promise<string | null>
     );
   } catch {
     return null;
+  }
+}
+
+/** Film slug from any Letterboxd film link (".../film/<slug>/", member-scoped or not). */
+function filmSlug(link?: string): string | null {
+  const m = /\/film\/([^/]+)/.exec(link ?? '');
+  return m ? m[1] : null;
+}
+
+const decodeXml = (text: string) => text
+  .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'")
+  .trim();
+
+/**
+ * Parse films out of a member's Letterboxd RSS feed (their ~20 most recent
+ * diary entries). Non-film items (lists, etc.) and repeat watches are skipped.
+ */
+export function parseLetterboxdRSS(xml: string): LetterboxdMovie[] {
+  const movies: LetterboxdMovie[] = [];
+  const seen = new Set<string>();
+
+  for (const [, item] of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const tag = (name: string) => {
+      const m = new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(item);
+      return m ? decodeXml(m[1]) : undefined;
+    };
+
+    const title = tag('letterboxd:filmTitle');
+    const slug = filmSlug(tag('link'));
+    if (!title || !slug || seen.has(slug)) continue;
+    seen.add(slug);
+
+    const yearText = tag('letterboxd:filmYear');
+    const year = yearText ? parseInt(yearText, 10) : undefined;
+    const releaseDate = year ? new Date(year, 0, 1) : undefined;
+
+    // Feed posters are 600x900; the listing uses the 230x345 crop
+    const poster = /<img src="([^"]+)"/.exec(item)?.[1] ?? '';
+
+    movies.push({
+      title,
+      year,
+      releaseDate,
+      posterImage: poster.replace(/-0-\d+-0-\d+-crop/, '-0-230-0-345-crop'),
+      link: `https://letterboxd.com/film/${slug}/`,
+    });
+  }
+
+  return movies;
+}
+
+/**
+ * Merge fresh partial sources onto the previous full list, keyed by film slug.
+ * Fresh entries win (they carry current poster/title); nothing from the
+ * previous list is dropped, so a film removed on Letterboxd lingers until the
+ * next full scrape.
+ */
+export function mergeIncremental(
+  firstPage: LetterboxdMovie[],
+  rss: LetterboxdMovie[],
+  previous: LetterboxdMovie[]
+): LetterboxdMovie[] {
+  const merged = new Map<string, LetterboxdMovie>();
+  for (const movie of [...firstPage, ...rss, ...previous]) {
+    const key = filmSlug(movie.link) ?? movie.title;
+    if (!merged.has(key)) {
+      merged.set(key, movie);
+    }
+  }
+  return [...merged.values()];
+}
+
+async function fetchRSSMovies(): Promise<LetterboxdMovie[]> {
+  try {
+    const res = await fetchWithRetry(`https://letterboxd.com/${LETTERBOXD_USERNAME}/rss/`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' },
+    });
+    if (!res.ok) throw new Error(`RSS returned ${res.status}`);
+    return parseLetterboxdRSS(await res.text());
+  } catch (error) {
+    log.error(`Could not fetch Letterboxd RSS: ${(error as Error).message}`);
+    return [];
   }
 }
 
@@ -251,12 +338,43 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
     // detection (the cause of the intermittent mornings where pages 2+ failed
     // every retry while page 1 was fine). A serial scrape of ~5 pages costs
     // only a few seconds.
+    //
+    // Since 2026-09-22 Cloudflare hard-blocks pages 2+ for datacenter IPs
+    // (Cloud Build gets a challenge the stealth browser can't clear, even
+    // after 60s), while page 1 and the RSS feed still load. So a blocked page
+    // no longer fails the whole fetch: one retry, then fall back to merging
+    // page 1 + RSS onto the last full list.
+    let fullScrape = true;
     for (let pageNum = 2; pageNum <= maxPage; pageNum++) {
       await new Promise(resolve => setTimeout(resolve, 500));
       log.info(`Fetching page ${pageNum}...`);
       const pageUrl = `https://letterboxd.com/${LETTERBOXD_USERNAME}/films/page/${pageNum}/`;
-      const { films } = await scrapePage(browser, pageUrl);
-      allMovies.push(...films);
+      try {
+        const { films } = await scrapePage(browser, pageUrl, 1);
+        allMovies.push(...films);
+      } catch (error) {
+        log.error(`Page ${pageNum} blocked (${(error as Error).message}); switching to incremental update`);
+        fullScrape = false;
+        break;
+      }
+    }
+
+    let lastFullScrape: number | undefined = Date.now();
+    let persist = true;
+    if (!fullScrape) {
+      const [rssMovies, previous] = await Promise.all([fetchRSSMovies(), cache.getStale()]);
+      if (!previous) {
+        // Caching this would overwrite the last full list in the build-cache
+        // bucket with a truncated one. Serve it, but skip the cache so the
+        // good copy survives and the health check flags the missing file.
+        log.error('No previous Letterboxd data to merge onto — serving page 1 + RSS only, not caching');
+        persist = false;
+      }
+      const merged = mergeIncremental(firstPageFilms, rssMovies, previous?.movies ?? []);
+      log.info(`Incremental update: ${firstPageFilms.length} from page 1, ${rssMovies.length} from RSS, ${previous?.movies.length ?? 0} previous -> ${merged.length} movies`);
+      allMovies.length = 0;
+      allMovies.push(...merged);
+      lastFullScrape = previous?.lastFullScrape ?? previous?.timestamp;
     }
 
     // A poster URL is correct only if the CDN actually serves it. The film id pins
@@ -315,12 +433,16 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
     const data: LetterboxdData = {
       movies: allMovies,
       timestamp: Date.now(),
+      lastFullScrape,
     };
 
-    // Save to cache
-    await cache.set(data);
+    if (persist) {
+      await cache.set(data);
+    }
 
-    log.info(`Fetched ${allMovies.length} movies from Letterboxd across ${maxPage} pages`);
+    log.info(fullScrape
+      ? `Fetched ${allMovies.length} movies from Letterboxd across ${maxPage} pages`
+      : `Fetched ${allMovies.length} movies from Letterboxd (incremental; last full scrape ${lastFullScrape ? new Date(lastFullScrape).toISOString() : 'never'})`);
 
     return data;
   } catch (error) {

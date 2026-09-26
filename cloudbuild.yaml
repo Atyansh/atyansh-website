@@ -11,11 +11,13 @@ steps:
   # (via FileCache.getStale) when a scrape/API fails outright, so the page
   # renders yesterday's data instead of nothing. The health check still
   # alerts on the stale timestamp.
+  # rsync refuses a destination directory that doesn't exist yet — without
+  # the mkdir this step failed on every build and the fallback never worked.
   - name: 'gcr.io/cloud-builders/gsutil'
     entrypoint: bash
     args:
       - '-c'
-      - 'gsutil -m rsync -r gs://personal-website-334502_cloudbuild/build-cache .cache-fallback || echo "No previous build cache"'
+      - 'mkdir -p .cache-fallback && gsutil -m rsync -r gs://personal-website-334502_cloudbuild/build-cache .cache-fallback || echo "WARNING: could not restore previous build cache"'
     id: 'restore-build-cache'
     waitFor: ['-']
 

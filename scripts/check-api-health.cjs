@@ -104,8 +104,11 @@ const APIs = [
   {
     name: 'Kaya (Climbing)',
     cacheFile: 'kaya-data.json',
-    checkFn: (data) => data.pyramid && data.pyramid.length > 0,
-    renewal: 'Check KAYA_USERNAME in .env (uses public GraphQL API)',
+    // Stats and videos come from separate queries — check both, or a broken
+    // ascents query ships a page with stats but no videos without alerting.
+    checkFn: (data) => data.pyramid && data.pyramid.length > 0
+      && data.ascentsWithVideos && data.ascentsWithVideos.length > 0,
+    renewal: 'Check the build log for "Kaya GraphQL errors" (public GraphQL API; KAYA_USERNAME in Secret Manager)',
     requiresApiKey: false,
   },
   {

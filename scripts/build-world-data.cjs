@@ -70,7 +70,9 @@ async function collect(category, items) {
   const out = [];
   queue.forEach((item, idx) => {
     if (!results[idx]) return;
-    const file = `${category}-${out.length}.jpg`;
+    // content-addressed name: an unchanged image keeps its path across
+    // builds, so nightly deploys don't re-upload/re-version shifted indices
+    const file = `${category}-${path.basename(results[idx], '.jpg')}.jpg`;
     fs.copyFileSync(results[idx], path.join(ART_DIR, file));
     const { url, ...rest } = item;
     void url;
@@ -109,6 +111,7 @@ async function main() {
     console.log('world-data: no dist/, skipping');
     return;
   }
+  fs.rmSync(ART_DIR, { recursive: true, force: true }); // drop stale names from older builds
   fs.mkdirSync(ART_DIR, { recursive: true });
   fs.mkdirSync(DL_CACHE, { recursive: true });
   console.log(`Building world-data → ${OUT_DIR}`);
@@ -191,11 +194,11 @@ async function main() {
         a.video.thumb_url ? fetchCached(a.video.thumb_url) : null,
       ]);
       if (!vf) continue;
-      const vname = `climb-vid-${vids.length}.mp4`;
+      const vname = `climb-${path.basename(vf, '.mp4')}.mp4`;
       fs.copyFileSync(vf, path.join(ART_DIR, vname));
       let thumb;
       if (tf) {
-        thumb = `climb-thumb-${vids.length}.jpg`;
+        thumb = `climb-thumb-${path.basename(tf, '.jpg')}.jpg`;
         fs.copyFileSync(tf, path.join(ART_DIR, thumb));
       }
       vids.push({

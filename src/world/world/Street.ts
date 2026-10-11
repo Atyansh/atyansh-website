@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import type { Assets } from '../engine/Assets';
 import type { Physics } from '../engine/Physics';
 import { Batches, boxGeo, floorGeo } from './geo';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCK, CURB, CURB_H, OUTER_FRONT, ROAD_OUT, ALLEY, PARK, STREET_NAMES, type Lot } from './layout';
 import { streetSignTexture } from './Signage';
 import { rng } from '../engine/math';
@@ -168,6 +169,7 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
     { axis: 'z' as const, fixed: CURB.x - kerb, from: -CURB.z + 6, to: CURB.z - 6, ry: Math.PI / 2, out: 1 },   // east
   ];
   const lampMat = lights;
+  const glowSpots: THREE.Vector3[] = [];
   for (const sd of sides) {
     const at = (t: number, off = 0) => (sd.axis === 'x' ? { x: t, z: sd.fixed - sd.out * off } : { x: sd.fixed - sd.out * off, z: t });
     // skip the alley mouth and park edges for trees / furniture where they'd block
@@ -184,14 +186,7 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
       physics.cylinder(p.x, CURB_H + 1.9, p.z, 1.9, 0.14, { kind: 'static', surface: 'metal' });
       const head = new THREE.Vector3(p.x, CURB_H + 3.55, p.z);
       lampMat.addLamp(head);
-      // glowing glass inside the lantern
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), (() => {
-        const m = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffd9a0, emissiveIntensity: 0.1 });
-        lampMat.register(m, 0.1, 6);
-        return m;
-      })());
-      glow.position.copy(head);
-      group.add(glow);
+      glowSpots.push(head);
     }
     // trees between lamps
     for (let t = sd.from + 8.5; t <= sd.to; t += 17) {
@@ -249,6 +244,8 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
   // ---- traffic lights at the 4 block corners ----
   const signals: Array<{ mats: THREE.MeshStandardMaterial[]; axis: 'x' | 'z' }> = [];
   const lensOff = 0x1a1a1a;
+  const housingMat = new THREE.MeshStandardMaterial({ color: 0x2f3a2a, roughness: 0.5, metalness: 0.3 });
+  const lensParts: Record<'x' | 'z', THREE.BufferGeometry[][]> = { x: [[], [], []], z: [[], [], []] };
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       const px = sx * (CURB.x - 0.6);
@@ -267,28 +264,25 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
       armG.rotateZ(Math.PI / 2);
       armG.applyMatrix4(armM);
       B.add(steel, armG);
-      // two signal heads: one on the arm (facing traffic on the N–S street), one on the pole
+      // two signal heads: one on the arm (facing traffic on the N–S street), one on the pole.
+      // Housings/visors merge into the static batch; lenses merge per (axis, colour)
+      // so every head facing the same road shares one draw per colour.
       for (const [hx, hz, ry, axis] of [[px + sx * (armLen - 0.6), pz, sz > 0 ? 0 : Math.PI, 'x'], [px, pz + sz * 0.3, sx > 0 ? Math.PI / 2 : -Math.PI / 2, 'z']] as Array<[number, number, number, 'x' | 'z']>) {
-        const head = new THREE.Group();
-        const housing = new THREE.Mesh(boxGeo(0.36, 1.05, 0.3), new THREE.MeshStandardMaterial({ color: 0x2f3a2a, roughness: 0.5, metalness: 0.3 }));
-        housing.position.y = 0;
-        head.add(housing);
-        const mats: THREE.MeshStandardMaterial[] = [];
-        [0xff3b2f, 0xffb21e, 0x2fe06b].forEach((c, i) => {
-          const m = new THREE.MeshStandardMaterial({ color: lensOff, emissive: c, emissiveIntensity: 0, roughness: 0.3 });
-          const lens = new THREE.Mesh(new THREE.CircleGeometry(0.11, 16), m);
-          lens.position.set(0, 0.32 - i * 0.32, 0.152);
-          head.add(lens);
-          const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.16, 12, 1, true, -Math.PI / 2, Math.PI), housing.material);
-          visor.rotation.x = Math.PI / 2;
-          visor.position.set(0, 0.35 - i * 0.32, 0.22);
-          head.add(visor);
-          mats.push(m);
-        });
-        head.position.set(hx, axis === 'x' ? CURB_H + 5.3 : CURB_H + 3.4, hz);
-        head.rotation.y = ry;
-        group.add(head);
-        signals.push({ mats, axis });
+        const hm = new THREE.Matrix4().makeRotationY(ry).setPosition(hx, axis === 'x' ? CURB_H + 5.3 : CURB_H + 3.4, hz);
+        const housing = boxGeo(0.36, 1.05, 0.3);
+        housing.applyMatrix4(hm);
+        B.add(housingMat, housing);
+        for (let i = 0; i < 3; i++) {
+          const visor = new THREE.CylinderGeometry(0.14, 0.14, 0.16, 12, 1, true, -Math.PI / 2, Math.PI);
+          visor.rotateX(Math.PI / 2);
+          visor.translate(0, 0.35 - i * 0.32, 0.22);
+          visor.applyMatrix4(hm);
+          B.add(housingMat, visor, undefined, false);
+          const lens = new THREE.CircleGeometry(0.11, 16);
+          lens.translate(0, 0.32 - i * 0.32, 0.152);
+          lens.applyMatrix4(hm);
+          lensParts[axis][i].push(lens);
+        }
       }
       // street name blades on top of the pole
       for (const [name, ry] of [[sz > 0 ? STREET_NAMES.s : STREET_NAMES.n, 0], [sx > 0 ? STREET_NAMES.e : STREET_NAMES.w, Math.PI / 2]] as Array<[string, number]>) {
@@ -299,6 +293,15 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
         group.add(blade);
       }
     }
+  }
+
+  for (const axis of ['x', 'z'] as const) {
+    const mats = [0xff3b2f, 0xffb21e, 0x2fe06b].map((c) => new THREE.MeshStandardMaterial({ color: lensOff, emissive: c, emissiveIntensity: 0, roughness: 0.3 }));
+    mats.forEach((m, i) => {
+      const merged = mergeGeometries(lensParts[axis][i].map((g) => g.toNonIndexed()));
+      if (merged) group.add(new THREE.Mesh(merged, m));
+    });
+    signals.push({ mats, axis });
   }
 
   // ---- bus shelter on Atyansh Ave ----
@@ -387,6 +390,15 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
   }
 
   flushInstances();
+  // glowing glass inside every lantern: one instanced draw
+  {
+    const m = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffd9a0, emissiveIntensity: 0.1 });
+    lights.register(m, 0.1, 6);
+    const glows = new THREE.InstancedMesh(new THREE.SphereGeometry(0.12, 10, 8), m, glowSpots.length);
+    glowSpots.forEach((p, i) => glows.setMatrixAt(i, new THREE.Matrix4().makeTranslation(p.x, p.y, p.z)));
+    glows.computeBoundingSphere();
+    group.add(glows);
+  }
   B.build(group);
 
   // traffic signal cycle: x-road green 10s, amber 2s, all-red 1s, then z-road

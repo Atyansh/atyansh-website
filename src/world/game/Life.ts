@@ -143,6 +143,10 @@ export class Life {
     for (const n of this.npcs) {
       const parentLevel = n.ch.root.parent === g.levels.get('street')!.group ? 'street' : 'interior';
       if ((parentLevel === 'street') !== (level === 'street')) continue;
+      // skinned meshes skip frustum culling; hide distant NPCs outright
+      const far = n.ch.root.position.distanceTo(g.renderer.camera.position) > 60;
+      n.ch.root.visible = !far;
+      if (far && !n.path) continue;
       if (n.path) {
         // walk the loop, yield to the player
         const a = n.path[n.seg];
@@ -179,7 +183,9 @@ export class Life {
     }
 
     if (level !== 'street') return;
+    const camPos = g.renderer.camera.position;
     for (const p of this.pigeons) {
+      p.m.visible = p.pos.distanceTo(camPos) < 45;
       const d = p.pos.distanceTo(pp);
       if (!p.flying && (d < 1.6 || (d < 4.5 && g.player.speed > 4))) {
         p.flying = true;

@@ -138,6 +138,23 @@ export class Assets {
     return { group, bounds };
   }
 
+  /** Record repeated prop placements, then flush them as InstancedMeshes */
+  instancer(): { add(id: string, m: THREE.Matrix4, opts?: PropOptions): void; flush(parent: THREE.Object3D): void } {
+    const rec = new Map<string, { id: string; opts: PropOptions; mats: THREE.Matrix4[] }>();
+    return {
+      add: (id, m, opts = {}) => {
+        const key = `${id}|${JSON.stringify(opts)}`;
+        let r = rec.get(key);
+        if (!r) rec.set(key, (r = { id, opts, mats: [] }));
+        r.mats.push(m.clone());
+      },
+      flush: (parent) => {
+        for (const r of rec.values()) parent.add(this.instanced(r.id, r.mats, r.opts).group);
+        rec.clear();
+      },
+    };
+  }
+
   texture(path: string, srgb = true, repeatX = 1, repeatY = 1): THREE.Texture {
     const url = path.startsWith('/') || path.startsWith('blob:') ? path : ASSET_BASE + path;
     const key = `${url}|${repeatX}|${repeatY}`;

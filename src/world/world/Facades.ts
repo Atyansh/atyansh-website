@@ -78,8 +78,10 @@ export class CityBuilder {
   /** Door interaction points for enterable buildings */
   readonly doors: Array<{ lot: Lot; position: THREE.Vector3; facing: number }> = [];
   readonly group = new THREE.Group();
+  private inst: ReturnType<Assets['instancer']>;
 
   constructor(private assets: Assets, private physics: Physics, private lights: NightLights, private display: DisplayProvider, private allLots: Lot[]) {
+    this.inst = assets.instancer();
     this.windowMaterial = createWindowMaterial();
     bindCityUniforms(this.windowMaterial);
   }
@@ -570,12 +572,9 @@ export class CityBuilder {
     for (let i = 0; i < n; i++) {
       const cx = x0 + step * (i + 0.5);
       const graffiti = r() < 0.5;
-      const sh = this.assets.prop('rollershutter_door', { parts: [graffiti ? 'rollershutter_door_graffiti' : 'rollershutter_door'], castShadow: false });
       const scaleX = (step - 0.1) / 3.08;
-      sh.scale.set(scaleX, Math.min(1.15, (openTop - 0.1) / 2.4), 1);
-      sh.position.set(cx, 0, -0.02);
-      sh.applyMatrix4(m);
-      this.group.add(sh);
+      const sm = m.clone().multiply(new THREE.Matrix4().compose(new THREE.Vector3(cx, 0, -0.02), new THREE.Quaternion(), new THREE.Vector3(scaleX, Math.min(1.15, (openTop - 0.1) / 2.4), 1)));
+      this.inst.add('rollershutter_door', sm, { parts: [graffiti ? 'rollershutter_door_graffiti' : 'rollershutter_door'], castShadow: false });
       const top = 2.4 * Math.min(1.15, (openTop - 0.1) / 2.4);
       if (openTop > top) this.box(wallMat, m, cx, top, 0.0, step, openTop - top, 0.1);
     }
@@ -609,11 +608,12 @@ export class CityBuilder {
     const { w, d, h } = lot;
     const n = 1 + Math.floor(r() * 3);
     for (let i = 0; i < n; i++) {
-      const ac = this.assets.prop('exterior_aircon_unit', { parts: [r() > 0.5 ? 'exterior_aircon_unit' : 'exterior_aircon_unit_rusted'], scale: 1.2 });
-      ac.position.set((r() - 0.5) * (w - 4), h, (r() - 0.5) * (d - 4));
-      ac.rotation.y = Math.floor(r() * 4) * (Math.PI / 2);
-      ac.applyMatrix4(M);
-      this.group.add(ac);
+      const part = r() > 0.5 ? 'exterior_aircon_unit' : 'exterior_aircon_unit_rusted';
+      const am = M.clone().multiply(new THREE.Matrix4().compose(
+        new THREE.Vector3((r() - 0.5) * (w - 4), h, (r() - 0.5) * (d - 4)),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.floor(r() * 4) * (Math.PI / 2)),
+        new THREE.Vector3(1.2, 1.2, 1.2)));
+      this.inst.add('exterior_aircon_unit', am, { parts: [part] });
     }
     // vents
     const ventMat = this.paint(0x8d9196, 0.4, 0.8);
@@ -738,6 +738,7 @@ export class CityBuilder {
   }
 
   finalize(parent: THREE.Object3D): void {
+    this.inst.flush(this.group);
     this.batches.build(this.group);
     if (this.windowGeos.length) {
       const merged = mergeGeometries(this.windowGeos.map((g) => (g.index ? g.toNonIndexed() : g)), false);

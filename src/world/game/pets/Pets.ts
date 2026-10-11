@@ -397,7 +397,9 @@ export class Pets {
       if (this.throwPending <= 0) this.release();
     }
 
+    const camPos = g.renderer.camera.position;
     for (const p of this.list) {
+      p.rig.root.visible = p.pos.distanceTo(camPos) < 50;
       if (!this.frozen) {
         this.think(p, dt, ppos, playerInPark);
         this.move(p, dt);

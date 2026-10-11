@@ -33,11 +33,11 @@ export const PRESETS: Record<TimeOfDay, Preset> = {
   day: { hdri: 'kloofendal_48d_partly_cloudy_puresky', sun: 3.6, env: 0.9, exposure: 1.0, night: 0, fog: 0.0016, bg: 1 },
   sunset: { hdri: 'qwantani_sunset_puresky', sun: 3.0, env: 0.85, exposure: 1.05, night: 0.35, fog: 0.0024, bg: 1 },
   dusk: {
-    hdri: 'qwantani_dusk_2_puresky', sun: 0.35, env: 1.0, exposure: 1.25, night: 0.85, fog: 0.003, bg: 1,
+    hdri: 'qwantani_dusk_2_puresky', sun: 0.4, env: 0.55, exposure: 0.95, night: 0.85, fog: 0.003, bg: 1,
     dir: new THREE.Vector3(-0.4, 0.6, 0.5).normalize(), sunColor: new THREE.Color(0.75, 0.68, 0.9),
   },
   night: {
-    hdri: 'qwantani_night_puresky', sun: 0.22, env: 1.6, exposure: 1.35, night: 1, fog: 0.0032, bg: 1.2,
+    hdri: 'qwantani_night_puresky', sun: 0.16, env: 0.32, exposure: 0.85, night: 1, fog: 0.0032, bg: 1.1,
     dir: new THREE.Vector3(0.3, 0.8, -0.4).normalize(), sunColor: new THREE.Color(0.55, 0.65, 1.0),
   },
 };

@@ -247,6 +247,7 @@ export class WorldAudio {
       case 'pickup': this.tone('sine', 500, 800, 0.08, 0.08 * v); break;
       case 'throw': this.burst('bandpass', 1200, 0.8, 0.18, 0.1 * v); break;
       case 'cup': this.tone('sine', 2400, 2300, 0.15, 0.03 * v); break;
+      case 'flutter': for (let i = 0; i < 8; i++) this.burst('bandpass', 1400 + Math.random() * 800, 1.5, 0.05, 0.06 * v, i * 0.045); break;
       case 'meow': this.tone('sawtooth', 600, 900, 0.18, 0.03 * v); this.tone('sawtooth', 900, 450, 0.3, 0.03 * v, 0.17); break;
       case 'hiss': this.burst('highpass', 3500, 0.5, 0.45, 0.08 * v); break;
       case 'purr': for (let i = 0; i < 18; i++) this.tone('sawtooth', 26, 24, 0.08, 0.05 * v, i * 0.09); break;

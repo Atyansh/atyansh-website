@@ -13,6 +13,7 @@ import { Minimap } from './ui/Minimap';
 import { Phone } from './ui/Phone';
 import { PhotoMode } from './game/PhotoMode';
 import { WorldAudio } from './audio/WorldAudio';
+import { Life } from './game/Life';
 import type { TimeOfDay } from './world/Sky';
 
 const PROPS = [
@@ -59,6 +60,7 @@ export async function boot(container: HTMLElement): Promise<void> {
   buildInteriors(game);
   const pets = new Pets(game, city.park);
   game.systems.push(pets);
+  game.systems.push(new Life(game));
   const records = new GoldenRecords(game);
   game.systems.push(records);
   const progress = new Progress(game);

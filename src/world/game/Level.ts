@@ -22,6 +22,8 @@ export interface Level {
   interactables: Interactable[];
   /** Camera boom length in this space */
   boom?: number;
+  /** Image-based light strength inside (interiors) */
+  envIntensity?: number;
   /** Shadow frustum half-size around the player */
   shadowExtent?: number;
   update?(dt: number, time: number): void;

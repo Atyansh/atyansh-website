@@ -147,6 +147,21 @@ export class Character {
     return result;
   }
 
+  /** Model-space offset of a bone in a clip pose (e.g. pelvis while seated) */
+  boneOffset(clipName: string, bone: string, t = 0.5): THREE.Vector3 {
+    const clip = this.clips.get(clipName);
+    const probe = SkeletonUtils.clone(this.model);
+    probe.position.set(0, 0, 0);
+    probe.rotation.set(0, 0, 0);
+    if (clip) {
+      const mixer = new THREE.AnimationMixer(probe);
+      mixer.clipAction(clip).play();
+      mixer.setTime(t * clip.duration);
+    }
+    probe.updateMatrixWorld(true);
+    return probe.getObjectByName(bone)?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3();
+  }
+
   naturalSpeed(name: string): number {
     return this.natural[name] ?? 1;
   }

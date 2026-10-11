@@ -170,6 +170,15 @@ export class Sky {
     this.onChange.forEach((fn) => fn(t, p.night));
   }
 
+  /** Restore the cached outdoor lighting (after leaving an interior) */
+  applyExterior(): void {
+    const p = PRESETS[this.current];
+    if (this.envRT) this.scene.environment = this.envRT.texture;
+    this.scene.environmentIntensity = p.env;
+    (this.scene.fog as THREE.FogExp2).density = p.fog;
+    this.renderer.toneMappingExposure = p.exposure;
+  }
+
   /** Keep the shadow frustum centred on the focus point, texel-snapped */
   update(focus: THREE.Vector3, camera: THREE.Camera): void {
     this.dome.position.copy(camera.position);

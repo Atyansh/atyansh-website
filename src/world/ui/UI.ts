@@ -39,6 +39,7 @@ export class UI {
   private minimap = el('div', 'wui-minimap');
   private hint = el('div', 'wui-hint');
   private fps = el('div', 'wui-fps');
+  private activityHint = el('div', 'wui-activity');
   private pauseModal = el('div', 'wui-modal');
   private settingsModal = el('div', 'wui-modal');
   private controlsModal = el('div', 'wui-modal');
@@ -69,7 +70,7 @@ export class UI {
     this.hint.innerHTML = '<div><span class="wui-key">Tab</span>Phone</div><div><span class="wui-key">Esc</span>Pause</div>';
     this.goal.innerHTML = '<div class="h">Goal</div><div class="g"></div><div class="p"></div>';
     this.hud = [this.prompt, this.toasts, this.goal, this.minimap, this.hint, this.banner];
-    this.root.append(...this.hud, this.fps);
+    this.root.append(...this.hud, this.fps, this.activityHint);
     this.setHudVisible(false);
     this.setGoal(null);
     this.fps.style.display = 'none';
@@ -156,6 +157,19 @@ export class UI {
     this.goal.style.opacity = '1';
     (this.goal.querySelector('.g') as HTMLElement).textContent = text;
     (this.goal.querySelector('.p') as HTMLElement).textContent = progress;
+  }
+
+  /** Bottom-centre hint while an activity runs: "E  Stand up · A/D  Channel" */
+  setActivityHint(text: string | null): void {
+    if (!text) {
+      this.activityHint.classList.remove('on');
+      return;
+    }
+    this.activityHint.innerHTML = text.split(' · ').map((part) => {
+      const [k, ...rest] = part.split('  ');
+      return rest.length ? `<span><span class="wui-key">${k}</span>${rest.join(' ')}</span>` : `<span>${part}</span>`;
+    }).join('');
+    this.activityHint.classList.add('on');
   }
 
   setFpsVisible(v: boolean): void {

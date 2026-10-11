@@ -6,6 +6,7 @@ import { UI } from './ui/UI';
 import { loadWorldData } from './data';
 import { buildTestRange } from './world/TestRange';
 import { buildCity } from './world/City';
+import { buildInteriors } from './interiors';
 import type { TimeOfDay } from './world/Sky';
 
 const PROPS = [
@@ -49,6 +50,7 @@ export async function boot(container: HTMLElement): Promise<void> {
   // ---- levels ----
   const city = buildCity(game);
   game.addLevel(city);
+  buildInteriors(game);
   if (params.get('level') === 'test') game.addLevel(buildTestRange(game));
   const startId = params.get('level') === 'test' ? 'test' : 'street';
   const start = game.levels.get(startId)!;
@@ -107,6 +109,14 @@ export async function boot(container: HTMLElement): Promise<void> {
     goTo: (id: string) => game.goTo(id),
     time: (t: TimeOfDay) => game.setTimeOfDay(t),
     hideUi: () => { ui.root.style.display = 'none'; },
+    /** Trigger the nearest/named interactable as if E was pressed */
+    interact: (id?: string) => {
+      const list = [...game.level.interactables, ...game.globalInteractables];
+      const it = id ? list.find((x) => x.id.startsWith(id)) : game.interaction.current;
+      it?.onInteract();
+      return it?.id ?? null;
+    },
+    levelPos: () => ({ level: game.level.id, p: game.player.position.toArray().map((v) => +v.toFixed(2)), state: game.player.state, activity: game.activity?.name ?? null }),
   };
   (window as unknown as { __world: typeof hooks }).__world = hooks;
 }

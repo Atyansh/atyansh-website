@@ -17,7 +17,7 @@ const puppeteer = require('puppeteer');
   const args = process.argv.slice(2);
   const scenarioPath = path.resolve(args[0]);
   const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
-  const url = opt('--url', 'http://localhost:4321/world');
+  const url = opt('--url', process.env.WORLD_URL || 'http://localhost:4322/world');
   const out = path.resolve(opt('--out', '.cache/shots'));
   const width = +opt('--w', 1600);
   const height = +opt('--h', 900);

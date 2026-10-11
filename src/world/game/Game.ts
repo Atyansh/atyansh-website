@@ -18,6 +18,9 @@ import type { WorldData } from '../data';
 import type { UI } from '../ui/UI';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { outfitById } from './outfits';
+import type { Activity } from './Activity';
+import { Browser } from '../ui/Browser';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 export type GameState = 'loading' | 'title' | 'playing' | 'paused' | 'menu' | 'transition';
 
@@ -54,6 +57,12 @@ export class Game {
   private frameTimes: number[] = [];
   /** When true the activity owns the camera/controls (sitting, cabinet…) */
   activityOwnsCamera = false;
+  activity: Activity | null = null;
+  browser!: Browser;
+  /** Neutral studio-room IBL used inside buildings */
+  private interiorEnv: THREE.Texture | null = null;
+  /** True while UI deliberately holds the pointer (menus, browser) */
+  uiOwnsPointer = false;
   /** When set, owns the camera instead of the player rig (title flyover, harness bookmarks) */
   cameraOverride: ((dt: number, camera: THREE.PerspectiveCamera) => void) | null = null;
   /** Scripted input for the test harness */
@@ -70,8 +79,12 @@ export class Game {
     this.rig = new CameraRig(this.renderer.camera, this.physics);
     this.applySettings();
     this.input.onLockChange = (locked) => {
-      if (!locked && this.state === 'playing') this.pause();
+      if (!locked && this.state === 'playing' && !this.uiOwnsPointer) this.pause();
     };
+    this.browser = new Browser(this);
+    const pm = new THREE.PMREMGenerator(this.renderer.renderer);
+    this.interiorEnv = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    pm.dispose();
   }
 
   applySettings(): void {
@@ -124,10 +137,19 @@ export class Game {
     this.rig.snapBehind(s.facing);
     this.rig.boomTarget = next.boom ?? 4.3;
     this.sky.setShadowExtent(next.shadowExtent ?? 45);
-    // Interiors don't show the sky dome; their walls hide it anyway
+    // Interiors: no sky dome or sun, studio-room IBL, no distance fog
     this.sky.dome.visible = !next.interior;
+    this.sky.sun.visible = !next.interior;
+    if (next.interior) {
+      this.scene.environment = this.interiorEnv;
+      this.scene.environmentIntensity = next.envIntensity ?? 0.55;
+      (this.scene.fog as THREE.FogExp2).density = 0;
+    } else {
+      this.sky.applyExterior();
+    }
     next.onEnter?.();
     this.events.emit('levelEnter', { id: next.id });
+    if (prev) this.ui.showBanner(next.name, next.interior ? 'atyansh.com' : 'Atyansh Ave');
     this.input.reset();
     // Let one frame settle (shadow map, texture uploads) before revealing
     this.renderFrame(1 / 60, true);
@@ -194,8 +216,10 @@ export class Game {
       }
     }
 
+    if (playing && this.activity) this.activity.update(dt);
+
     // Interaction
-    if (playing && this.player && this.player.state !== 'locked' && this.player.state !== 'mantle') {
+    if (playing && !this.activity && this.player && this.player.state !== 'locked' && this.player.state !== 'mantle') {
       const list = [...this.level.interactables, ...this.globalInteractables];
       const it = this.interaction.resolve(list, this.player.position, this.player.facing);
       this.ui.setPrompt(it);
@@ -228,6 +252,42 @@ export class Game {
     }
     void force;
     this.renderer.render(this.time);
+  }
+
+  beginActivity(a: Activity): void {
+    if (this.activity) this.endActivity();
+    this.activity = a;
+    this.player.lock(null);
+    this.activityOwnsCamera = !a.freeCamera;
+    if (a.shot) this.rig.setShot(a.shot);
+    this.ui.setActivityHint(a.hint ?? null);
+  }
+
+  endActivity(): void {
+    const a = this.activity;
+    if (!a) return;
+    this.activity = null;
+    a.end?.();
+    this.rig.releaseShot();
+    this.player.unlock();
+    this.activityOwnsCamera = false;
+    this.ui.setActivityHint(null);
+    if (this.uiOwnsPointer) {
+      this.uiOwnsPointer = false;
+      this.input.lock();
+    }
+  }
+
+  /** Open the collection browser as an activity */
+  browse(o: Parameters<Browser['open']>[0]): void {
+    this.uiOwnsPointer = true;
+    this.events.emit('sfx', { name: 'open' });
+    this.beginActivity({
+      name: 'browse',
+      update: () => this.browser.update(),
+      end: () => { if (this.browser.isOpen) this.browser.close(true); },
+    });
+    this.browser.open({ ...o, onClose: () => { o.onClose?.(); this.endActivity(); } });
   }
 
   pause(): void {

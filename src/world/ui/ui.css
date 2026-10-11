@@ -110,3 +110,8 @@
 .wui-seg button.sel { background: var(--ui-ink); color: #111; }
 .wui-controls { display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; align-items: center; font-size: 14px; color: var(--ui-dim); }
 .wui-controls .wui-key { justify-self: end; }
+
+.wui-activity { position: fixed; left: 50%; bottom: 6vh; transform: translateX(-50%); display: flex; gap: 22px; font-size: 14px; color: var(--ui-dim);
+  opacity: 0; transition: opacity .3s; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.wui-activity.on { opacity: 1; }
+.wui-activity .wui-key { margin-right: 8px; min-width: 26px; height: 26px; font-size: 12px; }

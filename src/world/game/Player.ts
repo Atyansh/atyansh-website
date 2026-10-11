@@ -58,6 +58,8 @@ export class Player {
   shake = 0;
   /** When set, gameplay updates are delegated (activities) */
   lockedUpdate: ((dt: number) => void) | null = null;
+  /** Lets a level take over the jump button (e.g. grab a climbing wall) */
+  jumpInterceptor: (() => boolean) | null = null;
 
   constructor(private physics: Physics, private events: Emitter<GameEvents>, character: Character, spawn: THREE.Vector3) {
     this.character = character;
@@ -169,6 +171,10 @@ export class Player {
     if (controlsEnabled && input.pressed('jump')) this.jumpBuffer = JUMP_BUFFER;
     this.jumpBuffer -= dt;
     this.coyote = this.grounded ? COYOTE : this.coyote - dt;
+    if (this.jumpBuffer > 0 && this.coyote > 0 && this.jumpInterceptor?.()) {
+      this.jumpBuffer = 0;
+      return;
+    }
     if (this.jumpBuffer > 0 && this.coyote > 0) {
       if (!this.tryMantle()) {
         this.velocity.y = JUMP_V;
@@ -294,7 +300,10 @@ export class Player {
   private syncVisual(dt: number): void {
     const r = this.character.root;
     r.position.copy(this.position);
-    r.rotation.y = this.state === 'locked' ? r.rotation.y : dampAngle(r.rotation.y, this.facing, 14, dt);
+    if (this.state !== 'locked') {
+      // upright again after activities that tilt the body (climbing)
+      r.rotation.set(0, dampAngle(r.rotation.y, this.facing, 14, dt), 0);
+    }
     this.character.update(dt);
   }
 }

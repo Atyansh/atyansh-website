@@ -5,6 +5,7 @@ import { Game } from './game/Game';
 import { UI } from './ui/UI';
 import { loadWorldData } from './data';
 import { buildTestRange } from './world/TestRange';
+import { buildCity } from './world/City';
 import type { TimeOfDay } from './world/Sky';
 
 const PROPS = [
@@ -46,9 +47,10 @@ export async function boot(container: HTMLElement): Promise<void> {
   await game.sky.set(tod);
 
   // ---- levels ----
-  const test = buildTestRange(game);
-  game.addLevel(test);
-  const startId = 'test';
+  const city = buildCity(game);
+  game.addLevel(city);
+  if (params.get('level') === 'test') game.addLevel(buildTestRange(game));
+  const startId = params.get('level') === 'test' ? 'test' : 'street';
   const start = game.levels.get(startId)!;
   game.createPlayer(start.spawn.position, start.spawn.facing);
   await game.goTo(startId, undefined, false);
@@ -56,10 +58,11 @@ export async function boot(container: HTMLElement): Promise<void> {
 
   // ---- title ----
   const titleCam = (dt: number, cam: THREE.PerspectiveCamera) => {
-    const t = game.time * 0.05;
-    cam.position.set(Math.sin(t) * 26, 9 + Math.sin(t * 0.7) * 2, Math.cos(t) * 26);
-    cam.lookAt(0, 2, 0);
-    cam.fov = 50;
+    // slow crane shot down Atyansh Ave toward the cinema
+    const t = game.time * 0.04;
+    cam.position.set(-34 + Math.sin(t) * 22, 7 + Math.sin(t * 0.7) * 2, 41);
+    cam.lookAt(-12 + Math.sin(t) * 10, 5, 22);
+    cam.fov = 55;
     void dt;
   };
   game.cameraOverride = titleCam;

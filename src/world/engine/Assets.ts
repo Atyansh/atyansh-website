@@ -114,6 +114,30 @@ export class Assets {
     return obj;
   }
 
+  /**
+   * Many copies of a prop as InstancedMeshes (one draw call per sub-mesh).
+   * Returns the group plus the template's local bounds for colliders.
+   */
+  instanced(id: string, transforms: THREE.Matrix4[], opts: PropOptions = {}): { group: THREE.Group; bounds: THREE.Box3 } {
+    const template = this.prop(id, opts);
+    template.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(template);
+    const group = new THREE.Group();
+    if (!transforms.length) return { group, bounds };
+    template.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const local = m.matrixWorld.clone();
+      const inst = new THREE.InstancedMesh(m.geometry, m.material, transforms.length);
+      transforms.forEach((t, i) => inst.setMatrixAt(i, t.clone().multiply(local)));
+      inst.castShadow = m.castShadow;
+      inst.receiveShadow = m.receiveShadow;
+      inst.computeBoundingSphere();
+      group.add(inst);
+    });
+    return { group, bounds };
+  }
+
   texture(path: string, srgb = true, repeatX = 1, repeatY = 1): THREE.Texture {
     const url = path.startsWith('/') || path.startsWith('blob:') ? path : ASSET_BASE + path;
     const key = `${url}|${repeatX}|${repeatY}`;

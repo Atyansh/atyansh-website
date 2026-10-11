@@ -47,6 +47,8 @@ export class Game {
   systems: Array<{ update(dt: number, time: number): void }> = [];
   /** Interactables that live outside any level (e.g. global) */
   globalInteractables: Interactable[] = [];
+  /** Smoothed CPU milliseconds per frame (profiling / harness) */
+  readonly cpu = { update: 0, render: 0 };
   private lastFrame = 0;
   private lastActive = 0;
   private frameTimes: number[] = [];
@@ -150,8 +152,13 @@ export class Game {
     this.frameTimes.push(dt * 1000);
     if (this.frameTimes.length > 600) this.frameTimes.shift();
     this.input.pollGamepad();
+    const t0 = performance.now();
     this.update(dt);
+    const t1 = performance.now();
     this.renderFrame(dt, false);
+    const t2 = performance.now();
+    this.cpu.update = this.cpu.update * 0.95 + (t1 - t0) * 0.05;
+    this.cpu.render = this.cpu.render * 0.95 + (t2 - t1) * 0.05;
     this.input.endFrame();
   }
 

@@ -61,8 +61,19 @@ export const SKIES = [
   'qwantani_dusk_2_puresky', 'qwantani_night_puresky',
 ];
 
-// Geometry budget per prop; heavier meshes are simplified toward it
+// Geometry budget per prop; heavier meshes are simplified toward it.
+// Street furniture repeats dozens of times, so it gets a much tighter budget.
 const TRI_BUDGET = 24000;
+const BUDGETS = {
+  concrete_road_barrier: 700, street_lamp_01: 3500, street_lamp_02: 3000, fire_hydrant: 5000,
+  covered_car: 5000, metal_trash_can: 5000, painted_wooden_bench: 1500, modular_street_seating: 6000,
+  power_box_01: 5000, utility_box_01: 3000, exterior_aircon_unit: 5000, planter_box_01: 4000,
+  wooden_picnic_table: 5000, outdoor_table_chair_set_01: 5000, tree_stump_01: 6000, shrub_01: 8000,
+  shrub_02: 8000, shrub_04: 8000, periwinkle_plant: 8000, grass_medium_01: 8000, flower_gazania: 8000,
+  potted_plant_01: 14000, potted_plant_02: 14000, gaming_console: 6000, filmstrip_projector_8mm: 8000,
+  book_encyclopedia_set_01: 10000, desk_lamp_arm_01: 6000, CoffeeCart_01: 12000, bar_chair_round_01: 6000,
+  plastic_crate_01: 5000, ceiling_fan: 6000, mounted_fluorescent_lights: 4000, classic_laptop: 6000,
+};
 
 async function api(id) {
   const r = await fetch(`https://api.polyhaven.com/files/${id}`);
@@ -102,9 +113,10 @@ async function buildModels(io) {
       for (const [rel, inc] of Object.entries(g.include ?? {})) await download(inc.url, path.join(dir, rel));
       const doc = await io.read(main);
       const before = triCount(doc);
+      const budget = BUDGETS[id] ?? TRI_BUDGET;
       const ops = [dedup(), weld()];
-      if (before > TRI_BUDGET) {
-        ops.push(simplify({ simplifier: MeshoptSimplifier, ratio: TRI_BUDGET / before, error: 0.002 }));
+      if (before > budget) {
+        ops.push(simplify({ simplifier: MeshoptSimplifier, ratio: budget / before, error: 0.01, lockBorder: false }));
       }
       ops.push(
         prune(),

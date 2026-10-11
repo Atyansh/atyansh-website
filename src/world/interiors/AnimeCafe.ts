@@ -243,7 +243,7 @@ export function buildAnimeCafe(game: Game, index: number): Level {
           wrap.style.setProperty('--gc', RAR_COL[rar]);
           wrap.innerHTML = `<div class="gc-card"><img src="${a.art}" alt=""><div class="gc-rar">${rar}</div></div>
             <div class="gc-meta"><div class="t">${a.title.replace(/</g, '&lt;')}</div>
-            <div class="s">${dupes ? `Duplicate ×${dupes + 1}` : 'NEW CARD'} · ${a.watched ?? 0} episodes watched · collection ${unique}/${anime.length}</div>
+            <div class="s">${dupes ? `Duplicate ×${dupes + 1}` : 'NEW CARD'}${a.watched ? ` · ${a.watched} episodes watched` : ''} · collection ${unique}/${anime.length}</div>
             <div class="k">E to collect</div></div>`;
           game.ui.root.appendChild(wrap);
           requestAnimationFrame(() => wrap!.classList.add('on'));

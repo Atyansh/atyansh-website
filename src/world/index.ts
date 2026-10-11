@@ -12,6 +12,7 @@ import { Progress, GoldenRecords } from './game/Progress';
 import { Minimap } from './ui/Minimap';
 import { Phone } from './ui/Phone';
 import { PhotoMode } from './game/PhotoMode';
+import { WorldAudio } from './audio/WorldAudio';
 import type { TimeOfDay } from './world/Sky';
 
 const PROPS = [
@@ -67,6 +68,8 @@ export async function boot(container: HTMLElement): Promise<void> {
   phone.progress = progress;
   ui.phone = phone;
   const photo = new PhotoMode(game);
+  const audio = new WorldAudio(game);
+  game.events.on('sfx', ({ name }) => { if (name === 'settings') audio.applyVolumes(); });
   phone.onCamera = () => photo.start();
   const markers = game as unknown as { petMarkers: () => Array<{ x: number; z: number }>; recordMarkers: () => Array<{ x: number; z: number }> };
   markers.petMarkers = () => pets.list.map((p) => ({ x: p.pos.x, z: p.pos.z }));
@@ -116,6 +119,7 @@ export async function boot(container: HTMLElement): Promise<void> {
     ui.setFpsVisible(game.save.settings.showFps);
     game.state = 'playing';
     game.input.lock();
+    void audio.start();
     ui.showBanner(game.level.name, 'atyansh.com');
   };
   ui.onStart = startPlaying;

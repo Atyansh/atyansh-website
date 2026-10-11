@@ -218,10 +218,13 @@ export class Game {
       }
     }
 
+    // An activity ending this frame must not let the same key press start
+    // a new interaction (e.g. E to leave the arcade re-opening the cabinet)
+    const hadActivity = this.activity !== null;
     if (playing && this.activity) this.activity.update(dt);
 
     // Interaction
-    if (playing && !this.activity && this.player && this.player.state !== 'locked' && this.player.state !== 'mantle') {
+    if (playing && !hadActivity && !this.activity && this.player && this.player.state !== 'locked' && this.player.state !== 'mantle') {
       const list = [...this.level.interactables, ...this.globalInteractables];
       const it = this.interaction.resolve(list, this.player.position, this.player.facing);
       this.ui.setPrompt(it);

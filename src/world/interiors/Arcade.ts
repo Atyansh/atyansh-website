@@ -286,7 +286,7 @@ export function buildArcade(game: Game, index: number): Level {
       game.beginActivity({
         name: 'arcade',
         hint: 'A/D  Move · Space  Launch · E  Leave',
-        shot: { position: room.v(ppos.x - 1.15, 1.62, ppos.z), target: room.v(ppos.x - 0.1, 1.45, ppos.z), fov: 34, blend: 0.8 },
+        shot: { position: room.v(ppos.x - 1.4, 1.72, ppos.z), target: room.v(ppos.x - 0.1, 1.46, ppos.z), fov: 36, blend: 0.8 },
         update: (dt) => {
           const i = game.input;
           const dir = (i.isDown('right') ? 1 : 0) - (i.isDown('left') ? 1 : 0) + game.input.padMove.x;

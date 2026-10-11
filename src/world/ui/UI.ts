@@ -281,8 +281,8 @@ export class UI {
     row('Invert Y', seg([['off', 'Off'], ['on', 'On']], s.invertY ? 'on' : 'off', (v) => { s.invertY = v === 'on'; g.applySettings(); }));
     row('Field of view', slider(50, 80, 1, s.fov, (v) => { s.fov = v; }));
     row('Music', slider(0, 1, 0.05, s.music, (v) => { s.music = v; g.events.emit('sfx', { name: 'settings' }); }));
-    row('Effects', slider(0, 1, 0.05, s.sfx, (v) => { s.sfx = v; }));
-    row('Ambience', slider(0, 1, 0.05, s.ambience, (v) => { s.ambience = v; }));
+    row('Effects', slider(0, 1, 0.05, s.sfx, (v) => { s.sfx = v; g.events.emit('sfx', { name: 'settings' }); }));
+    row('Ambience', slider(0, 1, 0.05, s.ambience, (v) => { s.ambience = v; g.events.emit('sfx', { name: 'settings' }); }));
     row('Time of day', seg<TimeOfDay>([['day', 'Day'], ['sunset', 'Sunset'], ['dusk', 'Dusk'], ['night', 'Night']], s.timeOfDay,
       (v) => { void g.setTimeOfDay(v); }));
     row('Show FPS', seg([['off', 'Off'], ['on', 'On']], s.showFps ? 'on' : 'off', (v) => { s.showFps = v === 'on'; this.setFpsVisible(s.showFps); }));
@@ -302,7 +302,7 @@ export class UI {
     const rows: Array<[string, string]> = [
       ['W A S D', 'Move (camera relative)'], ['Mouse', 'Look'], ['Shift', 'Sprint'], ['Alt', 'Walk'], ['C', 'Crouch / sneak'],
       ['Space', 'Jump · hold at a ledge to climb up'], ['E', 'Interact'], ['F / Click', 'Throw (when holding the ball)'],
-      ['Tab', 'Phone: map, goals, collection, camera'], ['Esc', 'Pause'], ['Gamepad', 'Fully supported'],
+      ['Tab', 'Phone: map, goals, collection, camera'], ['N', 'Sound on / off'], ['Esc', 'Pause'], ['Gamepad', 'Fully supported'],
     ];
     for (const [k, v] of rows) grid.append(el('span', 'wui-key', k), el('span', '', v));
     p.append(grid);

@@ -102,6 +102,7 @@ export class AudioEngine {
   }
 
   private saveState(): void {
+    if (!this.persist) return;
     try {
       const state: EngineState = {
         enabled: false,
@@ -147,6 +148,25 @@ export class AudioEngine {
   }
 
   // ── Public API ──────────────────────────────────────────────────────
+
+  /** Shared AudioContext (the 3D world mixes its SFX into the same context) */
+  get context(): AudioContext {
+    return this.ensureContext();
+  }
+
+  /**
+   * Route the song chain somewhere other than the speakers (/world mixes music
+   * through its own bus so in-game volume settings apply). Must be called
+   * before enable().
+   */
+  setOutput(node: AudioNode): void {
+    this.ensureContext();
+    this.compressor!.disconnect();
+    this.compressor!.connect(node);
+  }
+
+  /** Persisted state is per-page; the world keeps its own volumes */
+  persist = true;
 
   async enable(): Promise<void> {
     // Cancel any pending disable teardown

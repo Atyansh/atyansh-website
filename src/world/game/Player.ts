@@ -176,7 +176,8 @@ export class Player {
       return;
     }
     if (this.jumpBuffer > 0 && this.coyote > 0) {
-      if (!this.tryMantle()) {
+      const mantled = this.tryMantle();
+      if (!mantled) {
         this.velocity.y = JUMP_V;
         this.grounded = false;
         this.coyote = 0;
@@ -185,7 +186,7 @@ export class Player {
         this.events.emit('jump', {});
       }
       this.jumpBuffer = 0;
-      if (this.state === 'mantle') return;
+      if (mantled) return;
     } else if (!this.grounded && controlsEnabled && input.isDown('jump') && this.velocity.y < 1.5 && this.airTime > 0.15) {
       // Grab a ledge mid-air
       if (this.tryMantle()) return;

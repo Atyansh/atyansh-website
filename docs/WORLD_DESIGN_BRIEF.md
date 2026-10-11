@@ -1,5 +1,8 @@
 # THE BLOCK — Design Brief v2
 
+> **Status: shipped (v2).** All milestones below are built; see §12 for what
+> landed and how to run the harness.
+
 An explorable third-person city block that is an alternate, playable front-end
 to atyansh.com, served unlisted at `/world`. v2 replaces the v1 gray-box
 prototype wholesale: new engine, real physics, real assets, real game loop.
@@ -143,3 +146,23 @@ a 30 s walk FPS probe. Every milestone is screenshot-reviewed.
 ## 11. Credits
 
 All third-party assets are CC0; see `docs/WORLD_CREDITS.md`.
+
+## 12. What shipped
+
+| Area | Delivered |
+|---|---|
+| Engine | Rapier physics + KCC (autostep, slopes, coyote time, jump buffer, ledge mantle), stride-synced locomotion, spring-arm camera with shots, GTAO/bloom/ACES/grade/SMAA, HDRI lighting with sun extraction, 60 fps cap + idle throttle |
+| City | 33 procedural buildings (real window openings, interior-mapped glass, cornices, storefronts with lit displays of real art), streets with markings/traffic lights/furniture, alley, park with fountain, wind-animated grass and trees, skyline; four times of day with lit windows and lamps at night |
+| Interiors | Cinema (309 posters, screening room reel), Records (crates, booth, top tracks), Arcade (47 cabinets + playable BLOCK BREAKER), Library (88 covers among ~6k spines), Anime Café (186 prints + gacha), TV Lounge (channel surfing), Studio (projects, Euler board, build log), Climbing Gym (free climbing with IK on walls and three boulders, beta theater with real sends) |
+| Life | BaoBao, HuHu and Chance with personalities, petting, fetch; NPCs; pigeons |
+| Game | 6 goals with outfit rewards, 8 golden records, phone (map + fast travel, goals, collection, camera, wardrobe, settings), minimap, photo mode, save/resume |
+| Audio | Site songs per space + synthesized SFX and ambience |
+
+**Controls**: WASD / mouse, Shift sprint, Alt walk, C crouch, Space jump
+(hold at a ledge to climb up; at a climbing wall to grab), E interact, F throw,
+Tab phone, N sound, Esc pause. Gamepad supported.
+
+**Harness**: `npx astro dev`, then
+`node scripts/world-shots.cjs <scenario.cjs>` (scenarios drive
+`window.__world` hooks: `play`, `goTo`, `teleport`, `camera`, `interact`,
+`pets`, `time`, `stats`).

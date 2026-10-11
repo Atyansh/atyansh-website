@@ -7,6 +7,11 @@ import { loadWorldData } from './data';
 import { buildTestRange } from './world/TestRange';
 import { buildCity } from './world/City';
 import { buildInteriors } from './interiors';
+import { Pets } from './game/pets/Pets';
+import { Progress, GoldenRecords } from './game/Progress';
+import { Minimap } from './ui/Minimap';
+import { Phone } from './ui/Phone';
+import { PhotoMode } from './game/PhotoMode';
 import type { TimeOfDay } from './world/Sky';
 
 const PROPS = [
@@ -51,6 +56,31 @@ export async function boot(container: HTMLElement): Promise<void> {
   const city = buildCity(game);
   game.addLevel(city);
   buildInteriors(game);
+  const pets = new Pets(game, city.park);
+  game.systems.push(pets);
+  const records = new GoldenRecords(game);
+  game.systems.push(records);
+  const progress = new Progress(game);
+  const minimap = new Minimap(game, ui.minimapCanvas);
+  game.systems.push({ update: (dt) => minimap.update(dt) });
+  const phone = new Phone(game);
+  phone.progress = progress;
+  ui.phone = phone;
+  const photo = new PhotoMode(game);
+  phone.onCamera = () => photo.start();
+  const markers = game as unknown as { petMarkers: () => Array<{ x: number; z: number }>; recordMarkers: () => Array<{ x: number; z: number }> };
+  markers.petMarkers = () => pets.list.map((p) => ({ x: p.pos.x, z: p.pos.z }));
+  markers.recordMarkers = () => records.remaining();
+  // remember where the player was (Continue resumes there)
+  let saveT = 0;
+  game.systems.push({ update: (dt) => {
+    saveT += dt;
+    if (saveT < 5 || game.state !== 'playing' || game.activity) return;
+    saveT = 0;
+    const pp = game.player.position;
+    game.save.data.lastPosition = { level: game.level.id, x: pp.x, y: pp.y, z: pp.z, yaw: game.player.facing };
+    game.save.write();
+  } });
   if (params.get('level') === 'test') game.addLevel(buildTestRange(game));
   const startId = params.get('level') === 'test' ? 'test' : 'street';
   const start = game.levels.get(startId)!;
@@ -74,6 +104,10 @@ export async function boot(container: HTMLElement): Promise<void> {
 
   const startPlaying = (fresh: boolean) => {
     if (fresh) game.save.reset();
+    const last = game.save.data.lastPosition;
+    if (!fresh && last && game.levels.has(last.level)) {
+      void game.goTo(last.level, { position: new THREE.Vector3(last.x, last.y, last.z), facing: last.yaw }, false);
+    }
     game.save.data.started = true;
     game.save.write();
     game.cameraOverride = null;
@@ -116,6 +150,14 @@ export async function boot(container: HTMLElement): Promise<void> {
       it?.onInteract();
       return it?.id ?? null;
     },
+    petPose: (id: string, pose: string, x?: number, z?: number, heading = 0) => {
+      pets.frozen = true;
+      const p = pets.list.find((q) => q.id === id)!;
+      p.rig.setPose(pose as never);
+      p.speed = 0;
+      if (x !== undefined && z !== undefined) { p.pos.x = x; p.pos.z = z; p.heading = heading; }
+    },
+    pets: () => pets.list.map((p) => ({ id: p.id, mood: p.mood, pose: p.rig.pose, trust: +p.trust.toFixed(2), pos: p.pos.toArray().map((v) => +v.toFixed(2)) })),
     levelPos: () => ({ level: game.level.id, p: game.player.position.toArray().map((v) => +v.toFixed(2)), state: game.player.state, activity: game.activity?.name ?? null }),
   };
   (window as unknown as { __world: typeof hooks }).__world = hooks;

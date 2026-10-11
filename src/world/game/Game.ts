@@ -63,6 +63,8 @@ export class Game {
   private interiorEnv: THREE.Texture | null = null;
   /** True while UI deliberately holds the pointer (menus, browser) */
   uiOwnsPointer = false;
+  /** Called right after each composer render (photo capture needs the fresh buffer) */
+  afterRender: Array<() => void> = [];
   /** When set, owns the camera instead of the player rig (title flyover, harness bookmarks) */
   cameraOverride: ((dt: number, camera: THREE.PerspectiveCamera) => void) | null = null;
   /** Scripted input for the test harness */
@@ -149,7 +151,7 @@ export class Game {
     }
     next.onEnter?.();
     this.events.emit('levelEnter', { id: next.id });
-    if (prev) this.ui.showBanner(next.name, next.interior ? 'atyansh.com' : 'Atyansh Ave');
+    if (prev && fade) this.ui.showBanner(next.name, next.interior ? 'atyansh.com' : 'Atyansh Ave');
     this.input.reset();
     // Let one frame settle (shadow map, texture uploads) before revealing
     this.renderFrame(1 / 60, true);
@@ -252,6 +254,7 @@ export class Game {
     }
     void force;
     this.renderer.render(this.time);
+    for (const f of this.afterRender) f();
   }
 
   beginActivity(a: Activity): void {

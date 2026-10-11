@@ -238,7 +238,7 @@ export class Vegetation {
 
   /** Instanced grass blades over the given areas (rect list, with exclusions) */
   grass(areas: Array<{ minX: number; maxX: number; minZ: number; maxZ: number; y: number }>, density: number, exclude: (x: number, z: number) => boolean): void {
-    const blade = new THREE.PlaneGeometry(0.05, 1, 1, 4);
+    const blade = new THREE.PlaneGeometry(0.022, 1, 1, 3);
     blade.translate(0, 0.5, 0);
     const pos = blade.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
@@ -258,7 +258,7 @@ export class Vegetation {
         const z = a.minZ + r() * (a.maxZ - a.minZ);
         if (exclude(x, z)) continue;
         q.setFromEuler(new THREE.Euler((r() - 0.5) * 0.35, r() * Math.PI, (r() - 0.5) * 0.35));
-        const h = 0.16 + r() * 0.24;
+        const h = 0.06 + r() * 0.08; // mowed lawn — pets stay visible
         m.compose(new THREE.Vector3(x, a.y, z), q, new THREE.Vector3(1 + r() * 0.8, h, 1));
         spots.push(m.clone());
       }

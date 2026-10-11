@@ -122,6 +122,11 @@ export class Input {
     return BINDINGS[a].some((c) => this.justDown.has(c)) || this.padJust.has(a);
   }
 
+  /** Raw key edge (e.g. 'Digit1') */
+  pressedCode(code: string): boolean {
+    return this.justDown.has(code);
+  }
+
   released(a: Action): boolean {
     return BINDINGS[a].some((c) => this.justUp.has(c));
   }

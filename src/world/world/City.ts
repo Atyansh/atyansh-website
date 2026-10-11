@@ -66,7 +66,7 @@ export function buildCity(game: Game): CityLevel {
   veg.trees(streets.treeSpots.map((t) => ({ x: t.x, y: CURB_H, z: t.z, s: t.s })), 'street', 3);
   const park = buildPark(assets, physics, veg);
   group.add(park.group);
-  veg.grass([{ minX: PARK.minX + 0.4, maxX: PARK.maxX - 0.4, minZ: PARK.minZ + 0.4, maxZ: PARK.maxZ - 0.4, y: CURB_H + 0.01 }], 70,
+  veg.grass([{ minX: PARK.minX + 0.4, maxX: PARK.maxX - 0.4, minZ: PARK.minZ + 0.4, maxZ: PARK.maxZ - 0.4, y: CURB_H + 0.01 }], 150,
     (x, z) => park.isPath(x, z));
   group.add(veg.group);
   group.add(buildSkyline(lights));
@@ -85,6 +85,33 @@ export function buildCity(game: Game): CityLevel {
       enabled: () => game.levels.has(id),
       onInteract: () => { void game.goTo(id); },
     });
+  }
+
+  // ---- fire escape on the deli's alley wall → its roof (golden record up there) ----
+  {
+    const deli = LOTS.find((l) => l.id === 'deli')!;
+    const wallX = deli.x + deli.w / 2; // east face, on the alley
+    const roofY = CURB_H + deli.h;
+    const fe = assets.prop('modular_fire_escape');
+    fe.position.set(wallX + 0.72, CURB_H + 4.1, deli.z - 1.5);
+    fe.rotation.y = -Math.PI / 2;
+    group.add(fe);
+    const bottom = new THREE.Vector3(wallX + 0.9, CURB_H, deli.z + 2.2);
+    const top = new THREE.Vector3(deli.x + 1.0, roofY, deli.z + 2.2);
+    const climbTo = (dest: THREE.Vector3, facing: number) => {
+      game.beginActivity({ name: 'ladder', update: () => {} });
+      game.player.character.play('Mantle', { loop: true, timeScale: 0.9 });
+      void game.ui.fade(true).then(() => {
+        game.player.teleport(dest, facing);
+        game.rig.snapBehind(facing);
+        game.endActivity();
+        void game.ui.fade(false);
+      });
+    };
+    interactables.push(
+      { id: 'fire-escape:up', position: bottom.clone().add(new THREE.Vector3(0, 1, 0)), radius: 1.6, verb: 'Climb', label: 'the fire escape', onInteract: () => climbTo(top, Math.PI / 2) },
+      { id: 'fire-escape:down', position: top.clone().add(new THREE.Vector3(0, 1, 0)), radius: 1.6, verb: 'Climb down', label: 'the fire escape', onInteract: () => climbTo(bottom.clone().add(new THREE.Vector3(0.6, 0, 0)), Math.PI / 2) },
+    );
   }
 
   // ---- time of day ----

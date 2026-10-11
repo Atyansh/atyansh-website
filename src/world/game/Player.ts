@@ -256,11 +256,11 @@ export class Player {
     if (!hitWall || hitWall.normal.y > 0.5) return false;
     // Find the ledge top just beyond the wall face
     const probe = hitWall.point.clone().addScaledVector(fwd, 0.35);
-    probe.y = this.position.y + 2.3;
-    const down = this.physics.raycast(probe, new THREE.Vector3(0, -1, 0), 2.3, { exclude: this.collider, ignore: ['pet', 'ball', 'player', 'npc'] });
+    probe.y = this.position.y + 2.45;
+    const down = this.physics.raycast(probe, new THREE.Vector3(0, -1, 0), 2.45, { exclude: this.collider, ignore: ['pet', 'ball', 'player', 'npc'] });
     if (!down || down.normal.y < 0.7) return false;
     const h = down.point.y - this.position.y;
-    if (h < 0.55 || h > 2.05) return false;
+    if (h < 0.55 || h > 2.2) return false;
     // Headroom for the capsule on top
     const head = this.physics.raycast(down.point.clone().add(new THREE.Vector3(0, 0.05, 0)), new THREE.Vector3(0, 1, 0), 1.7, { exclude: this.collider, ignore: ['pet', 'ball', 'player'] });
     if (head) return false;

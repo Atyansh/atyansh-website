@@ -17,18 +17,17 @@ import { Life } from './game/Life';
 import type { TimeOfDay } from './world/Sky';
 
 const PROPS = [
-  'street_lamp_01', 'street_lamp_02', 'painted_wooden_bench', 'modular_street_seating', 'fire_hydrant',
+  'street_lamp_01', 'painted_wooden_bench', 'fire_hydrant',
   'metal_trash_can', 'trashbag', 'utility_box_01', 'power_box_01', 'exterior_aircon_unit', 'modular_fire_escape',
-  'covered_car', 'concrete_road_barrier', 'planter_box_01', 'rollershutter_door', 'security_light',
-  'wooden_crate_01', 'plastic_crate_01', 'shrub_01', 'shrub_02', 'shrub_03', 'shrub_04', 'wooden_picnic_table',
+  'covered_car', 'concrete_road_barrier', 'rollershutter_door', 'security_light',
+  'wooden_crate_01', 'plastic_crate_01', 'wooden_picnic_table',
   'concrete_cat_statue', 'tree_stump_01', 'potted_plant_01', 'potted_plant_02', 'potted_plant_04', 'flower_gazania',
-  'periwinkle_plant', 'grass_medium_01', 'Sofa_01', 'sofa_02', 'sofa_03', 'ArmChair_01', 'mid_century_lounge_chair',
-  'modern_arm_chair_01', 'CoffeeTable_01', 'modern_coffee_table_01', 'round_wooden_table_01', 'side_table_01',
-  'bar_chair_round_01', 'metal_stool_01', 'Television_01', 'television_02', 'gaming_console', 'CashRegister_01',
-  'CoffeeCart_01', 'steel_frame_shelves_01', 'wooden_bookshelf_worn', 'Shelf_01', 'desk_lamp_arm_01', 'classic_laptop',
-  'metal_office_desk', 'modern_ceiling_lamp_01', 'hanging_industrial_lamp', 'mounted_fluorescent_lights',
-  'filmstrip_projector_8mm', 'boombox', 'cassette_player', 'wall_clock', 'book_encyclopedia_set_01', 'WetFloorSign_01',
-  'ceiling_fan', 'hanging_picture_frame_01', 'outdoor_table_chair_set_01',
+  'periwinkle_plant', 'Sofa_01', 'sofa_02', 'sofa_03', 'ArmChair_01', 'mid_century_lounge_chair',
+  'modern_arm_chair_01', 'CoffeeTable_01', 'modern_coffee_table_01', 'side_table_01',
+  'bar_chair_round_01', 'Television_01', 'television_02', 'gaming_console', 'CashRegister_01',
+  'CoffeeCart_01', 'desk_lamp_arm_01', 'classic_laptop',
+  'metal_office_desk', 'modern_ceiling_lamp_01', 'hanging_industrial_lamp', 'boombox', 'cassette_player', 'wall_clock', 'WetFloorSign_01',
+  'ceiling_fan', 'outdoor_table_chair_set_01',
 ];
 
 export async function boot(container: HTMLElement): Promise<void> {
@@ -60,7 +59,8 @@ export async function boot(container: HTMLElement): Promise<void> {
   buildInteriors(game);
   const pets = new Pets(game, city.park);
   game.systems.push(pets);
-  game.systems.push(new Life(game));
+  const female = await game.assets.glb('characters/mannequin_f.glb').catch(() => undefined);
+  game.systems.push(new Life(game, female));
   const records = new GoldenRecords(game);
   game.systems.push(records);
   const progress = new Progress(game);

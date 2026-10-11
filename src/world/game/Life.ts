@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import type { Game } from './Game';
 import { Character } from './Character';
+import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { CURB, CURB_H, PARK } from '../world/layout';
 import { clamp, dampAngle, rng } from '../engine/math';
 
@@ -34,10 +35,11 @@ export class Life {
   private pigeons: Array<{ m: THREE.Group; home: THREE.Vector3; pos: THREE.Vector3; vel: THREE.Vector3; flying: boolean; t: number; peck: number; heading: number }> = [];
   private r = rng(321);
 
-  constructor(private game: Game) {
+  constructor(private game: Game, female?: GLTF) {
     const street = game.levels.get('street')!.group;
     const add = (pos: THREE.Vector3, heading: number, opts: Partial<Npc> & { clip?: string; group?: THREE.Group }) => {
-      const ch = new Character(game.characterGltf);
+      // alternate body types; the female mesh shares the skeleton, so it plays the same clips
+      const ch = female && this.npcs.length % 2 === 1 ? new Character(female, game.characterGltf.animations) : new Character(game.characterGltf);
       const o = OUTFITS[this.npcs.length % OUTFITS.length];
       ch.tint(o[0], o[1]);
       ch.root.position.copy(pos);

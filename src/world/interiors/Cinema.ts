@@ -139,6 +139,7 @@ export function buildCinema(game: Game, index: number): Level {
   room.prop('sofa_02', -7.5, PART_Z + 10.5, Math.PI / 2, {}, 'bounds');
   room.prop('modern_coffee_table_01', -6.2, PART_Z + 8.5, 0, {}, 'bounds');
   room.prop('potted_plant_02', -11.8, D / 2 - 1.2, 0.4);
+  room.prop('WetFloorSign_01', 3.4, D / 2 - 3.2, 0.6);
   room.prop('potted_plant_02', 11.8, D / 2 - 1.2, 2.2);
 
   // lobby lights

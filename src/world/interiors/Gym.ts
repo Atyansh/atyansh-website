@@ -237,7 +237,7 @@ export function buildGym(game: Game, index: number): Level {
     const setPoster = () => {
       const t = vids[cur].thumb;
       if (!t) return;
-      const tx = assets.art(t);
+      const tx = assets.loadNow(assets.art(t));
       scrMat.emissiveMap = tx;
       scrMat.needsUpdate = true;
     };

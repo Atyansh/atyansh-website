@@ -203,6 +203,7 @@ export function buildRecords(game: Game, index: number): Level {
     room.point(lx, H - 1.5, lz, 0xffd6a0, 3.2, 7);
   }
   room.prop('potted_plant_01', -W / 2 + 0.7, D / 2 - 1.0, 0.3);
+  room.prop('wall_clock', W / 2 - 0.05, -2, -Math.PI / 2, {}, 'none', 3.0);
   room.prop('potted_plant_02', W / 2 - 0.7, -D / 2 + 4.5, 1.1);
 
   room.exitTo('records');

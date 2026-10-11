@@ -93,9 +93,11 @@ export function buildCity(game: Game): CityLevel {
     const wallX = deli.x + deli.w / 2; // east face, on the alley
     const roofY = CURB_H + deli.h;
     const fe = assets.prop('modular_fire_escape');
-    fe.position.set(wallX + 0.72, CURB_H + 4.1, deli.z - 1.5);
+    // bottom platform ≈2.3m up (drop-ladder height): walk under it, not through it
+    fe.position.set(wallX + 0.72, CURB_H + 5.55, deli.z - 1.5);
     fe.rotation.y = -Math.PI / 2;
     group.add(fe);
+    physics.fromObject(fe, 'box', { kind: 'static', surface: 'metal', cameraIgnore: true });
     const bottom = new THREE.Vector3(wallX + 0.9, CURB_H, deli.z + 2.2);
     const top = new THREE.Vector3(deli.x + 1.0, roofY, deli.z + 2.2);
     const climbTo = (dest: THREE.Vector3, facing: number) => {
@@ -112,6 +114,31 @@ export function buildCity(game: Game): CityLevel {
       { id: 'fire-escape:up', position: bottom.clone().add(new THREE.Vector3(0, 1, 0)), radius: 1.6, verb: 'Climb', label: 'the fire escape', onInteract: () => climbTo(top, Math.PI / 2) },
       { id: 'fire-escape:down', position: top.clone().add(new THREE.Vector3(0, 1, 0)), radius: 1.6, verb: 'Climb down', label: 'the fire escape', onInteract: () => climbTo(bottom.clone().add(new THREE.Vector3(0.6, 0, 0)), Math.PI / 2) },
     );
+  }
+
+  // ---- alley dressing ----
+  {
+    const ax0 = 0 - 1; // ALLEY.minX
+    const ax1 = 5;     // ALLEY.maxX
+    const put = (id: string, x: number, z: number, ry: number, opts: Record<string, unknown> = {}, y = CURB_H, collide = true) => {
+      const o = assets.prop(id, opts);
+      o.position.set(x, y, z);
+      o.rotation.y = ry;
+      group.add(o);
+      if (collide) physics.fromObject(o, 'bounds', { kind: 'static', surface: 'metal' });
+    };
+    put('wooden_crate_01', ax0 + 0.5, 12, 0.2);
+    put('wooden_crate_01', ax0 + 0.5, 12, 0.5, {}, CURB_H + 0.35, false);
+    put('plastic_crate_01', ax0 + 0.5, 13.2, 0.1);
+    put('plastic_crate_01', ax0 + 0.9, 13.1, 0.7);
+    for (const [dx, dz] of [[0.4, 5], [0.7, 5.6], [0.3, 6.3]]) put('trashbag', ax1 - dx, dz, dz * 3, {}, CURB_H, false);
+    put('metal_trash_can', ax1 - 0.5, 7.4, Math.PI / 2, { parts: ['metal_trash_can_rust', 'metal_trash_can_rust_handle_left', 'metal_trash_can_rust_handle_right', 'metal_trash_can_rust_lid'] });
+    put('utility_box_01', ax0 + 0.28, -6, Math.PI / 2);
+    put('power_box_01', ax1 - 0.05, -10, -Math.PI / 2, {}, CURB_H + 1.8, false);
+    put('security_light', ax0 + 0.05, -2, Math.PI / 2, {}, CURB_H + 3.6, false);
+    put('security_light', ax1 - 0.05, 16, -Math.PI / 2, {}, CURB_H + 3.6, false);
+    put('exterior_aircon_unit', ax1 - 0.3, -16, -Math.PI / 2, { parts: ['exterior_aircon_unit_rusted'] }, CURB_H + 2.4, false);
+    put('tree_stump_01', PARK.maxX - 3.2, PARK.maxZ - 11, 0.7, { scale: 0.8 });
   }
 
   // ---- time of day ----

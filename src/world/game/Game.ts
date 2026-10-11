@@ -134,6 +134,7 @@ export class Game {
     }
     this.level = next;
     next.group.visible = true;
+    this.assets.loadArtIn(next.group);
     const s = spawn ?? next.spawn;
     this.player.teleport(s.position, s.facing);
     this.rig.snapBehind(s.facing);

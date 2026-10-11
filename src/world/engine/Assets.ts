@@ -186,16 +186,54 @@ export class Assets {
     return this.hdrLoader.loadAsync(ASSET_BASE + path);
   }
 
-  /** Image texture from world-data art (posters/covers), lazily loaded */
+  /**
+   * Image texture from world-data art (posters/covers). Lazy: returns an
+   * empty texture immediately; the image only downloads when a level that
+   * uses it is activated (see loadArtIn) — so a visit only fetches the art
+   * of buildings actually entered, not all ~800 covers up front.
+   */
   art(url: string): THREE.Texture {
     const key = `art|${url}`;
     let t = this.textures.get(key);
     if (!t) {
-      t = new THREE.TextureLoader().load(url);
+      t = new THREE.Texture();
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = 4;
+      t.userData.lazyUrl = url;
       this.textures.set(key, t);
     }
     return t;
   }
+
+  private artLoader = new THREE.ImageLoader();
+  private requested = new Set<THREE.Texture>();
+
+  private loadArt(t: THREE.Texture): void {
+    const url = t.userData.lazyUrl as string | undefined;
+    if (!url || this.requested.has(t)) return;
+    this.requested.add(t);
+    this.artLoader.load(url, (img) => {
+      t.image = img;
+      t.needsUpdate = true;
+    });
+  }
+
+  /** Start downloading every lazy art texture used under `root` */
+  loadArtIn(root: THREE.Object3D): void {
+    root.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      if (!m) return;
+      for (const mm of Array.isArray(m) ? m : [m]) {
+        const sm = mm as THREE.MeshStandardMaterial;
+        for (const tex of [sm.map, sm.emissiveMap]) if (tex?.userData.lazyUrl) this.loadArt(tex);
+      }
+    });
+  }
+
+  /** Load one lazy texture right away (UI previews, the bus-shelter ad…) */
+  loadNow(t: THREE.Texture): THREE.Texture {
+    this.loadArt(t);
+    return t;
+  }
+
 }

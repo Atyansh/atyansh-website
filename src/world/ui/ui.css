@@ -1,0 +1,112 @@
+/* The Block — UI design system. One palette, one type scale, everything
+   layered over the canvas. Display face: condensed sans (signage feel). */
+
+:root {
+  --ui-font: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --ui-display: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
+  --ui-ink: #f4f1ea;
+  --ui-dim: rgba(244, 241, 234, 0.62);
+  --ui-faint: rgba(244, 241, 234, 0.32);
+  --ui-panel: rgba(14, 16, 22, 0.72);
+  --ui-panel-solid: #12141b;
+  --ui-line: rgba(255, 255, 255, 0.1);
+  --ui-accent: #ffb547;
+  --ui-accent-2: #4dc3ff;
+  --ui-good: #5ee08f;
+  --ui-radius: 14px;
+  --ui-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+.wui { position: fixed; inset: 0; pointer-events: none; font-family: var(--ui-font); color: var(--ui-ink); z-index: 10; user-select: none; -webkit-font-smoothing: antialiased; }
+.wui * { box-sizing: border-box; }
+.wui .interactive, .wui button, .wui input, .wui .panel { pointer-events: auto; }
+
+/* ---------- fade ---------- */
+.wui-fade { position: fixed; inset: 0; background: #05060a; opacity: 0; transition: opacity 0.35s ease; z-index: 50; pointer-events: none; }
+.wui-fade.on { opacity: 1; }
+
+/* ---------- loading ---------- */
+.wui-loading { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+  background: radial-gradient(1200px 700px at 50% 40%, #1b2030 0%, #07080c 70%); transition: opacity 0.8s ease; }
+.wui-loading.done { opacity: 0; pointer-events: none; }
+.wui-logo { font-family: var(--ui-display); font-weight: 800; font-size: clamp(56px, 9vw, 120px); letter-spacing: 0.06em; line-height: 0.9; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff 0%, #ffd79a 55%, #ff9f3a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 6px 30px rgba(255, 160, 60, 0.25)); }
+.wui-sub { font-family: var(--ui-display); letter-spacing: 0.42em; text-transform: uppercase; font-size: 13px; color: var(--ui-dim); margin-top: -6px; }
+.wui-bar { width: min(420px, 70vw); height: 3px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden; }
+.wui-bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--ui-accent), #ff7a3d); transition: width 0.25s ease; }
+.wui-tip { font-size: 13px; color: var(--ui-faint); max-width: 520px; text-align: center; min-height: 1.4em; }
+
+/* ---------- title ---------- */
+.wui-title { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 7vw 9vh;
+  background: linear-gradient(90deg, rgba(5, 6, 10, 0.78) 0%, rgba(5, 6, 10, 0.25) 46%, rgba(5, 6, 10, 0) 70%), linear-gradient(0deg, rgba(5, 6, 10, 0.6) 0%, rgba(5, 6, 10, 0) 40%);
+  opacity: 0; transition: opacity 0.9s ease; pointer-events: none; }
+.wui-title.on { opacity: 1; pointer-events: auto; }
+.wui-title .wui-logo { font-size: clamp(64px, 10vw, 150px); }
+.wui-menu { display: flex; flex-direction: column; gap: 6px; margin-top: 34px; align-items: flex-start; }
+.wui-btn { font-family: var(--ui-display); font-weight: 700; font-size: 22px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ui-dim);
+  background: none; border: 0; padding: 6px 0; cursor: pointer; position: relative; transition: color 0.15s, transform 0.15s; }
+.wui-btn:hover, .wui-btn:focus-visible { color: var(--ui-ink); transform: translateX(8px); outline: none; }
+.wui-btn:hover::before, .wui-btn:focus-visible::before { content: ""; position: absolute; left: -22px; top: 50%; width: 12px; height: 3px; background: var(--ui-accent); }
+.wui-btn.primary { color: var(--ui-ink); font-size: 28px; }
+.wui-foot { position: absolute; right: 7vw; bottom: 9vh; text-align: right; font-size: 12px; color: var(--ui-faint); line-height: 1.7; }
+
+/* ---------- HUD ---------- */
+.wui-prompt { position: fixed; left: 50%; bottom: 13vh; transform: translate(-50%, 8px); display: flex; align-items: center; gap: 12px;
+  padding: 10px 18px 10px 10px; background: var(--ui-panel); backdrop-filter: blur(10px); border: 1px solid var(--ui-line); border-radius: 999px;
+  opacity: 0; transition: opacity 0.18s ease, transform 0.18s ease; box-shadow: var(--ui-shadow); }
+.wui-prompt.on { opacity: 1; transform: translate(-50%, 0); }
+.wui-key { min-width: 30px; height: 30px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px;
+  background: var(--ui-ink); color: #111; font-weight: 800; font-size: 14px; box-shadow: 0 3px 0 rgba(255, 255, 255, 0.25); }
+.wui-prompt b { font-family: var(--ui-display); text-transform: uppercase; letter-spacing: 0.1em; font-size: 15px; }
+.wui-prompt span.lbl { color: var(--ui-dim); font-size: 14px; }
+
+.wui-toasts { position: fixed; top: 22px; right: 22px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+.wui-toast { min-width: 260px; max-width: 360px; padding: 12px 16px 13px; border-radius: var(--ui-radius); background: var(--ui-panel); backdrop-filter: blur(12px);
+  border: 1px solid var(--ui-line); box-shadow: var(--ui-shadow); animation: toastIn 0.4s cubic-bezier(.2,.9,.3,1.2); display: flex; gap: 12px; align-items: flex-start; }
+.wui-toast.out { animation: toastOut 0.35s ease forwards; }
+.wui-toast .ic { font-size: 22px; line-height: 1; margin-top: 2px; }
+.wui-toast .t { font-family: var(--ui-display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 14px; }
+.wui-toast .b { font-size: 13px; color: var(--ui-dim); margin-top: 3px; line-height: 1.35; }
+.wui-toast.goal { border-color: rgba(255, 181, 71, 0.5); }
+.wui-toast.goal .t { color: var(--ui-accent); }
+.wui-toast.collect .t { color: #ffe27a; }
+.wui-toast.reward .t { color: var(--ui-good); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(40px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(30px); } }
+
+.wui-banner { position: fixed; left: 0; right: 0; top: 30vh; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.6s ease; }
+.wui-banner.on { opacity: 1; }
+.wui-banner .n { font-family: var(--ui-display); font-weight: 800; font-size: clamp(40px, 6vw, 76px); letter-spacing: 0.08em; text-transform: uppercase;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.55); }
+.wui-banner .s { font-size: 14px; letter-spacing: 0.32em; text-transform: uppercase; color: var(--ui-dim); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7); }
+
+.wui-goal { position: fixed; top: 24px; left: 24px; max-width: 320px; padding: 12px 16px; border-left: 3px solid var(--ui-accent);
+  background: linear-gradient(90deg, rgba(10, 12, 18, 0.7), rgba(10, 12, 18, 0)); transition: opacity 0.4s; }
+.wui-goal .h { font-family: var(--ui-display); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ui-accent); }
+.wui-goal .g { font-size: 15px; margin-top: 4px; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6); }
+.wui-goal .p { font-size: 12px; color: var(--ui-dim); margin-top: 3px; }
+
+.wui-minimap { position: fixed; left: 26px; bottom: 26px; width: 190px; height: 190px; border-radius: 50%; overflow: hidden;
+  box-shadow: 0 0 0 3px rgba(10, 12, 18, 0.75), 0 0 0 4px rgba(255, 255, 255, 0.12), var(--ui-shadow); background: #151820; transition: opacity 0.4s; }
+.wui-minimap canvas { width: 100%; height: 100%; display: block; }
+.wui-hint { position: fixed; right: 26px; bottom: 26px; font-size: 12px; color: var(--ui-faint); text-align: right; line-height: 1.8; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+.wui-hint .wui-key { min-width: 22px; height: 22px; font-size: 11px; margin-right: 6px; border-radius: 6px; }
+.wui-fps { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); font: 11px ui-monospace, monospace; color: var(--ui-dim); }
+.wui-hidden { opacity: 0 !important; pointer-events: none !important; }
+.wui-gone { display: none !important; }
+
+/* ---------- modal panels (pause, settings, inspect) ---------- */
+.wui-modal { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(5, 6, 10, 0.55);
+  backdrop-filter: blur(8px); opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+.wui-modal.on { opacity: 1; pointer-events: auto; }
+.wui-panel { background: var(--ui-panel-solid); border: 1px solid var(--ui-line); border-radius: 20px; box-shadow: var(--ui-shadow); padding: 28px 32px; min-width: 360px; max-width: 92vw; max-height: 88vh; overflow: auto; }
+.wui-panel h2 { margin: 0 0 18px; font-family: var(--ui-display); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; font-size: 28px; }
+.wui-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 10px 0; border-bottom: 1px solid var(--ui-line); font-size: 14px; }
+.wui-row:last-child { border-bottom: 0; }
+.wui-row input[type="range"] { width: 180px; accent-color: var(--ui-accent); }
+.wui-seg { display: inline-flex; background: rgba(255,255,255,.06); border-radius: 10px; padding: 3px; gap: 2px; }
+.wui-seg button { border: 0; background: none; color: var(--ui-dim); padding: 6px 10px; border-radius: 8px; cursor: pointer; font: 600 12px var(--ui-font); }
+.wui-seg button.sel { background: var(--ui-ink); color: #111; }
+.wui-controls { display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; align-items: center; font-size: 14px; color: var(--ui-dim); }
+.wui-controls .wui-key { justify-self: end; }

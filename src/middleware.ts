@@ -7,12 +7,12 @@ const permissionsPolicy = 'geolocation=(), microphone=(), camera=(), payment=(),
 
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://gc.zgo.at", // Astro needs unsafe-inline for hydration; gc.zgo.at is GoatCounter's count.js
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://gc.zgo.at", // Astro needs unsafe-inline for hydration; gc.zgo.at is GoatCounter's count.js; wasm-unsafe-eval lets /world's physics engine (Rapier) instantiate WebAssembly
   "style-src 'self' 'unsafe-inline'",  // Tailwind needs unsafe-inline
   "img-src 'self' data: https:",
   "font-src 'self'",
   "media-src 'self' blob: https://assets.plastick.rocks", // Allow Kaya climbing videos (blob: for fetched videos)
-  `connect-src 'self' https://assets.plastick.rocks https://atyansh.goatcounter.com${isDev ? ' ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:* wss://*.ngrok-free.app wss://*.ngrok.io https://*.ngrok-free.app https://*.ngrok.io' : ''}`, // Allow HMR in dev (including ngrok) + Kaya videos + GoatCounter pings
+  `connect-src 'self' blob: https://assets.plastick.rocks https://atyansh.goatcounter.com${isDev ? ' ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:* wss://*.ngrok-free.app wss://*.ngrok.io https://*.ngrok-free.app https://*.ngrok.io' : ''}`, // Allow HMR in dev (including ngrok) + Kaya videos + GoatCounter pings
   `frame-src${isDev ? ' http://localhost:* http://127.0.0.1:* https://*.ngrok-free.app https://*.ngrok.io' : ''} https://www.youtube.com https://www.youtube-nocookie.com`, // Allow YouTube embeds (and localhost/ngrok in dev)
   `frame-ancestors${isDev ? " 'self'" : " 'none'"}`, // Allow self-framing in dev for View Transitions
   "base-uri 'self'",

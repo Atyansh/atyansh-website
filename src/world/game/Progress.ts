@@ -49,11 +49,11 @@ export class Progress {
     const s = game.save;
     const visited = () => ENTERABLE.filter((id) => s.flag(`visited:${id}`)).length;
     const pets = () => ['baobao', 'huhu', 'chance'].filter((p) => s.flag(`pet:${p}`)).length;
-    const tops = () => ['ridge', 'tower', 'island'].filter((b) => s.flag(`climb:top:${b}`)).length;
+    const sends = () => Math.min(6, Object.keys(s.data.flags).filter((k) => k.startsWith('climb:send:')).length);
     this.goals = [
       { id: 'tour', title: 'Grand Tour', hint: 'Step inside every building on the block', progress: visited, total: ENTERABLE.length, reward: 'marquee' },
       { id: 'pets', title: 'Friends of the Park', hint: 'Earn BaoBao’s trust, pet HuHu, play fetch with Chance', progress: pets, total: 3, reward: 'tabby' },
-      { id: 'climb', title: 'Send It', hint: 'Top out all three boulders in the climbing gym', progress: tops, total: 3, reward: 'crimp' },
+      { id: 'climb', title: 'Send It', hint: 'Send 6 problems in the climbing gym — start at a coloured tape', progress: sends, total: 6, reward: 'crimp' },
       { id: 'arcade', title: 'High Score', hint: `Score ${ARCADE_TARGET} on BLOCK BREAKER in the arcade`, progress: () => Math.min(ARCADE_TARGET, s.data.arcadeBest), total: ARCADE_TARGET, reward: 'arcade' },
       { id: 'gacha', title: 'Gotta Watch ’Em All', hint: `Collect ${GACHA_TARGET} different cards from the café gacha`, progress: () => Math.min(GACHA_TARGET, new Set(s.data.gachaCards).size), total: GACHA_TARGET },
       { id: 'records', title: 'Golden Records', hint: 'Find the golden records hidden around the block', progress: () => s.data.collectibles.length, total: recordSpots().length, reward: 'gold' },

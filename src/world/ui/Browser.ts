@@ -92,7 +92,7 @@ export class Browser {
       <div class="wb-main"><div class="wb-cover"></div><div class="wb-info"></div></div>
       <div class="wb-strip"></div>
       <button class="wb-nav" style="left:2vw">‹</button><button class="wb-nav" style="right:2vw">›</button>
-      <div class="wb-hint">A / D browse · Esc close</div>`;
+      <div class="wb-hint">A / D browse · E or Esc close</div>`;
     const navs = root.querySelectorAll('.wb-nav');
     navs[0].addEventListener('click', () => this.step(-1));
     navs[1].addEventListener('click', () => this.step(1));
@@ -100,7 +100,7 @@ export class Browser {
     this.game.ui.root.appendChild(root);
     this.root = root;
     this.isOpen = true;
-    this.game.input.unlock();
+    this.game.focus.push({ id: 'browser', cursor: true, close: () => this.close() });
     this.game.ui.setHudVisible(false);
     this.render();
     requestAnimationFrame(() => root.classList.add('on'));
@@ -113,6 +113,7 @@ export class Browser {
     setTimeout(() => r.remove(), 260);
     this.root = null;
     this.isOpen = false;
+    this.game.focus.remove('browser');
     if (!silent) {
       this.game.ui.setHudVisible(true);
       const cb = this.opts?.onClose;
@@ -135,7 +136,7 @@ export class Browser {
     const i = this.game.input;
     if (i.pressed('next')) this.step(1);
     if (i.pressed('prev')) this.step(-1);
-    if (i.pressed('back') || i.pressed('interact') || i.pressed('pause')) this.close();
+    if (i.pressed('back') || i.pressed('interact')) this.close();
   }
 
   private render(): void {

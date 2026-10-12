@@ -221,8 +221,6 @@ export function buildAnimeCafe(game: Game, index: number): Level {
     let t = 0;
     let shown = false;
     let wrap: HTMLDivElement | null = null;
-    game.uiOwnsPointer = true;
-    game.input.unlock();
     game.beginActivity({
       name: 'gacha',
       shot: { position: room.v(gx + 1.6, 1.4, gz + 0.4), target: room.v(gx, 0.9, gz), fov: 42, blend: 0.5 },

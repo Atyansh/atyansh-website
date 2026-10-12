@@ -18,6 +18,10 @@ export interface Activity {
   freeCamera?: boolean;
   /** HUD hint line, e.g. "E  Stand up · A/D  Channel" */
   hint?: string;
+  /** Escape / Back: how to leave (default: end the activity) */
+  back?: () => void;
+  /** 'pause': Escape pauses instead of leaving (e.g. mid-climb) */
+  escape?: 'close' | 'pause';
 }
 
 export interface Seat {
@@ -35,14 +39,19 @@ export interface Seat {
   afterSeated?: (stand: () => void) => void;
   /** Hide the player's body while seated (first-person views) */
   hideCharacter?: boolean;
+  /**
+   * Watch from the seat's own eyes (screens: cinema, TV, monitors): the
+   * camera sits at seated eye height looking at `shot.target` (or straight
+   * ahead), the body is hidden, and the mouse looks around.
+   */
+  firstPerson?: boolean;
 }
-
-let pelvisSeated: THREE.Vector3 | null = null;
 
 /** Sit the player on a seat (SitDown → SitIdle loop → StandUp) */
 export function sit(game: Game, seat: Seat): void {
   const ch = game.player.character;
-  if (!pelvisSeated) pelvisSeated = ch.boneOffset('SitIdle', 'pelvis', 0.3);
+  // seated pelvis offset for *this* body (avatars differ in height)
+  const pelvisSeated = ch.boneOffset('SitIdle', 'pelvis', 0.3);
   const fwd = new THREE.Vector3(Math.sin(seat.facing), 0, Math.cos(seat.facing));
   const right = new THREE.Vector3(Math.cos(seat.facing), 0, -Math.sin(seat.facing));
   // root such that the seated pelvis lands on the seat point
@@ -55,13 +64,27 @@ export function sit(game: Game, seat: Seat): void {
   let standing = false;
   let seatedFired = false;
   let busy = false; // an overlay (browser) is open while seated
-  ch.play('SitDown', { fade: 0.25, onDone: () => ch.play('SitIdle', { loop: true, fade: 0.2 }) });
+  // Pin: once down, the pelvis stays exactly on the seat whatever the clips
+  // do (SitDown ends a little off SitIdle's pose; without this the body
+  // visibly hops when one hands over to the other)
+  let pin = 0;
+  const pelvis = ch.bones.get('pelvis');
+  ch.play('SitDown', { fade: 0.25, onDone: () => ch.play('SitIdle', { loop: true, fade: 0.25 }) });
   game.events.emit('sfx', { name: 'sit' });
   seat.onSit?.();
+  const hide = seat.hideCharacter || seat.firstPerson;
+  let shot = seat.shot ?? null;
+  if (seat.firstPerson) {
+    const eye = seat.hip.clone().addScaledVector(fwd, 0.1).add(new THREE.Vector3(0, 0.74 * ch.root.scale.y, 0));
+    shot = { position: eye, target: seat.shot?.target ?? eye.clone().addScaledVector(fwd, 5), fov: seat.shot?.fov ?? 60, blend: seat.shot?.blend ?? 0.8, orbit: { yaw: 1.3, pitch: 0.55 } };
+  } else if (shot && !shot.orbit) {
+    shot = { ...shot, orbit: { yaw: 0.9, pitch: 0.4 } };
+  }
   game.beginActivity({
     name: 'sit',
-    shot: seat.shot ?? null,
-    hint: seat.hint ?? 'E  Stand up',
+    shot,
+    hint: seat.hint ?? 'E  Stand up · Mouse  Look around',
+    back: () => standUp(),
     update: (dt) => {
       t = Math.min(1, t + dt / 0.45);
       const k = t * t * (3 - 2 * t);
@@ -69,22 +92,32 @@ export function sit(game: Game, seat: Seat): void {
       ch.root.position.copy(game.player.position);
       ch.root.rotation.y = seat.facing;
       game.player.facing = seat.facing;
-      if (!standing) seat.onUpdate?.(dt);
+      // pelvis pin: ramps in as SitDown finishes, out while standing
+      const down = ch.overrideName === 'SitIdle' || (ch.overrideName === 'SitDown' && t >= 1);
+      pin = standing ? Math.max(0, pin - dt / 0.35) : down ? Math.min(1, pin + dt / 0.3) : pin;
+      if (pelvis && pin > 0) {
+        ch.root.updateMatrixWorld(true);
+        const err = seat.hip.clone().sub(pelvis.getWorldPosition(new THREE.Vector3()));
+        if (err.length() < 0.4) ch.root.position.addScaledVector(err, pin);
+      }
+      if (standing) return;
+      seat.onUpdate?.(dt);
       if (!seatedFired && t >= 1 && seat.afterSeated) {
         seatedFired = true;
         busy = true;
         seat.afterSeated(() => { busy = false; standUp(); });
       }
       if (busy) { game.browser.update(); return; }
-      if (!standing && t >= 1 && (game.input.pressed('interact') || game.input.pressed('jump') || game.input.pressed('back'))) standUp();
+      if (t >= 1 && (game.input.pressed('interact') || game.input.pressed('jump') || game.input.pressed('back'))) standUp();
     },
-    end: () => { if (seat.hideCharacter) ch.root.visible = true; },
+    end: () => { if (hide) ch.root.visible = true; },
   });
-  if (seat.hideCharacter) ch.root.visible = false;
+  if (hide) ch.root.visible = false;
   function standUp(): void {
         if (standing) return;
         standing = true;
         ch.root.visible = true;
+        if (seat.firstPerson) game.rig.releaseShot(); // don't stand up through the camera
         ch.play('StandUp', {
           fade: 0.15,
           onDone: () => {

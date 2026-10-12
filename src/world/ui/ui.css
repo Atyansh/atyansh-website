@@ -115,3 +115,7 @@
   opacity: 0; transition: opacity .3s; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
 .wui-activity.on { opacity: 1; }
 .wui-activity .wui-key { margin-right: 8px; min-width: 26px; height: 26px; font-size: 12px; }
+
+.wui-resume { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 12px 22px; border-radius: 999px; background: rgba(10,12,16,.72);
+  font: 600 15px var(--ui-font); color: #fff; letter-spacing: .02em; pointer-events: none; opacity: 0; transition: opacity .2s; z-index: 40; }
+.wui-resume.on { opacity: 1; }

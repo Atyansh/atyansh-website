@@ -1,6 +1,9 @@
 // The phone (Tab): Map + fast travel, Goals, Collection, Camera (photo mode),
-// Wardrobe, Settings. Mouse, keyboard (arrows/WASD + Enter, Esc/Tab back)
-// and gamepad navigable.
+// Wardrobe, Settings. Like GTA, you keep walking and looking around while
+// it's out: WASD + mouse still drive the player, the arrow keys + Enter
+// drive the phone (spatial focus between anything actionable), Backspace
+// goes back, Tab / Esc put it away. Mouse clicks work whenever the cursor
+// is free.
 
 import type { PhonePose } from '../game/PhonePose';
 import type { Game } from '../game/Game';
@@ -50,6 +53,8 @@ const CSS = `
 .ph-outfit .sw { height: 70px; border-radius: 12px; margin-bottom: 8px; }
 .ph-outfit.sel { box-shadow: inset 0 0 0 2px var(--ui-accent); }
 .ph-outfit.locked { opacity: .45; cursor: default; }
+.ph [data-nav].focus { box-shadow: 0 0 0 2px #fff !important; }
+.ph-back.focus { text-decoration: underline; }
 .ph-hint { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(255,255,255,.4); }
 `;
 
@@ -68,8 +73,6 @@ export class Phone {
   private screen: HTMLDivElement;
   isOpen = false;
   private sel = 0;
-  /** the key that opened the phone must not also close it */
-  private opening = false;
   private view: AppId | null = null;
   private mapImg = renderCityMap();
   progress!: Progress;
@@ -89,13 +92,18 @@ export class Phone {
   }
 
   open(): void {
+    const g = this.game;
+    if (g.activity || g.player.state !== 'move') {
+      g.ui.toast('Hands full', 'Finish what you\'re doing first.', '📱', 'info');
+      return;
+    }
     this.isOpen = true;
-    this.opening = true;
     this.view = null;
     this.render();
     this.el.classList.add('on');
-    this.game.uiOwnsPointer = true;
-    this.game.events.emit('sfx', { name: 'phone' });
+    g.input.arrowsForUi = true;
+    g.focus.push({ id: 'phone', cursor: false, close: () => this.close() });
+    g.events.emit('sfx', { name: 'phone' });
     this.pose?.show(true);
   }
 
@@ -103,31 +111,63 @@ export class Phone {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.el.classList.remove('on');
+    this.game.input.arrowsForUi = false;
     this.pose?.show(false);
-    if (this.game.state === 'menu') {
-      this.game.state = 'playing';
-      this.game.uiOwnsPointer = false;
-      this.game.input.lock();
-    }
+    this.game.focus.remove('phone');
   }
 
   update(): void {
     if (!this.isOpen) return;
-    if (this.opening) { this.opening = false; return; }
-    const i = this.game.input;
-    if (i.pressed('pause') || i.pressed('phone') || i.pressed('back')) {
+    const g = this.game;
+    // anything that needs both hands puts the phone away
+    if (g.activity || g.player.state !== 'move') { this.close(); return; }
+    const i = g.input;
+    if (i.pressedCode('Backspace')) {
       if (this.view) { this.view = null; this.render(); } else this.close();
       return;
     }
-    if (!this.view) {
-      const before = this.sel;
-      if (i.pressed('right')) this.sel = Math.min(APPS.length - 1, this.sel + 1);
-      if (i.pressed('left')) this.sel = Math.max(0, this.sel - 1);
-      if (i.pressed('down')) this.sel = Math.min(APPS.length - 1, this.sel + 3);
-      if (i.pressed('up')) this.sel = Math.max(0, this.sel - 3);
-      if (before !== this.sel) this.render();
-      if (i.pressed('confirm')) this.openApp(APPS[this.sel].id);
+    const dir = i.pressedCode('ArrowUp') ? 'up' : i.pressedCode('ArrowDown') ? 'down' : i.pressedCode('ArrowLeft') ? 'left' : i.pressedCode('ArrowRight') ? 'right' : null;
+    if (dir) this.moveFocus(dir);
+    if (i.pressedCode('Enter') || i.pressedCode('NumpadEnter')) this.focused()?.click();
+  }
+
+  /** Actionable elements in the current view, in DOM order */
+  private navs(): HTMLElement[] {
+    return [...this.screen.querySelectorAll<HTMLElement>('[data-nav]')];
+  }
+
+  private focused(): HTMLElement | null {
+    return this.screen.querySelector<HTMLElement>('[data-nav].focus');
+  }
+
+  private setFocus(n: HTMLElement | null): void {
+    this.focused()?.classList.remove('focus');
+    if (!n) return;
+    n.classList.add('focus');
+    n.scrollIntoView({ block: 'nearest' });
+    if (n.dataset.app) this.sel = APPS.findIndex((a) => a.id === n.dataset.app);
+  }
+
+  /** Spatial navigation: nearest actionable element in the pressed direction */
+  private moveFocus(dir: 'up' | 'down' | 'left' | 'right'): void {
+    const all = this.navs();
+    const cur = this.focused();
+    if (!cur) { this.setFocus(all[0] ?? null); return; }
+    const c = cur.getBoundingClientRect();
+    const cx = c.left + c.width / 2, cy = c.top + c.height / 2;
+    let best: HTMLElement | null = null;
+    let bestScore = Infinity;
+    for (const n of all) {
+      if (n === cur) continue;
+      const r = n.getBoundingClientRect();
+      const dx = r.left + r.width / 2 - cx, dy = r.top + r.height / 2 - cy;
+      const along = dir === 'up' ? -dy : dir === 'down' ? dy : dir === 'left' ? -dx : dx;
+      const across = dir === 'up' || dir === 'down' ? Math.abs(dx) : Math.abs(dy);
+      if (along < 4) continue;
+      const score = along + across * 2.5;
+      if (score < bestScore) { bestScore = score; best = n; }
     }
+    if (best) { this.setFocus(best); this.game.events.emit('sfx', { name: 'tick' }); }
   }
 
   private status(): string {
@@ -137,12 +177,12 @@ export class Phone {
 
   private render(): void {
     if (!this.view) {
-      this.screen.innerHTML = `${this.status()}<div class="ph-home">${APPS.map((a, k) => `<div class="ph-app${k === this.sel ? ' sel' : ''}" data-app="${a.id}"><div class="ic" style="background:${a.bg}">${a.icon}</div><span>${a.name}</span></div>`).join('')}</div>
-        <div class="ph-hint">Arrows · Enter open · Tab close</div>`;
+      this.screen.innerHTML = `${this.status()}<div class="ph-home">${APPS.map((a, k) => `<div class="ph-app${k === this.sel ? ' sel focus' : ''}" data-nav data-app="${a.id}"><div class="ic" style="background:${a.bg}">${a.icon}</div><span>${a.name}</span></div>`).join('')}</div>
+        <div class="ph-hint">Arrows · Enter open · Tab put away</div>`;
       this.screen.querySelectorAll<HTMLElement>('.ph-app').forEach((n) => n.addEventListener('click', () => this.openApp(n.dataset.app as AppId)));
       return;
     }
-    const back = '<button class="ph-back">‹ Home</button>';
+    const back = '<button class="ph-back" data-nav>‹ Home</button>';
     let body = '';
     const s = this.game.save;
     const d = this.game.data;
@@ -167,13 +207,13 @@ export class Phone {
       const cur = s.settings.outfit;
       body = `<h3>Wardrobe</h3><div class="ph-outfits">${OUTFITS.map((o) => {
         const unlocked = !o.unlock || s.data.rewards.includes(o.unlock);
-        return `<div class="ph-outfit${o.id === cur ? ' sel' : ''}${unlocked ? '' : ' locked'}" data-outfit="${o.id}">
+        return `<div class="ph-outfit${o.id === cur ? ' sel' : ''}${unlocked ? '' : ' locked'}" data-nav data-outfit="${o.id}">
           <div class="sw" style="background:linear-gradient(180deg, ${o.swatch[0]} 0 55%, ${o.swatch[1]} 55% 88%, ${o.swatch[2]} 88%)"></div>${unlocked ? o.name : `🔒 ${o.name}`}</div>`;
       }).join('')}</div>`;
     } else if (this.view === 'map') {
       const doors = LOTS.filter((l) => l.enter);
       body = `<h3>Map</h3><div class="ph-map"><canvas width="600" height="600"></canvas></div>
-        <div class="ph-places">${doors.map((l) => `<div class="ph-place" data-go="${l.enter}"><span><i style="background:#${l.accent.toString(16).padStart(6, '0')}"></i>${l.name}</span><span style="color:var(--ui-dim);font-size:12px">Fast travel ›</span></div>`).join('')}</div>`;
+        <div class="ph-places">${doors.map((l) => `<div class="ph-place" data-nav data-go="${l.enter}"><span><i style="background:#${l.accent.toString(16).padStart(6, '0')}"></i>${l.name}</span><span style="color:var(--ui-dim);font-size:12px">Fast travel ›</span></div>`).join('')}</div>`;
     }
     this.screen.innerHTML = `${this.status()}<div class="ph-view">${back}${body}</div>`;
     this.screen.querySelector('.ph-back')?.addEventListener('click', () => { this.view = null; this.render(); });
@@ -188,6 +228,8 @@ export class Phone {
     this.screen.querySelectorAll<HTMLElement>('[data-go]').forEach((n) => n.addEventListener('click', () => this.travel(n.dataset.go!)));
     const cv = this.screen.querySelector('canvas');
     if (cv) this.drawMap(cv);
+    // keyboard focus: the current outfit, else the first item after "Home"
+    this.setFocus(this.screen.querySelector<HTMLElement>('.ph-outfit.sel') ?? this.navs()[1] ?? this.navs()[0] ?? null);
   }
 
   private drawMap(cv: HTMLCanvasElement): void {

@@ -202,11 +202,9 @@ export function buildLibrary(game: Game, index: number): Level {
         shot: { position: room.v(c.x + fwd.x * 2.4 - fwd.z * 0.8, 1.5, c.z + fwd.z * 2.4 + fwd.x * 0.8), target: room.v(c.x, 0.9, c.z), fov: 50 },
         // settle in, then the bookshelf opens; closing it gets you up
         afterSeated: (stand) => {
-          game.uiOwnsPointer = true;
-          game.input.unlock();
           game.browser.open({
             heading: 'Reading · Goodreads', accent: '#e8c56a', items: bookItems(game.data), start: Math.max(0, featured), aspect: 1.5,
-            onClose: () => { game.uiOwnsPointer = false; game.input.lock(); stand(); },
+            onClose: () => stand(),
           });
         },
       }),
@@ -223,11 +221,16 @@ export function buildLibrary(game: Game, index: number): Level {
   const featured = reading >= 0 ? reading : 0;
   const lec = { x: 0, z: -D / 2 + 1.6 };
   room.box(wood, lec.x, 0, lec.z, 0.6, 1.0, 0.5, true, 'wood');
+  // sloped reading top, facing the reader (who stands on the +z side)
+  const SLOPE = 0.35;
   const top = boxGeo(0.75, 0.05, 0.6);
-  top.rotateX(-0.35);
+  top.rotateX(SLOPE);
   top.translate(lec.x, 1.12, lec.z + 0.05);
   room.B.add(wood, top);
-  if (books[featured]) room.art(assets.art(books[featured].art), 0.36, 0.54, lec.x, 1.16, lec.z + 0.08, 0, { glow: 0.2 }).rotateX(-1.2); // lie back on the sloped top
+  // the open book lies on that slope, just proud of its surface
+  const n = new THREE.Vector3(0, Math.cos(SLOPE), Math.sin(SLOPE));
+  const at = new THREE.Vector3(lec.x, 1.12, lec.z + 0.05).addScaledVector(n, 0.025 + 0.006);
+  if (books[featured]) room.art(assets.art(books[featured].art), 0.36, 0.54, at.x, at.y, at.z, 0, { glow: 0.2 }).rotateX(-(Math.PI / 2 - SLOPE));
   const signC = document.createElement('canvas');
   signC.width = 1024; signC.height = 256;
   const sgc = signC.getContext('2d')!;

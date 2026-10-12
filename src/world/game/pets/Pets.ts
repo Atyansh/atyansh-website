@@ -14,7 +14,7 @@ import type { Game } from '../Game';
 import type { ParkPOI } from '../../world/Park';
 import { PetRig, type PetSpec, type Pose } from './PetRig';
 import { SPECS } from './specs';
-import { LimbIK } from '../Climbing';
+import { LimbIK } from '../IK';
 import { PARK, CURB_H } from '../../world/layout';
 import { clamp, dampAngle, rng } from '../../engine/math';
 
@@ -182,8 +182,9 @@ export class Pets {
     g.beginActivity({
       name: 'pet',
       // camera on the far side of the pet, looking back at you and your hand
-      shot: { position: p.pos.clone().addScaledVector(sideV, -side * 1.3).addScaledVector(fwdPet, 0.7).add(new THREE.Vector3(0, 0.75, 0)), target: p.pos.clone().addScaledVector(sideV, side * 0.25).add(new THREE.Vector3(0, 0.35, 0)), fov: 50, blend: 0.7 },
-      hint: 'E  Stop',
+      shot: { position: p.pos.clone().addScaledVector(sideV, -side * 1.3).addScaledVector(fwdPet, 0.7).add(new THREE.Vector3(0, 0.75, 0)), target: p.pos.clone().addScaledVector(sideV, side * 0.25).add(new THREE.Vector3(0, 0.35, 0)), fov: 50, blend: 0.7, orbit: { yaw: 2.4, pitch: 0.6 } },
+      hint: 'E  Stop · Mouse  Look around',
+      back: () => { g.endActivity(); onDone(); },
       update: (dt) => {
         t += dt;
         // stroke cycle: slow along the back, quick lift back to the start
@@ -435,14 +436,26 @@ export class Pets {
       return;
     }
     if (p.id === 'baobao') {
-      const looming = player.speed > 2.5 && dp < 6;
+      // Trust is earned slowly and lost fast — even once she's your friend.
+      // Sprinting nearby, running up close or landing a jump next to her all
+      // spook her; a big scare sends her into hiding.
       const close = dp < 3.0;
       const gentle = (player.crouching || player.speed < 2.2) && close;
-      if (p.mood !== 'flee' && p.mood !== 'hide' && p.trust < 1 && (looming || (close && !gentle && player.speed > 0.5))) {
+      const sprinting = player.speed > 5.2 && dp < 8;
+      const rushing = player.speed > 2.5 && dp < 4.5;
+      const stomping = !player.grounded && dp < 3.5;
+      const before = p.trust;
+      if (sprinting) p.trust -= dt * 1.6;
+      else if (rushing || stomping) p.trust -= dt * 0.9;
+      else if (close && !gentle && player.speed > 0.5) p.trust -= dt * 0.4;
+      p.trust = Math.max(0, p.trust);
+      const spooked = (sprinting || rushing || stomping) && p.mood !== 'flee' && p.mood !== 'hide';
+      if (spooked && (p.trust < 0.75 || sprinting)) {
         p.mood = 'flee';
         p.target.copy(this.poi.hideSpot);
-        p.trust = Math.max(0, p.trust - 0.3);
+        p.trust = Math.max(0, p.trust - 0.25);
         this.game.events.emit('sfx', { name: 'hiss' });
+        if (before >= 1) this.game.ui.toast('BaoBao got spooked', 'She\'s gone to hide. Win her back slowly.', '🐾', 'info');
       }
       if (gentle && p.mood !== 'flee') p.trust = Math.min(1, p.trust + dt * (player.crouching ? 0.33 : 0.18));
       if (p.mood === 'flee') {

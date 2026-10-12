@@ -219,7 +219,7 @@ export function buildStudio(game: Game, index: number): Level {
       room.interactables.push({
         id: `desk:${i}`, position: room.v(chairPos.x + fwd.x * 0.7, 1, chairPos.z + fwd.z * 0.7), radius: 1.2, verb: 'Sit', label: 'at the desk',
         onInteract: () => sit(game, {
-          hip: room.v(chairPos.x, 0.45, chairPos.z), facing: s.ry + Math.PI,
+          hip: room.v(chairPos.x, 0.45, chairPos.z), facing: s.ry + Math.PI, firstPerson: true,
           shot: { position: room.v(chairPos.x + fwd.x * 0.9, 1.45, chairPos.z + fwd.z * 0.9), target: mon.getWorldPosition(new THREE.Vector3()), fov: 45 },
         }),
       });

@@ -21,7 +21,7 @@ const HALF_HEIGHT = 0.55;
 const RADIUS = 0.3;
 const CENTER = HALF_HEIGHT + RADIUS; // capsule centre above the feet
 
-export const SPEED = { walk: 1.5, jog: 4.2, sprint: 7.0, crouch: 1.1 };
+export const SPEED = { walk: 1.5, jog: 4.6, sprint: 7.0, crouch: 1.1 };
 const GRAVITY = 24;
 const JUMP_V = 7.6;
 const COYOTE = 0.12;
@@ -31,6 +31,8 @@ export type PlayerState = 'move' | 'air' | 'mantle' | 'locked';
 
 export class Player {
   character: Character;
+  /** Visual offset left behind by instant capsule moves (step-ups), eased to zero */
+  private visualLag = new THREE.Vector3();
   readonly body: RAPIER.RigidBody;
   readonly collider: RAPIER.Collider;
   private kcc: RAPIER.KinematicCharacterController;
@@ -267,6 +269,8 @@ export class Player {
     if (head) return;
     const target = this.position.clone().addScaledVector(dir, Math.max(0.12, (wall ? wall.distance : RADIUS) - RADIUS + 0.12));
     target.y = top + 0.005;
+    // the capsule snaps up; the body eases after it so the step reads as a step
+    this.visualLag.add(this.position.clone().sub(target));
     this.setPosition(target);
     this.grounded = true;
   }
@@ -331,7 +335,9 @@ export class Player {
 
   private syncVisual(dt: number): void {
     const r = this.character.root;
-    r.position.copy(this.position);
+    this.visualLag.multiplyScalar(Math.exp(-dt * 16));
+    if (this.visualLag.lengthSq() < 1e-6 || this.state === 'locked') this.visualLag.set(0, 0, 0);
+    r.position.copy(this.position).add(this.visualLag);
     if (this.state !== 'locked') {
       // upright again after activities that tilt the body (climbing)
       r.rotation.set(0, dampAngle(r.rotation.y, this.facing, 14, dt), 0);

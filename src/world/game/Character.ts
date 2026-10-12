@@ -35,11 +35,36 @@ export interface OverrideOptions {
   hold?: boolean;
 }
 
+const ARM = /^(clavicle|upperarm|lowerarm|hand|thumb|index|middle|ring|pinky)_/;
+/**
+ * The UAL jump clips fling both arms out into a T. Swap their arm tracks for
+ * the run cycle's arms frozen mid-swing (one forward, one back, elbows bent)
+ * so jumps read like a runner's leap.
+ */
+function calmJumpArms(clips: Map<string, THREE.AnimationClip>): void {
+  const run = clips.get('Jog');
+  if (!run) return;
+  const at = run.duration * 0.3;
+  for (const name of ['JumpStart', 'JumpLoop', 'JumpLand']) {
+    const clip = clips.get(name);
+    if (!clip) continue;
+    const keep = clip.tracks.filter((t) => !ARM.test(t.name));
+    const arms = run.tracks.filter((t) => ARM.test(t.name) && t instanceof THREE.QuaternionKeyframeTrack).map((t) => {
+      const q = new THREE.Quaternion();
+      const interp = (t as unknown as { createInterpolant(): THREE.Interpolant }).createInterpolant();
+      const v = interp.evaluate(at) as Float32Array;
+      q.set(v[0], v[1], v[2], v[3]);
+      return new THREE.QuaternionKeyframeTrack(t.name, [0, clip.duration], [...q.toArray(), ...q.toArray()]);
+    });
+    clip.tracks = [...keep, ...arms];
+  }
+}
+
 /** Cache of measured clip ground speeds (shared across instances) */
 const speedCache = new Map<string, number>();
 const phaseCache = new Map<string, number>();
 /** Ground speeds the UAL locomotion clips were authored for (m/s) */
-const AUTHORED_SPEED: Record<string, number> = { Walk: 1.35, Jog: 3.7, Sprint: 6.6, CrouchWalk: 0.9 };
+const AUTHORED_SPEED: Record<string, number> = { Walk: 1.35, Jog: 4.4, Sprint: 6.6, CrouchWalk: 0.9 };
 
 export class Character {
   readonly root = new THREE.Group();
@@ -48,6 +73,8 @@ export class Character {
   private actions = new Map<string, THREE.AnimationAction>();
   private clips = new Map<string, THREE.AnimationClip>();
   readonly bones = new Map<string, THREE.Bone>();
+  /** Bind-pose local rotations (for procedural poses that start from rest) */
+  readonly rest = new Map<string, THREE.Quaternion>();
   private locoW: Record<LocoName, number> = { Idle: 1, Walk: 0, Jog: 0, Sprint: 0, CrouchIdle: 0, CrouchWalk: 0 };
   private phase = 0;
   private override: THREE.AnimationAction | null = null;
@@ -81,6 +108,7 @@ export class Character {
         m.material = Array.isArray(m.material) ? cloned : cloned[0];
       }
     });
+    for (const [n, b] of this.bones) this.rest.set(n, b.quaternion.clone());
     this.mixer = new THREE.AnimationMixer(this.model);
     // Clips carry absolute pelvis positions for the rig they were authored
     // on; scale them to this body's hip height so feet stay on the ground
@@ -108,6 +136,7 @@ export class Character {
       });
       this.clips.set(c.name, c);
     }
+    calmJumpArms(this.clips);
     for (const name of [...LOCO, ...CROUCH]) {
       const a = this.action(name);
       if (!a) continue;

@@ -3,6 +3,7 @@
 
 import './ui.css';
 import type { Game } from '../game/Game';
+import { enterFullscreen } from '../engine/Focus';
 import type { Resolved } from '../game/Interaction';
 import type { TimeOfDay } from '../world/Sky';
 
@@ -40,6 +41,7 @@ export class UI {
   private hint = el('div', 'wui-hint');
   private fps = el('div', 'wui-fps');
   private activityHint = el('div', 'wui-activity');
+  private resumeHint = el('div', 'wui-resume');
   private pauseModal = el('div', 'wui-modal');
   private settingsModal = el('div', 'wui-modal');
   private controlsModal = el('div', 'wui-modal');
@@ -70,22 +72,12 @@ export class UI {
     this.hint.innerHTML = '<div><span class="wui-key">Tab</span>Phone</div><div><span class="wui-key">Esc</span>Pause</div>';
     this.goal.innerHTML = '<div class="h">Goal</div><div class="g"></div><div class="p"></div>';
     this.hud = [this.prompt, this.toasts, this.goal, this.minimap, this.hint, this.banner];
-    this.root.append(...this.hud, this.fps, this.activityHint);
+    this.root.append(...this.hud, this.fps, this.activityHint, this.resumeHint);
     this.setHudVisible(false);
     this.setGoal(null);
     this.fps.style.display = 'none';
 
     this.root.append(this.title, this.pauseModal, this.settingsModal, this.controlsModal);
-    // Esc closes the topmost panel first (capture phase: the game never sees it)
-    window.addEventListener('keydown', (e) => {
-      if (e.code !== 'Escape') return;
-      if (this.controlsModal.classList.contains('on')) this.showControls(false);
-      else if (this.settingsModal.classList.contains('on')) this.showSettings(false);
-      else if (this.pauseModal.classList.contains('on') && this.game?.state === 'paused') this.game.resume();
-      else return;
-      e.stopImmediatePropagation();
-      e.preventDefault();
-    }, true);
   }
 
   // ---------------- loading / title ----------------
@@ -183,6 +175,12 @@ export class UI {
     this.activityHint.classList.add('on');
   }
 
+  /** "Click to resume" after Escape released the mouse (see engine/Focus.ts) */
+  setResumeHint(text: string | null): void {
+    this.resumeHint.textContent = text ? text.replace('  ', ' ') : '';
+    this.resumeHint.classList.toggle('on', !!text);
+  }
+
   setFpsVisible(v: boolean): void {
     this.fps.style.display = v ? 'block' : 'none';
   }
@@ -220,10 +218,13 @@ export class UI {
   // ---------------- phone hooks ----------------
 
   openPhone(): void {
-    if (!this.phone || !this.game) return;
-    this.game.state = 'menu';
-    this.game.input.unlock();
+    if (!this.phone || !this.game || this.phone.isOpen) return;
     this.phone.open();
+  }
+
+  togglePhone(): void {
+    if (this.phone?.isOpen) this.phone.close();
+    else this.openPhone();
   }
 
   closePhone(): void {
@@ -257,7 +258,8 @@ export class UI {
 
   showSettings(on: boolean): void {
     this.settingsModal.classList.toggle('on', on);
-    if (!on) return;
+    if (!on) { this.game?.focus?.remove('settings'); return; }
+    this.game?.focus?.push({ id: 'settings', cursor: true, close: () => this.showSettings(false) });
     const g = this.game;
     const s = g.save.settings;
     this.settingsModal.innerHTML = '';
@@ -297,6 +299,11 @@ export class UI {
     row('Time of day', seg<TimeOfDay>([['day', 'Day'], ['sunset', 'Sunset'], ['dusk', 'Dusk'], ['night', 'Night']], s.timeOfDay,
       (v) => { void g.setTimeOfDay(v); }));
     row('Show FPS', seg([['off', 'Off'], ['on', 'On']], s.showFps ? 'on' : 'off', (v) => { s.showFps = v === 'on'; this.setFpsVisible(s.showFps); }));
+    row('Fullscreen', seg([['on', 'On'], ['off', 'Off']], s.fullscreen ? 'on' : 'off', (v) => {
+      s.fullscreen = v === 'on';
+      if (s.fullscreen) void enterFullscreen(document.documentElement);
+      else if (document.fullscreenElement) void document.exitFullscreen();
+    }));
     const close = el('button', 'wui-btn', 'Done');
     close.addEventListener('click', () => this.showSettings(false));
     p.append(close);
@@ -305,7 +312,8 @@ export class UI {
 
   showControls(on: boolean): void {
     this.controlsModal.classList.toggle('on', on);
-    if (!on) return;
+    if (!on) { this.game?.focus?.remove('controls'); return; }
+    this.game?.focus?.push({ id: 'controls', cursor: true, close: () => this.showControls(false) });
     this.controlsModal.innerHTML = '';
     const p = el('div', 'wui-panel');
     p.append(el('h2', '', 'Controls'));

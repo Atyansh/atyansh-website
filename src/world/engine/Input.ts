@@ -13,16 +13,16 @@ const BINDINGS: Record<Action, string[]> = {
   sprint: ['ShiftLeft', 'ShiftRight'],
   crouch: ['KeyC', 'ControlLeft'],
   walk: ['AltLeft', 'AltRight', 'CapsLock'],
-  interact: ['KeyE', 'Enter', 'NumpadEnter'],
+  interact: ['KeyE'],
   phone: ['Tab', 'KeyP'],
-  pause: ['Escape'],
+  pause: [], // Escape is routed by Focus; gamepad Start below
   throw: ['KeyF', 'Mouse0'],
   map: ['KeyM'],
   photo: ['KeyO'],
   next: ['KeyD', 'ArrowRight', 'KeyX'],
   prev: ['KeyA', 'ArrowLeft', 'KeyZ'],
   confirm: ['Enter', 'Space', 'KeyE'],
-  back: ['Escape', 'Backspace', 'KeyQ'],
+  back: ['Backspace', 'KeyQ'],
   up: ['KeyW', 'ArrowUp'],
   down: ['KeyS', 'ArrowDown'],
   left: ['KeyA', 'ArrowLeft'],
@@ -52,6 +52,8 @@ export class Input {
   padLook = { x: 0, y: 0 };
   padMove = { x: 0, y: 0 };
   onLockChange: ((locked: boolean) => void) | null = null;
+  /** Arrow keys drive UI (phone) instead of movement */
+  arrowsForUi = false;
 
   constructor(private canvas: HTMLElement) {
     window.addEventListener('keydown', (e) => {
@@ -82,6 +84,8 @@ export class Input {
       this.lastDevice = 'kbm';
     });
     window.addEventListener('mouseup', (e) => this.down.delete(`Mouse${e.button}`));
+    // right button is a game input (climbing: right hand), never a context menu
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('wheel', (e) => { this.wheel += Math.sign(e.deltaY); }, { passive: true });
     document.addEventListener('pointerlockchange', () => {
       this.pointerLocked = document.pointerLockElement === this.canvas;
@@ -135,10 +139,11 @@ export class Input {
   move(): { x: number; y: number } {
     let x = 0;
     let y = 0;
-    if (this.down.has('KeyW') || this.down.has('ArrowUp')) y += 1;
-    if (this.down.has('KeyS') || this.down.has('ArrowDown')) y -= 1;
-    if (this.down.has('KeyA') || this.down.has('ArrowLeft')) x -= 1;
-    if (this.down.has('KeyD') || this.down.has('ArrowRight')) x += 1;
+    const arrows = !this.arrowsForUi;
+    if (this.down.has('KeyW') || (arrows && this.down.has('ArrowUp'))) y += 1;
+    if (this.down.has('KeyS') || (arrows && this.down.has('ArrowDown'))) y -= 1;
+    if (this.down.has('KeyA') || (arrows && this.down.has('ArrowLeft'))) x -= 1;
+    if (this.down.has('KeyD') || (arrows && this.down.has('ArrowRight'))) x += 1;
     if (x === 0 && y === 0 && (this.padMove.x || this.padMove.y)) return { ...this.padMove };
     const len = Math.hypot(x, y);
     return len > 1 ? { x: x / len, y: y / len } : { x, y };

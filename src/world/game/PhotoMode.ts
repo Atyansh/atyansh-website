@@ -77,7 +77,7 @@ export class PhotoMode {
     this.pos.y = clamp(this.pos.y, p.y + 0.2, p.y + 25);
     if (i.wheel) { this.fov = clamp(this.fov + i.wheel * 3, 20, 90); this.renderBar(); }
     if (i.pressed('jump')) { this.snap = true; g.events.emit('sfx', { name: 'shutter' }); }
-    if (i.pressed('pause') || i.pressed('phone')) g.endActivity();
+    if (i.pressed('back') || i.pressed('phone')) g.endActivity();
     const digit = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6'].findIndex((c) => i.pressedCode(c));
     if (digit >= 0) { this.filter = digit; g.renderer.setFilter(FILTERS[digit]); this.renderBar(); }
     if (i.isDown('crouch')) this.pos.y -= sp;

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { Renderer } from '../engine/Renderer';
 import { Physics } from '../engine/Physics';
 import { autoCollide, type AutoStats } from '../engine/AutoCollide';
+import { Focus, enterFullscreen } from '../engine/Focus';
 import { Assets } from '../engine/Assets';
 import { Input } from '../engine/Input';
 import { Save } from '../engine/Save';
@@ -66,12 +67,13 @@ export class Game {
   browser!: Browser;
   /** Neutral studio-room IBL used inside buildings */
   private interiorEnv: THREE.Texture | null = null;
-  /** True while UI deliberately holds the pointer (menus, browser) */
-  uiOwnsPointer = false;
-  /** Pointer lock was lost during an activity; a click restores it */
-  needRelock = false;
-  private lastActivityEnd = -1e9;
+  /** Escape + pointer-lock owner (see engine/Focus.ts) */
+  focus!: Focus;
   autoStats: Record<string, AutoStats> = {};
+  /** Handles to subsystems for the screenshot harness (window.__world) */
+  debugRefs: Record<string, unknown> = {};
+  /** This frame's mouse-look delta (activities that drive their own camera read it) */
+  mouse = { dx: 0, dy: 0 };
   /** Called right after each composer render (photo capture needs the fresh buffer) */
   afterRender: Array<() => void> = [];
   /** When set, owns the camera instead of the player rig (title flyover, harness bookmarks) */
@@ -89,23 +91,16 @@ export class Game {
     this.sky = new Sky(this.scene, this.renderer.renderer, this.assets);
     this.rig = new CameraRig(this.renderer.camera, this.physics);
     this.applySettings();
-    this.input.onLockChange = (locked) => {
-      if (locked) {
-        this.needRelock = false;
-        if (!this.activity) this.ui.setActivityHint(null);
-        return;
-      }
-      if (this.state !== 'playing' || this.uiOwnsPointer) return;
-      // Esc inside an activity (seat, cabinet, browser…) means "leave that",
-      // not "pause". The key may end the activity a frame before the browser
-      // reports the lost lock, so recent endings count too.
-      if (this.activity || performance.now() - this.lastActivityEnd < 600) {
-        this.needRelock = true;
-        this.ui.setActivityHint('Click  to resume control');
-        return;
-      }
-      this.pause();
+    this.focus = new Focus(this.input);
+    this.focus.wantsPointer = () => this.state === 'playing';
+    this.focus.onEscape = () => {
+      if (this.state !== 'playing') return;
+      const a = this.activity;
+      if (a && a.escape !== 'pause') (a.back ?? (() => this.endActivity()))();
+      else this.pause();
     };
+    this.focus.onBlur = () => this.pause();
+    this.focus.onHint = (t) => this.ui.setResumeHint(t);
     this.browser = new Browser(this);
     const pm = new THREE.PMREMGenerator(this.renderer.renderer);
     this.interiorEnv = pm.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -249,8 +244,9 @@ export class Game {
     const playing = this.state === 'playing';
     if (playing) this.save.data.playSeconds += dt;
 
-    // Global keys
-    if (playing && this.input.pressed('phone')) this.ui.openPhone();
+    // Global keys (Escape itself is routed by Focus; this is gamepad Start)
+    if (this.input.pressed('pause')) this.focus.escape();
+    if (playing && this.input.pressed('phone')) this.ui.togglePhone();
     if (this.state === 'title' || this.state === 'loading') {
       this.ui.update(dt);
       return;
@@ -261,7 +257,10 @@ export class Game {
       const pad = this.input.padLook;
       if (playing && !this.activityOwnsCamera) {
         this.rig.look(look.dx + pad.x * 900 * dt, look.dy + pad.y * 600 * dt, dt);
+      } else if (playing) {
+        this.rig.lookShot(look.dx + pad.x * 900 * dt, look.dy + pad.y * 600 * dt, this.input.wheel);
       }
+      this.mouse = look;
       let controls = playing && !this.activityOwnsCamera;
       if (this.autopilot && playing) {
         const ap = this.autopilot(dt);
@@ -330,26 +329,17 @@ export class Game {
   endActivity(): void {
     const a = this.activity;
     if (!a) return;
-    this.lastActivityEnd = performance.now();
     this.activity = null;
     a.end?.();
     this.rig.releaseShot();
     this.player.unlock();
     this.activityOwnsCamera = false;
     this.ui.setActivityHint(null);
-    if (this.uiOwnsPointer || this.needRelock) {
-      this.uiOwnsPointer = false;
-      this.input.lock();
-      // browsers refuse an immediate re-lock after Esc; ask for a click
-      setTimeout(() => {
-        if (!this.input.pointerLocked && this.state === 'playing' && !this.activity) this.ui.setActivityHint('Click  to resume control');
-      }, 250);
-    }
+    this.focus.sync();
   }
 
   /** Open the collection browser as an activity */
   browse(o: Parameters<Browser['open']>[0]): void {
-    this.uiOwnsPointer = true;
     this.events.emit('sfx', { name: 'open' });
     this.beginActivity({
       name: 'browse',
@@ -364,13 +354,15 @@ export class Game {
     this.state = 'paused';
     this.input.reset();
     this.ui.showPause(true);
+    this.focus.push({ id: 'pause', cursor: true, close: () => this.resume() });
   }
 
   resume(): void {
+    if (this.state !== 'paused') return;
     this.ui.showPause(false);
-    this.ui.closePhone();
     this.state = 'playing';
-    this.input.lock();
+    if (this.save.settings.fullscreen) void enterFullscreen(document.documentElement);
+    this.focus.remove('pause');
   }
 
   stats(): { median: number; p99: number; frames: number } {

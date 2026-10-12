@@ -190,8 +190,8 @@ export function buildTvLounge(game: Game, index: number): Level {
     room.interactables.push({
       id: `sofa:${sx}`, position: room.v(sx, 1, sofaZ - 0.9), radius: 1.1, verb: 'Watch', label: 'TV',
       onInteract: () => sit(game, {
-        hip: room.v(sx, 0.48, sofaZ - 0.05), facing: Math.PI,
-        hint: 'E  Stand up · A/D  Channel',
+        hip: room.v(sx, 0.48, sofaZ - 0.05), facing: Math.PI, firstPerson: true,
+        hint: 'E  Stand up · A/D  Channel · Mouse  Look around',
         shot: { position: room.v(sx * 0.4, 2.05, sofaZ + 1.5), target: room.v(0, tvY + tvH / 2 - 0.1, tvZ), fov: 46 },
         onUpdate: () => {
           if (game.input.pressed('next')) zap(1);

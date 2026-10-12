@@ -20,6 +20,8 @@ export interface Shot {
   fov?: number;
   /** blend time in seconds */
   blend?: number;
+  /** let the mouse swing the shot around its target (radians either way) */
+  orbit?: { yaw: number; pitch: number };
 }
 
 const PITCH_MIN = -1.05;
@@ -43,6 +45,9 @@ export class CameraRig {
   private lastLook = 0;
   private shot: Shot | null = null;
   private shotBlend = 0;
+  private shotYaw = 0;
+  private shotPitch = 0;
+  private shotZoom = 1;
   private shotFrom = { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), fov: 62 };
   private freePos = new THREE.Vector3();
   private freeQuat = new THREE.Quaternion();
@@ -62,7 +67,20 @@ export class CameraRig {
     this.shakeAmp = Math.max(this.shakeAmp, amount);
   }
 
+  /** Mouse input while a shot owns the camera (orbitable shots only) */
+  lookShot(dx: number, dy: number, wheel = 0): void {
+    const o = this.shot?.orbit;
+    if (!o) return;
+    const s = 0.0022 * this.sensitivity;
+    this.shotYaw = clamp(this.shotYaw - dx * s, -o.yaw, o.yaw);
+    this.shotPitch = clamp(this.shotPitch + (this.invertY ? -dy : dy) * s, -o.pitch, o.pitch);
+    if (wheel) this.shotZoom = clamp(this.shotZoom + wheel * 0.08, 0.6, 1.5);
+  }
+
   setShot(shot: Shot | null): void {
+    this.shotYaw = 0;
+    this.shotPitch = 0;
+    this.shotZoom = 1;
     this.shotFrom.pos.copy(this.camera.position);
     this.shotFrom.quat.copy(this.camera.quaternion);
     this.shotFrom.fov = this.camera.fov;
@@ -128,9 +146,22 @@ export class CameraRig {
       const b = this.shot.blend ?? 0.6;
       this.shotBlend = Math.min(1, this.shotBlend + dt / b);
       const t = this.shotBlend * this.shotBlend * (3 - 2 * this.shotBlend);
-      const sm = new THREE.Matrix4().lookAt(this.shot.position, this.shot.target, new THREE.Vector3(0, 1, 0));
+      // orbit offset: swing the shot around its target, keep it out of walls
+      let shotPos = this.shot.position;
+      if (this.shot.orbit && (this.shotYaw || this.shotPitch || this.shotZoom !== 1)) {
+        const off = this.shot.position.clone().sub(this.shot.target).multiplyScalar(this.shotZoom);
+        off.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.shotYaw);
+        const side = new THREE.Vector3(0, 1, 0).cross(off).normalize();
+        off.applyAxisAngle(side, -this.shotPitch);
+        const len = off.length();
+        const hit = this.physics.sphereCast(this.shot.target, off.clone().normalize(), 0.15, len, {
+          ignore: ['pet', 'ball', 'player', 'npc'], filter: (tg) => !tg.cameraIgnore,
+        });
+        shotPos = this.shot.target.clone().addScaledVector(off.normalize(), hit !== null ? Math.max(0.4, hit - 0.05) : len);
+      }
+      const sm = new THREE.Matrix4().lookAt(shotPos, this.shot.target, new THREE.Vector3(0, 1, 0));
       const sq = new THREE.Quaternion().setFromRotationMatrix(sm);
-      this.camera.position.lerpVectors(this.shotFrom.pos, this.shot.position, t);
+      this.camera.position.lerpVectors(this.shotFrom.pos, shotPos, t);
       this.camera.quaternion.slerpQuaternions(this.shotFrom.quat, sq, t);
       this.camera.fov = THREE.MathUtils.lerp(this.shotFrom.fov, this.shot.fov ?? this.baseFov, t);
     } else if (this.shotBlend > 0) {

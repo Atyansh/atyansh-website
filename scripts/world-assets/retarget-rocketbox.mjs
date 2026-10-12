@@ -1,18 +1,24 @@
 #!/usr/bin/env node
 /**
- * Retarget the game's animation set (mannequin.glb, UAL2 skeleton) onto the
- * Rocketbox Biped skeleton (bones renamed by build-rocketbox.mjs) and write
- * the clips into a skeleton-only GLB shared by every avatar of that gender.
+ * Retarget animation clips onto the Rocketbox Biped skeleton (bones renamed
+ * by build-rocketbox.mjs) and write them into a skeleton-only GLB shared by
+ * every avatar of that gender.
  *
- * Rocketbox binds in an A-pose, the source reference (UAL2 A_TPose) is a
- * T-pose, so first the target is posed to match: walking down the hierarchy,
- * each bone is swung so the direction to its child matches the source.
- * Then per frame and bone:
+ * Sources:
+ *   ual     — the game's set (mannequin.glb, UAL2 skeleton; reference pose =
+ *             UAL2's A_TPose clip)
+ *   mixamo  — any Mixamo-rigged GLB (e.g. three.js' Soldier.glb, whose Run
+ *             cycle replaces UAL's hunched jog); reference = its TPose clip
+ *
+ * Rocketbox binds in an A-pose, the references are T-poses, so the target
+ * is first posed to match: walking down the hierarchy each bone is swung so
+ * the direction to its child matches the source. Then per frame and bone:
  *   delta(t) = srcWorld(t) · srcRef⁻¹;  tgtWorld = delta(t) · tgtRef
  *   tgtLocal = parentWorld⁻¹ · tgtWorld
  * Pelvis translation is carried over relative to each rig's hip height.
  *
- *   node scripts/world-assets/retarget-rocketbox.mjs <avatar.glb> <out.glb>
+ *   node retarget-rocketbox.mjs <avatar.glb> <out.glb>                 # full UAL set
+ *   node retarget-rocketbox.mjs <anims.glb> <anims.glb> --mixamo .cache/world-src/soldier.glb --clips Run=Jog
  */
 
 import fs from 'node:fs';
@@ -26,7 +32,12 @@ import { resample, meshopt, quantize, prune } from '@gltf-transform/functions';
 
 const UAL2 = '.cache/world-src/ual2/Universal Animation Library 2 [Standard]/Unreal-Godot/UAL2_Standard.glb';
 const SRC_CLIPS = 'public/world/assets/characters/mannequin.glb';
-const [TGT, OUT] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const [TGT, OUT] = args;
+const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
+const MIXAMO = opt('--mixamo');
+/** "Src=Dst,…" — which clips to take and what to call them (default: all, same names) */
+const CLIPS = opt('--clips') ? Object.fromEntries(opt('--clips').split(',').map((s) => s.split('='))) : null;
 const FPS = 30;
 
 await MD.ready;
@@ -56,30 +67,59 @@ async function parse(doc) {
 const wq = (o) => o.getWorldQuaternion(new THREE.Quaternion());
 const wp = (o) => o.getWorldPosition(new THREE.Vector3());
 
-const src = await parse(await skeletonDoc(SRC_CLIPS, true));
-const ref = await parse(await io.read(UAL2).then(async (d) => { const r = d.getRoot(); for (const n of r.listNodes()) { n.setMesh(null); n.setSkin(null); } for (const m of r.listMeshes()) m.dispose(); for (const t of r.listTextures()) t.dispose(); await d.transform(prune({ keepLeaves: true })); return d; }));
-const tgtDoc = await skeletonDoc(TGT);
-const tgt = await parse(tgtDoc);
-const S = src.scene;
+// ---- source skeleton + its T-pose reference ----
+let S, srcClips, refClip;
+if (MIXAMO) {
+  const src = await parse(await skeletonDoc(MIXAMO, true));
+  const SIDE = { Left: 'l', Right: 'r' };
+  const ren = (n) => {
+    const s = n.replace(/^mixamorig:?/, '');
+    const base = { Hips: 'pelvis', Spine: 'spine_01', Spine1: 'spine_02', Spine2: 'spine_03', Neck: 'neck_01', Head: 'Head' }[s];
+    if (base) return base;
+    let m;
+    if ((m = s.match(/^(Left|Right)(Shoulder|Arm|ForeArm|Hand|UpLeg|Leg|Foot|ToeBase)$/))) {
+      return { Shoulder: 'clavicle', Arm: 'upperarm', ForeArm: 'lowerarm', Hand: 'hand', UpLeg: 'thigh', Leg: 'calf', Foot: 'foot', ToeBase: 'ball' }[m[2]] + '_' + SIDE[m[1]];
+    }
+    if ((m = s.match(/^(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)([123])$/))) return `${m[2].toLowerCase()}_0${m[3]}_${SIDE[m[1]]}`;
+    return `x_${s}`;
+  };
+  const names = new Map();
+  src.scene.traverse((o) => { if (o.name) { const r = ren(o.name); names.set(o.name, r); o.name = r; } });
+  for (const c of src.animations) for (const t of c.tracks) {
+    const i = t.name.lastIndexOf('.');
+    const node = t.name.slice(0, i);
+    if (names.has(node)) t.name = names.get(node) + t.name.slice(i);
+  }
+  // Mixamo characters face -Z; turn the whole rig to face +Z like ours
+  S = new THREE.Group();
+  src.scene.rotation.y = Math.PI;
+  S.add(src.scene);
+  srcClips = src.animations;
+  refClip = src.animations.find((a) => a.name === 'TPose');
+} else {
+  const src = await parse(await skeletonDoc(SRC_CLIPS, true));
+  const ref = await parse(await skeletonDoc(UAL2, true));
+  S = src.scene;
+  srcClips = src.animations;
+  refClip = ref.animations.find((a) => a.name === 'A_TPose');
+}
+const tgtDoc = await skeletonDoc(TGT, !!MIXAMO);
+const tgt = await parse(await skeletonDoc(TGT));
 const T = tgt.scene;
 
-// ---- source reference: UAL2 T-pose on the source skeleton ----
-const tpose = ref.animations.find((a) => a.name === 'A_TPose');
 const mx = new THREE.AnimationMixer(S);
-mx.clipAction(tpose).play();
+mx.clipAction(refClip).play();
 mx.setTime(0);
 S.updateMatrixWorld(true);
 const mapped = [];
-T.traverse((o) => { if (S.getObjectByName(o.name) && o !== T && o.name !== 'root') mapped.push(o); });
+T.traverse((o) => { if (o !== T && o.name !== 'root' && S.getObjectByName(o.name)) mapped.push(o); });
 const srcRef = {};
 for (const b of mapped) { const s = S.getObjectByName(b.name); srcRef[b.name] = { q: wq(s), p: wp(s) }; }
 mx.stopAllAction();
 console.log(`mapped ${mapped.length} bones`);
 
 // ---- pose the target into the source's T-pose (swing each bone to match its child direction) ----
-const CHILD = {
-  pelvis: 'spine_01', spine_01: 'spine_02', spine_02: 'spine_03', spine_03: 'neck_01', neck_01: 'Head',
-};
+const CHILD = { spine_01: 'spine_02', spine_02: 'spine_03', spine_03: 'neck_01', neck_01: 'Head' };
 for (const s of ['l', 'r']) {
   Object.assign(CHILD, {
     [`clavicle_${s}`]: `upperarm_${s}`, [`upperarm_${s}`]: `lowerarm_${s}`, [`lowerarm_${s}`]: `hand_${s}`, [`hand_${s}`]: `middle_01_${s}`,
@@ -88,18 +128,15 @@ for (const s of ['l', 'r']) {
   for (const f of ['thumb', 'index', 'middle', 'ring', 'pinky']) Object.assign(CHILD, { [`${f}_01_${s}`]: `${f}_02_${s}`, [`${f}_02_${s}`]: `${f}_03_${s}` });
 }
 T.updateMatrixWorld(true);
-const bindLocal = Object.fromEntries(mapped.map((b) => [b.name, b.quaternion.clone()]));
-// top-down order (traverse order is parent-first)
 for (const b of mapped) {
   const c = CHILD[b.name];
-  if (!c || b.name === 'pelvis' || !srcRef[c]) continue;
+  if (!c || !srcRef[c]) continue;
   const tc = T.getObjectByName(c);
   if (!tc) continue;
   T.updateMatrixWorld(true);
   const dT = wp(tc).sub(wp(b)).normalize();
   const dS = srcRef[c].p.clone().sub(srcRef[b.name].p).normalize();
-  const swing = new THREE.Quaternion().setFromUnitVectors(dT, dS);
-  const world = swing.multiply(wq(b));
+  const world = new THREE.Quaternion().setFromUnitVectors(dT, dS).multiply(wq(b));
   b.quaternion.copy(wq(b.parent).invert().multiply(world));
 }
 T.updateMatrixWorld(true);
@@ -111,7 +148,9 @@ console.log(`hip scale ${hipScale.toFixed(3)}`);
 
 // ---- bake ----
 const results = [];
-for (const clip of src.animations) {
+for (const clip of srcClips) {
+  if (MIXAMO && clip === refClip) continue;
+  if (CLIPS && !(clip.name in CLIPS)) continue;
   const mixer = new THREE.AnimationMixer(S);
   mixer.clipAction(clip).play();
   const frames = Math.max(2, Math.round(clip.duration * FPS) + 1);
@@ -130,6 +169,7 @@ for (const clip of src.animations) {
       b.quaternion.copy(wq(b.parent).invert().multiply(desired));
       if (b.name === 'pelvis') {
         const off = wp(s).sub(srcRef.pelvis.p).multiplyScalar(hipScale);
+        if (MIXAMO) { off.x = 0; off.z = 0; } // in-place cycles: keep only the bob
         b.position.copy(b.parent.worldToLocal(tgtRef.pelvis.p.clone().add(off)));
         pel.set(b.position.toArray(), f * 3);
       }
@@ -137,16 +177,15 @@ for (const clip of src.animations) {
       rot[b.name].set(b.quaternion.toArray(), f * 4);
     }
   }
-  results.push({ name: clip.name, times, rot, pel });
+  results.push({ name: CLIPS?.[clip.name] ?? clip.name, times, rot, pel });
 }
-console.log(`retargeted ${results.length} clips`);
-void bindLocal;
+console.log(`retargeted ${results.map((r) => r.name).join(', ')}`);
 
-// ---- write: skeleton + clips ----
+// ---- write: skeleton + clips (replacing same-named clips) ----
 const root = tgtDoc.getRoot();
+for (const a of root.listAnimations()) if (results.some((r) => r.name === a.getName())) a.dispose();
 const buffer = root.listBuffers()[0] ?? tgtDoc.createBuffer();
 const byName = Object.fromEntries(root.listNodes().map((n) => [n.getName(), n]));
-// glTF node names may still carry spaces; three sanitises them the same way
 const node = (name) => byName[name] ?? root.listNodes().find((n) => n.getName().replace(/[^A-Za-z0-9_]/g, '_') === name);
 for (const r of results) {
   const anim = tgtDoc.createAnimation(r.name);

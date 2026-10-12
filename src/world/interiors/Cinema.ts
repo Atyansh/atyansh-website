@@ -361,7 +361,8 @@ export function buildCinema(game: Game, index: number): Level {
         onInteract: () => sit(game, {
           hip: room.v(s.x, s.y + 0.52, s.z + 0.02),
           facing: Math.PI,
-          hint: 'E  Stand up · A/D  Change film',
+          firstPerson: true,
+          hint: 'E  Stand up · A/D  Change film · Mouse  Look around',
           shot: { position: room.v(s.x + 0.35, s.y + 1.32, s.z + 0.75), target: room.v(0, sy + sh / 2 - 0.2, screenZ), fov: 55, blend: 0.9 },
           onUpdate: () => {
             if (game.input.pressed('next')) go(1);

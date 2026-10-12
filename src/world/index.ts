@@ -49,6 +49,12 @@ export async function boot(container: HTMLElement): Promise<void> {
     game.assets.preloadProps(PROPS),
   ]);
   game.characterGltf = gltf;
+  const [pm, pf, hair] = await Promise.all([
+    game.assets.glb('characters/person_m.glb').catch(() => undefined),
+    game.assets.glb('characters/person_f.glb').catch(() => undefined),
+    game.assets.glb('characters/hair.glb').catch(() => undefined),
+  ]);
+  game.people = { m: pm, f: pf, hair: hair?.scene };
   game.data = data;
   const tod = (params.get('time') as TimeOfDay | null) ?? game.save.settings.timeOfDay;
   await game.sky.set(tod);
@@ -59,8 +65,7 @@ export async function boot(container: HTMLElement): Promise<void> {
   buildInteriors(game);
   const pets = new Pets(game, city.park);
   game.systems.push(pets);
-  const female = await game.assets.glb('characters/mannequin_f.glb').catch(() => undefined);
-  game.systems.push(new Life(game, female));
+  game.systems.push(new Life(game));
   const records = new GoldenRecords(game);
   game.systems.push(records);
   const progress = new Progress(game);
@@ -159,6 +164,7 @@ export async function boot(container: HTMLElement): Promise<void> {
     },
     petPose: (id: string, pose: string, x?: number, z?: number, heading = 0) => {
       pets.frozen = true;
+      pets.lookOverride = game.renderer.camera.position;
       const p = pets.list.find((q) => q.id === id)!;
       p.rig.setPose(pose as never);
       p.speed = 0;

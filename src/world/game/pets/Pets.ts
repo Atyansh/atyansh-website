@@ -13,121 +13,10 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import type { Game } from '../Game';
 import type { ParkPOI } from '../../world/Park';
 import { PetRig, type PetSpec, type Pose } from './PetRig';
+import { SPECS } from './specs';
+import { LimbIK } from '../Climbing';
 import { PARK, CURB_H } from '../../world/layout';
 import { clamp, dampAngle, rng } from '../../engine/math';
-
-// ---------- coats ----------
-
-function noise(g: CanvasRenderingContext2D, n: number, dark: number, size: number): void {
-  for (let i = 0; i < n; i++) {
-    g.fillStyle = Math.random() < 0.5 ? `rgba(0,0,0,${dark})` : `rgba(255,255,255,${dark * 0.6})`;
-    g.fillRect(Math.random() * size, Math.random() * size, 2, 2);
-  }
-}
-const X = (u: number, size: number) => u * size;
-const Y = (v: number, size: number) => (1 - v) * size;
-
-function tabby(base: string, stripe: string, belly: string, tip: string, stripeW: number, count: number) {
-  return (g: CanvasRenderingContext2D, S: number) => {
-    g.fillStyle = base;
-    g.fillRect(0, 0, S, S);
-    // belly band (v≈0.25 underside)
-    const grad = g.createLinearGradient(0, Y(0.42, S), 0, Y(0.08, S));
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(0.35, belly);
-    grad.addColorStop(0.65, belly);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = grad;
-    g.fillRect(0, Y(0.42, S), X(0.66, S), Y(0.08, S) - Y(0.42, S));
-    // mackerel stripes: from the spine (v=0.75) down both flanks
-    g.strokeStyle = stripe;
-    g.lineCap = 'round';
-    for (let i = 0; i < count; i++) {
-      const u = 0.03 + (i / count) * 0.55;
-      g.lineWidth = stripeW * (0.7 + Math.random() * 0.6);
-      for (const [v0, v1] of [[0.75, 0.42], [0.75, 1.08]] as Array<[number, number]>) {
-        g.beginPath();
-        let x = X(u, S);
-        g.moveTo(x, Y(v0, S));
-        for (let k = 1; k <= 6; k++) {
-          const v = v0 + ((v1 - v0) * k) / 6;
-          x += (Math.random() - 0.5) * 8;
-          g.lineTo(x, Y(v > 1 ? v - 1 : v, S));
-        }
-        g.stroke();
-      }
-    }
-    // spine line
-    g.fillStyle = stripe;
-    g.fillRect(0, Y(0.77, S), X(0.6, S), 10);
-    // tail rings + dark tip
-    for (let u = 0.61; u < 0.75; u += 0.02) g.fillRect(X(u, S), 0, X(0.009, S), S);
-    g.fillStyle = tip;
-    g.fillRect(X(0.725, S), 0, X(0.025, S), S);
-    // leg rings
-    g.fillStyle = stripe;
-    for (let u = 0.76; u < 0.9; u += 0.018) g.fillRect(X(u, S), 0, X(0.006, S), S);
-    // head: forehead "M" + cheek lines (head region u 0.9..1, top v)
-    g.strokeStyle = stripe;
-    g.lineWidth = 6;
-    g.beginPath();
-    g.moveTo(X(0.92, S), Y(0.8, S)); g.lineTo(X(0.94, S), Y(0.9, S)); g.lineTo(X(0.95, S), Y(0.82, S)); g.lineTo(X(0.96, S), Y(0.9, S)); g.lineTo(X(0.98, S), Y(0.8, S));
-    g.stroke();
-    // muzzle/chin light
-    g.fillStyle = belly;
-    g.fillRect(X(0.9, S), Y(0.35, S), X(0.1, S), Y(0.05, S) - Y(0.35, S));
-    noise(g, 9000, 0.08, S);
-  };
-}
-
-function yorkie(g: CanvasRenderingContext2D, S: number): void {
-  g.fillStyle = '#b07a45';
-  g.fillRect(0, 0, S, S);
-  // dark saddle over the back + flanks
-  const grad = g.createLinearGradient(0, Y(1.0, S), 0, Y(0.45, S));
-  grad.addColorStop(0, '#231d1a');
-  grad.addColorStop(0.75, '#2c2420');
-  grad.addColorStop(1, 'rgba(44,36,32,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, Y(1.0, S), X(0.75, S), Y(0.45, S) - Y(1.0, S));
-  g.fillStyle = '#2a221e';
-  g.fillRect(0, Y(0.62, S), X(0.75, S), Y(0.48, S) - Y(0.62, S));
-  // head: tan with darker crown, lighter muzzle
-  g.fillStyle = '#8a5c34';
-  g.fillRect(X(0.9, S), 0, X(0.1, S), Y(0.75, S));
-  g.fillStyle = '#d8b48a';
-  g.fillRect(X(0.9, S), Y(0.4, S), X(0.1, S), Y(0.05, S) - Y(0.4, S));
-  // ears darker tips
-  g.fillStyle = '#4a3020';
-  g.fillRect(X(0.92, S), Y(0.92, S), X(0.06, S), Y(0.8, S) - Y(0.92, S));
-  // scruff streaks
-  for (let i = 0; i < 1600; i++) {
-    g.strokeStyle = Math.random() < 0.5 ? 'rgba(20,14,10,0.25)' : 'rgba(220,180,130,0.22)';
-    g.lineWidth = 1.5;
-    const x = Math.random() * S;
-    const y = Math.random() * S;
-    g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 6, y + 10 + Math.random() * 10); g.stroke();
-  }
-  noise(g, 6000, 0.06, S);
-}
-
-const SPECS: Record<string, PetSpec> = {
-  baobao: {
-    name: 'BaoBao', seed: 1, kind: 'cat', len: 0.36, rHip: 0.085, rBelly: 0.095, rChest: 0.09, legLen: 0.2, legR: 0.026,
-    head: 0.068, muzzle: 0.75, tailLen: 0.36, tailR: 0.024, fur: 0.018, furShells: 14, earKind: 'pointy', eye: 0x8fbf5a,
-    coat: tabby('#837a6e', '#4a433b', '#c9bfb1', '#2a2622', 8, 15),
-  },
-  huhu: {
-    name: 'HuHu', seed: 2, kind: 'cat', len: 0.4, rHip: 0.115, rBelly: 0.135, rChest: 0.11, legLen: 0.19, legR: 0.032,
-    head: 0.078, muzzle: 0.72, tailLen: 0.34, tailR: 0.032, fur: 0.024, furShells: 14, earKind: 'pointy', eye: 0xc9a23a,
-    coat: tabby('#d4823c', '#a85e26', '#f2d4a8', '#a85e26', 12, 11),
-  },
-  chance: {
-    name: 'Chance', seed: 3, kind: 'dog', len: 0.32, rHip: 0.08, rBelly: 0.085, rChest: 0.095, legLen: 0.2, legR: 0.026,
-    head: 0.072, muzzle: 0.95, tailLen: 0.2, tailR: 0.026, fur: 0.04, furShells: 16, earKind: 'floppy', eye: 0x3a2412,
-    coat: yorkie,
-  },
-};
 
 // ---------- brains ----------
 
@@ -175,6 +64,7 @@ export class Pets {
   private throwPending = 0;
   /** Harness: freeze AI (rigs keep animating) */
   frozen = false;
+  lookOverride: THREE.Vector3 | null = null;
   private group = new THREE.Group();
 
   constructor(private game: Game, poi: ParkPOI) {
@@ -250,34 +140,78 @@ export class Pets {
     }
   }
 
-  /** Kneel next to a pet, pet it, hearts */
-  private pet(p: Pet, onDone: () => void): void {
+  /**
+   * Kneel beside the pet and actually pet it: the right arm is IK-driven so
+   * the hand strokes along the pet's back (head → hips) — or rubs Chance's
+   * belly when he rolls over. The pet settles, half-closes its eyes and
+   * leans into the hand.
+   */
+  private pet(p: Pet, onDone: () => void, belly = false): void {
     const g = this.game;
     const ch = g.player.character;
-    const toPet = p.pos.clone().sub(g.player.position).setY(0);
-    const face = Math.atan2(toPet.x, toPet.z);
-    const spot = p.pos.clone().addScaledVector(toPet.normalize(), -0.55);
+    const fwdPet = new THREE.Vector3(Math.sin(p.heading), 0, Math.cos(p.heading));
+    // kneel at the pet's side, whichever side the player is on
+    const toPlayer = g.player.position.clone().sub(p.pos).setY(0);
+    const sideV = new THREE.Vector3(fwdPet.z, 0, -fwdPet.x);
+    const side = Math.sign(toPlayer.dot(sideV)) || 1;
+    const spot = p.pos.clone().addScaledVector(sideV, side * 0.5).addScaledVector(fwdPet, 0.05);
     spot.y = g.player.position.y;
+    const face = Math.atan2(p.pos.x - spot.x, p.pos.z - spot.z);
     g.player.setPosition(spot);
     g.player.facing = face;
+    ch.root.position.copy(spot);
     ch.root.rotation.y = face;
     p.mood = 'petted';
-    p.timer = 3.2;
-    ch.play('Kneel', { fade: 0.3, from: 0.15, to: 0.6, timeScale: 0.7, hold: true });
+    p.timer = 99;
+    p.speed = 0;
+    p.setPose(belly ? 'belly' : p.rig.spec.kind === 'cat' ? 'loaf' : 'sit');
+    ch.play('Kneel', { fade: 0.35, from: 0.18, to: 0.5, timeScale: 0.8, hold: true });
     g.events.emit('sfx', { name: p.rig.spec.kind === 'cat' ? 'purr' : 'happy' });
+    const b = ch.bones;
+    const arm = b.get('upperarm_r') && b.get('lowerarm_r') && b.get('hand_r') ? new LimbIK(b.get('upperarm_r')!, b.get('lowerarm_r')!, b.get('hand_r')!) : null;
     let t = 0;
+    const R = p.rig.bones;
+    const back = (u: number) => {
+      // u: 0 = behind the head, 1 = hips; slightly above the fur
+      const a = R.neck.getWorldPosition(new THREE.Vector3());
+      const c = R.hips.getWorldPosition(new THREE.Vector3());
+      const pt = a.lerp(c, u);
+      pt.y += belly ? 0.02 : p.rig.spec.rChest * 0.9 + p.rig.spec.fur * 0.6;
+      return pt;
+    };
     g.beginActivity({
       name: 'pet',
-      shot: { position: spot.clone().add(new THREE.Vector3(Math.sin(face + 1.9) * 1.6, 1.1, Math.cos(face + 1.9) * 1.6)), target: p.pos.clone().add(new THREE.Vector3(0, 0.25, 0)), fov: 48, blend: 0.7 },
+      // camera on the far side of the pet, looking back at you and your hand
+      shot: { position: p.pos.clone().addScaledVector(sideV, -side * 1.3).addScaledVector(fwdPet, 0.7).add(new THREE.Vector3(0, 0.75, 0)), target: p.pos.clone().addScaledVector(sideV, side * 0.25).add(new THREE.Vector3(0, 0.35, 0)), fov: 50, blend: 0.7 },
+      hint: 'E  Stop',
       update: (dt) => {
         t += dt;
-        if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) this.heartsAt(p.pos.clone().add(new THREE.Vector3(0, 0.25, 0)), 2);
-        if (t > 2.6) {
+        // stroke cycle: slow along the back, quick lift back to the start
+        const cyc = (t * (belly ? 0.9 : 0.55)) % 1;
+        const u = belly ? 0.35 + Math.sin(t * 5.5) * 0.12 : cyc < 0.8 ? cyc / 0.8 : 1 - (cyc - 0.8) / 0.2;
+        const lift = belly ? 0.0 : cyc < 0.8 ? 0 : Math.sin(((cyc - 0.8) / 0.2) * Math.PI) * 0.06;
+        const target = back(belly ? u : 0.1 + u * 0.75).add(new THREE.Vector3(0, lift, 0));
+        if (arm && t > 0.5) {
+          const pole = g.player.position.clone().add(new THREE.Vector3(0, 0.7, 0)).addScaledVector(sideV, side * 0.6);
+          ch.root.updateMatrixWorld(true);
+          arm.solve(target, pole);
+        }
+        p.rig.content = Math.min(1, p.rig.content + dt * 1.5);
+        p.rig.lookTarget = target;
+        p.rig.wag = p.rig.spec.kind === 'dog' ? 1 : 0.15;
+        if (Math.floor(t * 1.3) !== Math.floor((t - dt) * 1.3)) this.heartsAt(p.pos.clone().add(new THREE.Vector3(0, 0.3, 0)), 1);
+        if (t > 4.2 || (t > 0.8 && g.input.pressed('interact'))) {
           g.endActivity();
           onDone();
         }
       },
-      end: () => ch.stopOverride(0.4),
+      end: () => {
+        ch.stopOverride(0.45);
+        p.rig.content = 0;
+        p.mood = 'idle';
+        p.timer = 3;
+        if (belly) p.setPose('stand');
+      },
     });
   }
 
@@ -322,11 +256,9 @@ export class Pets {
         id: 'pet:chance', position: pp(chance), radius: 1.5, verb: 'Belly rub', label: 'Chance',
         enabled: () => !chance.carrying && chance.mood !== 'chase',
         onInteract: () => {
-          chance.setPose('belly');
           this.pet(chance, () => {
-            chance.setPose('stand');
             g.events.emit('progress', { key: 'pet:chance' });
-          });
+          }, true);
         },
       },
       {
@@ -407,7 +339,7 @@ export class Pets {
       p.rig.root.position.copy(p.pos);
       p.rig.root.rotation.y = p.heading;
       p.rig.speed = p.speed;
-      p.rig.lookTarget = p.mood === 'sleep' ? null : ppos.clone().add(new THREE.Vector3(0, 1.5, 0));
+      if (p.mood !== 'petted') p.rig.lookTarget = this.lookOverride ?? (p.mood === 'sleep' ? null : ppos.clone().add(new THREE.Vector3(0, 1.5, 0)));
       p.rig.update(dt);
       this.label(p, ppos);
     }

@@ -17,7 +17,7 @@ import type { Level } from './Level';
 import type { WorldData } from '../data';
 import type { UI } from '../ui/UI';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { outfitById } from './outfits';
+import { outfitById, PLAYER_LOOK } from './outfits';
 import type { Activity } from './Activity';
 import { Browser } from '../ui/Browser';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -42,6 +42,8 @@ export class Game {
   ui!: UI;
   data: WorldData = {};
   characterGltf!: GLTF;
+  /** Dressed people: UBC bodies + hair library; clips come from characterGltf */
+  people: { m?: GLTF; f?: GLTF; hair?: THREE.Object3D } = {};
   levels = new Map<string, Level>();
   level!: Level;
   state: GameState = 'loading';
@@ -113,10 +115,31 @@ export class Game {
     this.save.write();
   }
 
-  createPlayer(spawn: THREE.Vector3, facing: number): void {
-    const character = new Character(this.characterGltf);
+  /** A dressed person (falls back to the mannequin if bodies failed to load) */
+  makePerson(female: boolean, look: import('./Character').Look): Character {
+    const body = female ? this.people.f : this.people.m;
+    if (!body) {
+      const c = new Character(this.characterGltf);
+      c.tint(look.topColor, look.bottomColor);
+      return c;
+    }
+    // clips retargeted onto the UBC skeleton live in person_m.glb (shared by both bodies)
+    const clips = this.people.m?.animations.length ? this.people.m.animations : this.characterGltf.animations;
+    const c = new Character(body, clips);
+    c.dress(look, this.people.hair, female);
+    return c;
+  }
+
+  dressPlayer(): void {
     const outfit = outfitById(this.save.settings.outfit);
-    character.tint(outfit.body, outfit.joints);
+    const ch = this.player.character;
+    if (ch.isPerson) ch.dress({ ...PLAYER_LOOK, ...outfit.look }, this.people.hair, false);
+    else ch.tint(outfit.body, outfit.joints);
+  }
+
+  createPlayer(spawn: THREE.Vector3, facing: number): void {
+    const outfit = outfitById(this.save.settings.outfit);
+    const character = this.makePerson(false, { ...PLAYER_LOOK, ...outfit.look });
     this.scene.add(character.root);
     this.player = new Player(this.physics, this.events, character, spawn);
     this.player.facing = facing;

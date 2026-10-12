@@ -7,19 +7,15 @@
 
 import * as THREE from 'three';
 import type { Game } from './Game';
-import { Character } from './Character';
+import type { Look } from './Character';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { CURB, CURB_H, PARK } from '../world/layout';
 import { clamp, dampAngle, rng } from '../engine/math';
 
-const OUTFITS: Array<[string, string]> = [
-  ['#c9573f', '#2d2f36'], ['#3b6ea8', '#e8e2d4'], ['#e0b84a', '#3a2e22'], ['#6b8f5a', '#1e2a22'], ['#8a5aa8', '#f2efe8'],
-  ['#d7d2c8', '#1c2030'], ['#2f3440', '#ff9a3c'], ['#b8404f', '#f4e6d0'], ['#3f8f8a', '#202428'], ['#a87a4a', '#2a2420'],
-];
 
 interface Npc {
-  ch: Character;
+  ch: import('./Character').Character;
   path?: THREE.Vector3[];
   seg: number;
   t: number;
@@ -37,13 +33,11 @@ export class Life {
   private pigeons: Array<{ m: THREE.Group; home: THREE.Vector3; pos: THREE.Vector3; vel: THREE.Vector3; flying: boolean; t: number; peck: number; heading: number }> = [];
   private r = rng(321);
 
-  constructor(private game: Game, female?: GLTF) {
+  constructor(private game: Game) {
     const street = game.levels.get('street')!.group;
     const add = (pos: THREE.Vector3, heading: number, opts: Partial<Npc> & { clip?: string; group?: THREE.Group }) => {
-      // alternate body types; the female mesh shares the skeleton, so it plays the same clips
-      const ch = female && this.npcs.length % 2 === 1 ? new Character(female, game.characterGltf.animations) : new Character(game.characterGltf);
-      const o = OUTFITS[this.npcs.length % OUTFITS.length];
-      ch.tint(o[0], o[1]);
+      const female = this.npcs.length % 2 === 1;
+      const ch = game.makePerson(female, this.randomLook(female));
       ch.root.position.copy(pos);
       ch.root.rotation.y = heading;
       const s = 0.94 + this.r() * 0.12;
@@ -105,6 +99,25 @@ export class Life {
     flock(8, CURB.z - 2.4, 7);
     flock(PARK.maxX + 2, PARK.minZ + 6, 5);
     flock(-30, -CURB.z + 2.2, 5);
+  }
+
+  /** A plausible city outfit from a few palettes */
+  private randomLook(female: boolean): Look {
+    const r = this.r;
+    const pick = <T,>(a: T[]): T => a[Math.floor(r() * a.length)];
+    const tops = ['#f2efe8', '#1d2129', '#3b5b8a', '#a8323a', '#2f6b4f', '#d9a441', '#6b4f8a', '#8a8f96', '#c97a35', '#e8d9c4', '#2a3d5c'];
+    const bottoms = ['#2b3a55', '#1f2026', '#3c4a63', '#5a4a3a', '#6b6f78', '#2a2a2a', '#4a5a4a', '#c8b89a'];
+    const shoes = ['#f2f2ee', '#1a1a1a', '#6b4a32', '#c9c4ba', '#2a3d5c'];
+    const hairF = ['Hair_Long', 'Hair_Long', 'Hair_Buns', 'Hair_Buns', 'Hair_SimpleParted'];
+    const hairM = ['Hair_SimpleParted', 'Hair_Buzzed', 'Hair_Buzzed', 'Hair_SimpleParted'];
+    const hairCols = ['#1a1410', '#2a1f18', '#4a3020', '#6b4a2a', '#8a6a3a', '#c9a35a', '#3a3a3a', '#a84a2a'];
+    return {
+      skin: r() < 0.5 ? 'light' : 'dark',
+      top: pick(['shirt_short', 'shirt_short', 'shirt_long', 'jacket']),
+      bottom: r() < 0.82 ? 'pants' : 'shorts',
+      topColor: pick(tops), bottomColor: pick(bottoms), shoeColor: pick(shoes),
+      hair: pick(female ? hairF : hairM), hairColor: pick(hairCols), beard: !female && r() < 0.35,
+    };
   }
 
   private pigeonMesh(): THREE.Group {

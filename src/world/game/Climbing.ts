@@ -22,7 +22,7 @@ const _q = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
 
 /** Two-bone analytic IK in world space (robust to any bone axis convention) */
-class LimbIK {
+export class LimbIK {
   private lenA = 0;
   private lenB = 0;
   constructor(private upper: THREE.Bone, private lower: THREE.Bone, private end: THREE.Bone) {}

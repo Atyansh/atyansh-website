@@ -166,7 +166,7 @@ export class Phone {
       body = `<h3>Wardrobe</h3><div class="ph-outfits">${OUTFITS.map((o) => {
         const unlocked = !o.unlock || s.data.rewards.includes(o.unlock);
         return `<div class="ph-outfit${o.id === cur ? ' sel' : ''}${unlocked ? '' : ' locked'}" data-outfit="${o.id}">
-          <div class="sw" style="background:linear-gradient(135deg, ${o.body} 60%, ${o.joints} 60%)"></div>${unlocked ? o.name : `🔒 ${o.name}`}</div>`;
+          <div class="sw" style="background:linear-gradient(180deg, ${o.look.topColor} 0 55%, ${o.look.bottomColor} 55% 88%, ${o.look.shoeColor} 88%)"></div>${unlocked ? o.name : `🔒 ${o.name}`}</div>`;
       }).join('')}</div>`;
     } else if (this.view === 'map') {
       const doors = LOTS.filter((l) => l.enter);
@@ -180,7 +180,7 @@ export class Phone {
       if (o.unlock && !s.data.rewards.includes(o.unlock)) return;
       s.settings.outfit = o.id;
       s.write();
-      this.game.player.character.tint(o.body, o.joints);
+      this.game.dressPlayer();
       this.render();
     }));
     this.screen.querySelectorAll<HTMLElement>('[data-go]').forEach((n) => n.addEventListener('click', () => this.travel(n.dataset.go!)));

@@ -6,14 +6,15 @@
 // Pointer lock follows one rule: gameplay wants it unless a layer needs the
 // cursor. Nothing else in the game calls lock/unlock or listens for Escape.
 //
-// Browsers complicate this in two ways, both handled here:
-//  - In a window, the browser itself eats Escape to release pointer lock. We
-//    see only the lost lock, so an unexpected loss counts as an Escape press
-//    (a lost lock from alt-tab / blur pauses instead).
-//  - A lock can't be re-acquired from an Escape key press (it isn't a user
-//    gesture), so after Escape we ask for a click instead of retrying.
-// In fullscreen with the Keyboard Lock API (Chromium), Escape arrives as a
-// normal key and the pointer stays locked: the seamless case.
+// Browsers complicate this:
+//  - When the mouse is captured, the browser itself eats Escape to release
+//    it. We only see the lost lock, so an unexpected loss counts as an
+//    Escape press (a loss from alt-tab / blur pauses instead).
+//  - After the *user* released the lock that way, the browser refuses to
+//    re-capture without a click, so we show "click to resume" instead of
+//    retrying (retrying is what used to flash the pause menu). When the game
+//    released it itself (opening the phone or a menu), re-capturing straight
+//    away is allowed and the mouse comes back with no click.
 
 import type { Input } from './Input';
 
@@ -31,6 +32,8 @@ export class Focus {
   private stack: Layer[] = [];
   private lastEsc = -1e9;
   private expectUnlock = false;
+  /** the last release came from the browser (Escape), not from us */
+  private userUnlocked = false;
   /** Escape with no layers open: end the activity or pause */
   onEscape: () => void = () => {};
   /** Pointer lock lost while the window lost focus */
@@ -47,13 +50,18 @@ export class Focus {
       e.stopImmediatePropagation();
       if (!e.repeat) this.escape();
     }, true);
+    // Any click or key other than Escape is a user gesture: the browser lets
+    // us capture the mouse again, so "click to resume" also means "press any key"
+    const gesture = (e: Event) => {
+      if (e instanceof KeyboardEvent && e.code === 'Escape') return;
+      this.userUnlocked = false;
+      if (this.wantsPointer() && !this.stack.some((l) => l.cursor) && !this.input.pointerLocked) this.input.lock();
+    };
+    window.addEventListener('mousedown', gesture, true);
+    window.addEventListener('keydown', gesture, true);
     input.onLockChange = (locked) => this.lockChanged(locked);
-    // Without Keyboard Lock (Firefox, Safari), Escape leaving fullscreen is
-    // never delivered as a key either: treat the exit as the press
-    document.addEventListener('fullscreenchange', () => {
-      if (!document.fullscreenElement && this.wantsPointer()) this.escape();
-    });
     document.addEventListener('pointerlockerror', () => this.needClick());
+    input.onLockError = () => this.needClick();
   }
 
   get top(): Layer | null {
@@ -84,57 +92,35 @@ export class Focus {
     const top = this.top;
     if (top) top.close();
     else this.onEscape();
-    this.sync(true);
+    this.sync();
   }
 
-  /**
-   * Apply the pointer rule. `fromEscape`: the triggering input can't grant a
-   * pointer lock, so ask for a click rather than trying.
-   */
-  sync(fromEscape = false): void {
+  /** Apply the pointer rule (capture or release the mouse as gameplay wants) */
+  sync(): void {
     const want = this.wantsPointer() && !this.stack.some((l) => l.cursor);
     if (want && !this.input.pointerLocked) {
-      // windowed: an Escape-triggered relock would be refused (or flash and
-      // drop), so ask for a click. Fullscreen may allow it; errors → hint.
-      const escRecent = fromEscape || performance.now() - this.lastEsc < ESC_DEDUPE_MS;
-      if (escRecent && !document.fullscreenElement) this.needClick();
+      if (this.userUnlocked) this.needClick();
       else this.input.lock();
     } else if (!want && this.input.pointerLocked) {
       this.expectUnlock = true;
+      this.userUnlocked = false;
       this.input.unlock();
     }
     if (!want || this.input.pointerLocked) this.onHint(null);
   }
 
-  /** A click on the game view: take the pointer back if gameplay wants it */
-  click(): void {
-    if (this.wantsPointer() && !this.stack.some((l) => l.cursor)) this.input.lock();
-  }
-
   private needClick(): void {
-    if (this.wantsPointer() && !this.stack.some((l) => l.cursor) && !this.input.pointerLocked) this.onHint('Click  to resume control');
+    if (this.wantsPointer() && !this.stack.some((l) => l.cursor) && !this.input.pointerLocked) this.onHint('Click or press any key to resume');
   }
 
   private lockChanged(locked: boolean): void {
-    if (locked) { this.expectUnlock = false; this.onHint(null); return; }
+    if (locked) { this.expectUnlock = false; this.userUnlocked = false; this.onHint(null); return; }
     if (this.expectUnlock) { this.expectUnlock = false; return; }
+    this.userUnlocked = true;
     if (!this.wantsPointer()) return;
     if (document.hidden || !document.hasFocus()) { this.onBlur(); this.sync(); return; }
     // the browser swallowed an Escape to release the pointer
-    if (performance.now() - this.lastEsc < ESC_DEDUPE_MS) this.sync(true);
+    if (performance.now() - this.lastEsc < ESC_DEDUPE_MS) this.sync();
     else this.escape();
   }
-}
-
-/**
- * Fullscreen + Keyboard Lock: Escape then reaches the game as a normal key
- * instead of the browser releasing the mouse (Chromium; elsewhere this is
- * plain fullscreen and Focus falls back to click-to-resume).
- */
-export async function enterFullscreen(el: HTMLElement): Promise<void> {
-  try {
-    if (!document.fullscreenElement) await el.requestFullscreen({ navigationUI: 'hide' });
-    const kb = (navigator as unknown as { keyboard?: { lock(keys: string[]): Promise<void> } }).keyboard;
-    await kb?.lock(['Escape']);
-  } catch { /* not allowed here (iframe, Safari…) */ }
 }

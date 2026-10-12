@@ -1,9 +1,8 @@
 // The phone (Tab): Map + fast travel, Goals, Collection, Camera (photo mode),
-// Wardrobe, Settings. Like GTA, you keep walking and looking around while
-// it's out: WASD + mouse still drive the player, the arrow keys + Enter
-// drive the phone (spatial focus between anything actionable), Backspace
-// goes back, Tab / Esc put it away. Mouse clicks work whenever the cursor
-// is free.
+// Wardrobe, Settings. Like GTA, you keep walking while it's out: WASD
+// moves the player, the mouse taps the phone (the cursor is freed while it's
+// open), arrow keys + Enter also drive it (spatial focus between anything
+// actionable), Backspace goes back, Tab / Esc put it away.
 
 import type { PhonePose } from '../game/PhonePose';
 import type { Game } from '../game/Game';
@@ -102,7 +101,8 @@ export class Phone {
     this.render();
     this.el.classList.add('on');
     g.input.arrowsForUi = true;
-    g.focus.push({ id: 'phone', cursor: false, close: () => this.close() });
+    // the mouse is for tapping the phone; WASD still walks you around
+    g.focus.push({ id: 'phone', cursor: true, close: () => this.close() });
     g.events.emit('sfx', { name: 'phone' });
     this.pose?.show(true);
   }

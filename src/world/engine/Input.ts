@@ -52,6 +52,8 @@ export class Input {
   padLook = { x: 0, y: 0 };
   padMove = { x: 0, y: 0 };
   onLockChange: ((locked: boolean) => void) | null = null;
+  /** The browser refused to capture the mouse */
+  onLockError: (() => void) | null = null;
   /** Arrow keys drive UI (phone) instead of movement */
   arrowsForUi = false;
 
@@ -107,7 +109,7 @@ export class Input {
       const p = this.canvas.requestPointerLock({ unadjustedMovement: true } as never) as unknown as Promise<void> | undefined;
       p?.catch?.(() => {
         // unadjustedMovement unsupported (e.g. some Linux/Firefox) — plain lock
-        try { (this.canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(() => {}); } catch { /* ignore */ }
+        try { (this.canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(() => this.onLockError?.()); } catch { this.onLockError?.(); }
       });
     } catch {
       try { this.canvas.requestPointerLock(); } catch { /* ignore */ }

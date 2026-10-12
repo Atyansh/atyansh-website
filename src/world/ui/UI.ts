@@ -3,7 +3,6 @@
 
 import './ui.css';
 import type { Game } from '../game/Game';
-import { enterFullscreen } from '../engine/Focus';
 import type { Resolved } from '../game/Interaction';
 import type { TimeOfDay } from '../world/Sky';
 
@@ -299,11 +298,6 @@ export class UI {
     row('Time of day', seg<TimeOfDay>([['day', 'Day'], ['sunset', 'Sunset'], ['dusk', 'Dusk'], ['night', 'Night']], s.timeOfDay,
       (v) => { void g.setTimeOfDay(v); }));
     row('Show FPS', seg([['off', 'Off'], ['on', 'On']], s.showFps ? 'on' : 'off', (v) => { s.showFps = v === 'on'; this.setFpsVisible(s.showFps); }));
-    row('Fullscreen', seg([['on', 'On'], ['off', 'Off']], s.fullscreen ? 'on' : 'off', (v) => {
-      s.fullscreen = v === 'on';
-      if (s.fullscreen) void enterFullscreen(document.documentElement);
-      else if (document.fullscreenElement) void document.exitFullscreen();
-    }));
     const close = el('button', 'wui-btn', 'Done');
     close.addEventListener('click', () => this.showSettings(false));
     p.append(close);

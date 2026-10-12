@@ -14,7 +14,6 @@ import { Phone } from './ui/Phone';
 import { PhotoMode } from './game/PhotoMode';
 import { WorldAudio } from './audio/WorldAudio';
 import { Life } from './game/Life';
-import { enterFullscreen } from './engine/Focus';
 import { PhonePose } from './game/PhonePose';
 import { outfitById, NPC_AVATARS } from './game/outfits';
 import type { TimeOfDay } from './world/Sky';
@@ -131,23 +130,17 @@ export async function boot(container: HTMLElement): Promise<void> {
     ui.setHudVisible(true);
     ui.setFpsVisible(game.save.settings.showFps);
     game.state = 'playing';
-    if (game.save.settings.fullscreen) void enterFullscreen(document.documentElement);
     game.focus.sync();
     void audio.start();
     ui.showBanner(game.level.name, 'atyansh.com');
   };
   ui.onStart = startPlaying;
-  // Clicking the game view takes the mouse back (after Escape released it)
-  game.renderer.domElement.addEventListener('click', () => {
-    if (game.state === 'playing' && game.save.settings.fullscreen && !document.fullscreenElement) void enterFullscreen(document.documentElement);
-    game.focus.click();
-  });
 
   // ---- harness hooks ----
   const hooks = {
     ready: true,
     game,
-    play: () => { game.save.settings.fullscreen = false; startPlaying(false); },
+    play: () => startPlaying(false),
     stats: () => game.stats(),
     camera: (pos: [number, number, number], look: [number, number, number], fov = 62) => {
       game.cameraOverride = (_dt, cam) => {

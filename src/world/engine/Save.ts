@@ -13,8 +13,6 @@ export interface Settings {
   ambience: number;
   timeOfDay: 'day' | 'sunset' | 'dusk' | 'night';
   showFps: boolean;
-  /** Play fullscreen with Escape kept by the game (Keyboard Lock) */
-  fullscreen: boolean;
   outfit: string;
 }
 
@@ -43,7 +41,6 @@ export const DEFAULT_SETTINGS: Settings = {
   ambience: 0.6,
   timeOfDay: 'day',
   showFps: false,
-  fullscreen: true,
   outfit: 'classic',
 };
 

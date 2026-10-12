@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { Renderer } from '../engine/Renderer';
 import { Physics } from '../engine/Physics';
 import { autoCollide, type AutoStats } from '../engine/AutoCollide';
-import { Focus, enterFullscreen } from '../engine/Focus';
+import { Focus } from '../engine/Focus';
 import { Assets } from '../engine/Assets';
 import { Input } from '../engine/Input';
 import { Save } from '../engine/Save';
@@ -361,7 +361,6 @@ export class Game {
     if (this.state !== 'paused') return;
     this.ui.showPause(false);
     this.state = 'playing';
-    if (this.save.settings.fullscreen) void enterFullscreen(document.documentElement);
     this.focus.remove('pause');
   }
 

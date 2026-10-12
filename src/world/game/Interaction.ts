@@ -71,20 +71,29 @@ export class InteractionSystem {
     }
     let best: Resolved | null = null;
     if (aimList.length) {
-      _ray.set(camPos, _fwd);
-      _ray.far = camPos.distanceTo(playerPos) + REACH + 1;
-      const hits = _ray.intersectObjects(aimList, false);
-      for (const h of hits) {
-        // ignore hits behind the player (between camera and character)
-        if (h.distance < camPos.distanceTo(playerPos) * 0.6) continue;
-        _p.copy(h.point);
-        const horiz = Math.hypot(_p.x - playerPos.x, _p.z - playerPos.z);
-        if (horiz > REACH || Math.abs(_p.y - playerPos.y - 1) > 2.6) break;
-        const it = owner.get(h.object)!;
-        const pick = it.pick?.(h);
-        if (pick) best = { it, ...pick };
-        else best = { it, verb: InteractionSystem.text(it.verb), label: InteractionSystem.text(it.label), act: it.onInteract };
-        break;
+      // centre ray first, then a small cone around it, so gaps between
+      // posters or a slightly-off aim still find the nearest item
+      const up = camera.up.clone();
+      const right = new THREE.Vector3().crossVectors(_fwd, up).normalize();
+      const upv = new THREE.Vector3().crossVectors(right, _fwd).normalize();
+      const offsets: Array<[number, number]> = [[0, 0], [0.03, 0], [-0.03, 0], [0, 0.03], [0, -0.03], [0.06, 0], [-0.06, 0], [0, 0.06], [0, -0.06]];
+      const minD = camPos.distanceTo(playerPos) * 0.6;
+      for (const [ox, oy] of offsets) {
+        const dir = _fwd.clone().addScaledVector(right, ox).addScaledVector(upv, oy).normalize();
+        _ray.set(camPos, dir);
+        _ray.far = camPos.distanceTo(playerPos) + REACH + 1;
+        const hits = _ray.intersectObjects(aimList, false);
+        for (const h of hits) {
+          if (h.distance < minD) continue;
+          _p.copy(h.point);
+          const horiz = Math.hypot(_p.x - playerPos.x, _p.z - playerPos.z);
+          if (horiz > REACH || Math.abs(_p.y - playerPos.y - 1) > 2.6) break;
+          const it = owner.get(h.object)!;
+          const pick = it.pick?.(h);
+          best = pick ? { it, ...pick } : { it, verb: InteractionSystem.text(it.verb), label: InteractionSystem.text(it.label), act: it.onInteract };
+          break;
+        }
+        if (best) break;
       }
     }
     if (best) {

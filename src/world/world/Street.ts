@@ -9,6 +9,7 @@ import { Batches, boxGeo, floorGeo } from './geo';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BLOCK, CURB, CURB_H, OUTER_FRONT, ROAD_OUT, ALLEY, PARK, STREET_NAMES, type Lot } from './layout';
 import { streetSignTexture } from './Signage';
+import { streetWear } from './Weathering';
 import { rng } from '../engine/math';
 import type { NightLights } from './NightLights';
 
@@ -26,7 +27,7 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
   const group = new THREE.Group();
   const B = new Batches();
   const r = rng(4242);
-  const asphalt = assets.pbr('asphalt_02', { scale: 7, normalScale: 0.8 });
+  const asphalt = streetWear(assets.pbr('asphalt_02', { scale: 7, normalScale: 0.8 }).clone());
   const walk = assets.pbr('concrete_tiles_02', { scale: 2.4 });
   const curbMat = assets.pbr('brushed_concrete', { scale: 1.6, tint: 0xd8d4cc });
   const alleyMat = assets.pbr('asphalt_floor', { scale: 4, tint: 0x9a9690 });
@@ -388,6 +389,26 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
     kg.rotation.y = Math.PI / 2;
     group.add(kg);
     physics.aabb(kiosk.x - 0.9, CURB_H, kiosk.z - 1.3, kiosk.x + 0.9, CURB_H + 2.6, kiosk.z + 1.3, { kind: 'static', surface: 'metal' });
+  }
+
+  // overhead utility cables sagging across the streets (catenary curves)
+  {
+    const wire = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.6 });
+    const span = (ax: number, az: number, bx: number, bz: number, y: number, sag: number) => {
+      const a = new THREE.Vector3(ax, y, az);
+      const b = new THREE.Vector3(bx, y, bz);
+      const pts: THREE.Vector3[] = [];
+      for (let k = 0; k <= 16; k++) {
+        const t = k / 16;
+        pts.push(a.clone().lerp(b, t).add(new THREE.Vector3(0, -sag * 4 * t * (1 - t), 0)));
+      }
+      B.add(wire, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.012, 4, false), undefined, false);
+    };
+    for (const x of [-34, -6, 22, 40]) for (const sz of [-1, 1]) {
+      span(x, sz * (CURB.z - 4.6), x + 3 * (r() - 0.5), sz * (OUTER_FRONT.z + 0.4), 9 + r() * 3, 0.9);
+      span(x + 0.6, sz * (CURB.z - 4.6), x + 0.6 + 3 * (r() - 0.5), sz * (OUTER_FRONT.z + 0.4), 8.4 + r() * 3, 1.1);
+    }
+    for (const z of [-18, 6, 20]) for (const sx of [-1, 1]) span(sx * (CURB.x - 4.6), z, sx * (OUTER_FRONT.x + 0.4), z + 3 * (r() - 0.5), 9 + r() * 3, 0.9);
   }
 
   flushInstances();

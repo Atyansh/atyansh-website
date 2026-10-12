@@ -78,7 +78,7 @@ export function buildCity(game: Game): CityLevel {
     interactables.push({
       id: `door:${id}`,
       position: door.position.clone().add(new THREE.Vector3(0, 1, 0)),
-      radius: 2.4,
+      radius: 3.0,
       verb: 'Enter',
       label: door.lot.name,
       priority: 1,

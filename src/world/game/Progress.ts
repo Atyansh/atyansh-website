@@ -129,11 +129,12 @@ export class GoldenRecords {
       if (game.save.data.collectibles.includes(id)) return;
       const m = disc.clone();
       m.position.copy(p);
-      // glow sprite, not a light: removing a light on pickup would force every
-      // shader in the scene to recompile (a multi-second hitch)
-      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: 0xffc94a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 }));
-      halo.scale.setScalar(1.3);
-      m.add(halo);
+      // no light (removing one on pickup recompiles every shader) and no
+      // sprite (the AO pass draws sprites as opaque quads): an emissive rim
+      // that blooms instead
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.025, 8, 40), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffd36a, emissiveIntensity: 3.5 }));
+      m.add(ring);
+      void haloTex;
       street.group.add(m);
       this.items.push({ id, mesh: m, base: p.clone() });
     });

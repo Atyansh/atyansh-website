@@ -18,6 +18,7 @@ import { createWindowMaterial, bindCityUniforms } from './WindowMaterial';
 import { awningTexture, bladeTexture, fasciaTexture, menuTexture, muralTexture, plateTexture, shelfTexture } from './Signage';
 import { rng, hashString } from '../engine/math';
 import type { NightLights } from './NightLights';
+import { weather } from './Weathering';
 
 export interface StyleDef {
   wall: string;
@@ -96,11 +97,11 @@ export class CityBuilder {
   }
 
   wallMat(s: StyleDef): THREE.Material {
-    return this.assets.pbr(s.wall, { scale: s.scale, tint: s.tint, normalScale: s.normal ?? 1 });
+    return this.mat(`wall|${s.wall}|${s.tint}`, () => weather(this.assets.pbr(s.wall, { scale: s.scale, tint: s.tint, normalScale: s.normal ?? 1 }).clone(), 1, 'wall'));
   }
 
   trimMat(color: number): THREE.Material {
-    return this.assets.pbr('brushed_concrete', { scale: 1.2, tint: color, normalScale: 0.5 });
+    return this.mat(`trim|${color}`, () => weather(this.assets.pbr('brushed_concrete', { scale: 1.2, tint: color, normalScale: 0.5 }).clone(), 0.7, 'trim'));
   }
 
   paint(color: number, rough = 0.55, metal = 0.15): THREE.Material {
@@ -277,6 +278,23 @@ export class CityBuilder {
           // sill + lintel
           this.box(trim, f.m, cx, yb - 0.08, 0.04, winW + 0.2, 0.08, 0.2, true);
           if (s.lintel) this.box(trim, f.m, cx, yt, 0.015, winW + 0.24, 0.24, 0.07, true);
+          // lived-in details on homey styles: window AC units, flower boxes
+          if (!s.ribbon && yb > 3 && f.blankTo < yb) {
+            const roll = r();
+            if (roll < 0.09) {
+              const am = f.m.clone().multiply(new THREE.Matrix4().compose(new THREE.Vector3(cx, yb + 0.02, 0.12), new THREE.Quaternion(), new THREE.Vector3(0.55, 0.55, 0.55)));
+              this.inst.add('exterior_aircon_unit', am, { parts: [r() < 0.5 ? 'exterior_aircon_unit' : 'exterior_aircon_unit_rusted'], castShadow: false });
+            } else if (roll < 0.17 && s.room === 0) {
+              this.box(this.paint(0x5a3a26, 0.8, 0), f.m, cx, yb - 0.02, 0.2, winW * 0.9, 0.2, 0.22, false);
+              const bloom = [0xd84a5a, 0xf2c230, 0xe86ea8, 0xf2efe8][Math.floor(r() * 4)];
+              for (let k = 0; k < 7; k++) {
+                const g = new THREE.IcosahedronGeometry(0.08 + r() * 0.04, 0);
+                g.translate(cx - winW * 0.4 + (k / 6) * winW * 0.8, yb + 0.22 + r() * 0.05, 0.2 + (r() - 0.5) * 0.1);
+                g.applyMatrix4(f.m);
+                this.batches.add(this.paint(k % 3 === 0 ? 0x3f6b35 : bloom, 0.8, 0), g, undefined, false);
+              }
+            }
+          }
         }
       }
 
@@ -294,6 +312,18 @@ export class CityBuilder {
       }
 
       if (storefront) this.groundFloor(lot, s, f, f.key === 'front', r);
+
+      // drainpipe down one edge of every exposed face, with brackets + shoe
+      if (f.exposed && !lot.backdrop && f.blankTo < 1 && f.L > 6) {
+        const px = (r() < 0.5 ? -1 : 1) * (f.L / 2 - 0.35);
+        const pipe = this.paint(0x3a3d42, 0.45, 0.6);
+        const g = new THREE.CylinderGeometry(0.055, 0.055, h + 0.4, 10);
+        g.translate(px, (h + 0.4) / 2, 0.12);
+        g.applyMatrix4(f.m);
+        this.batches.add(pipe, g, undefined, true);
+        for (let y = 2; y < h; y += 2.6) this.box(pipe, f.m, px, y, 0.08, 0.16, 0.05, 0.1, false);
+        this.box(pipe, f.m, px, 0, 0.2, 0.14, 0.12, 0.3, false);
+      }
     }
 
     // ---- roof ----
@@ -536,18 +566,129 @@ export class CityBuilder {
       artPlaced++;
     }
     if (!artPlaced) {
-      const tex = shelfTexture(hashString(lot.id) + Math.floor(a * 10), lot.accent);
-      const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3 });
-      this.lights.register(mat, 0.3, 0.8);
       const g = quadGeo(w, h, 0, 0);
-      const uv = g.attributes.uv as THREE.BufferAttribute;
-      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / w, uv.getY(i) / h);
       g.applyMatrix4(backM);
-      this.group.add(new THREE.Mesh(g, mat));
+      this.batches.add(inner, g);
+      this.dressWindow(lot, m, cx, w, y0, h, depth, r);
     } else {
       const g = quadGeo(w, h, 0, 0);
       g.applyMatrix4(backM);
       this.batches.add(inner, g);
+    }
+  }
+
+  /** Real 3D window dressing by business type (face-local coords, -z = into the shop) */
+  private dressWindow(lot: Lot, m: THREE.Matrix4, cx: number, w: number, y0: number, h: number, depth: number, r: () => number): void {
+    const sign = (lot.sign ?? '').toUpperCase();
+    const at = (x: number, y: number, z: number, ry = 0) => m.clone().multiply(new THREE.Matrix4().makeRotationY(ry).setPosition(x, y, z));
+    const put = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, ry = 0) => {
+      geo.applyMatrix4(at(x, y, z, ry));
+      this.batches.add(mat, geo, undefined, false, true);
+    };
+    const wood = this.paint(0x6b4a32, 0.7, 0);
+    const steel = this.paint(0x9aa0a8, 0.35, 0.8);
+    const PAL = [0xd8432f, 0x2f6fd8, 0xf2c230, 0x2fa86a, 0xf2efe8, 0x8a3fd8, 0xff8a3d, 0x2a2d33, 0x6ec6e8, 0xe86ea8];
+    const prop = (id: string, x: number, y: number, z: number, ry = 0, scale = 1) => {
+      try {
+        const o = this.assets.prop(id, { scale, castShadow: false });
+        o.position.set(x, y, z);
+        o.rotation.y = ry;
+        o.applyMatrix4(m);
+        this.group.add(o);
+      } catch { /* prop not loaded */ }
+    };
+    const back = -depth + 0.18;
+    if (sign === 'FLORIST') {
+      // tiered stand of plants
+      for (let t = 0; t < 3; t++) put(boxGeo(w - 0.3, 0.05, 0.3), wood, cx, y0 + 0.25 + t * 0.45, back + 0.12 + t * -0.0 + (2 - t) * 0.25);
+      const plants = ['potted_plant_04', 'potted_plant_02', 'flower_gazania', 'potted_plant_04', 'periwinkle_plant'];
+      for (let i = 0; i < Math.floor(w / 0.45); i++) {
+        const x = cx - w / 2 + 0.35 + i * 0.45;
+        const t = i % 3;
+        prop(plants[(i + t) % plants.length], x, y0 + 0.28 + t * 0.45, back + 0.12 + (2 - t) * 0.25, r() * 6, plants[(i + t) % plants.length] === 'potted_plant_02' ? 0.6 : 1.2);
+      }
+      prop('potted_plant_01', cx - w / 2 + 0.4, y0, -0.35, r() * 6, 0.9);
+      return;
+    }
+    if (sign === 'LAUNDROMAT') {
+      const body = this.paint(0xeef0f2, 0.3, 0.1);
+      const glass = new THREE.MeshStandardMaterial({ color: 0x223040, roughness: 0.05, metalness: 0.3, envMapIntensity: 2 });
+      for (let i = 0; i < Math.floor(w / 0.75); i++) {
+        const x = cx - w / 2 + 0.42 + i * 0.75;
+        put(boxGeo(0.68, 0.9, 0.62), body, x, y0, back + 0.2);
+        const door = new THREE.CylinderGeometry(0.22, 0.22, 0.03, 28);
+        door.rotateX(Math.PI / 2);
+        put(door, glass, x, y0 + 0.48, back + 0.52);
+        const rim = new THREE.TorusGeometry(0.23, 0.025, 8, 28);
+        put(rim, steel, x, y0 + 0.48, back + 0.53);
+      }
+      return;
+    }
+    if (sign === 'BOUTIQUE') {
+      // clothes rail with hanging garments + a folded-stack table
+      put(new THREE.CylinderGeometry(0.015, 0.015, w - 0.6, 8).rotateZ(Math.PI / 2), steel, cx, y0 + 1.55, back + 0.25);
+      for (const sx of [-1, 1]) put(new THREE.CylinderGeometry(0.015, 0.015, 1.55, 8), steel, cx + sx * (w / 2 - 0.3), y0 + 0.78, back + 0.25);
+      for (let x = cx - w / 2 + 0.45; x < cx + w / 2 - 0.4; x += 0.16) {
+        const col = this.paint(PAL[Math.floor(r() * PAL.length)], 0.85, 0);
+        const shirt = boxGeo(0.06, 0.62 + r() * 0.3, 0.42);
+        put(shirt, col, x, y0 + 1.5 - 0.62, back + 0.25);
+      }
+      put(boxGeo(1.0, 0.7, 0.45), wood, cx, y0, -0.35);
+      for (let k = 0; k < 4; k++) put(boxGeo(0.3, 0.05, 0.28), this.paint(PAL[k + 2], 0.85, 0), cx - 0.3 + (k % 2) * 0.55, y0 + 0.72 + Math.floor(k / 2) * 0.06, -0.35);
+      return;
+    }
+    if (sign === 'BIKES') {
+      const tyre = this.paint(0x161616, 0.8, 0);
+      for (let i = 0; i < Math.max(1, Math.floor(w / 1.4)); i++) {
+        const x = cx - w / 2 + 0.75 + i * 1.4;
+        const frame = this.paint(PAL[i % PAL.length], 0.4, 0.5);
+        for (const dz of [-0.5, 0.5]) put(new THREE.TorusGeometry(0.33, 0.025, 8, 28).rotateY(Math.PI / 2), tyre, x, y0 + 0.34, back + 0.3 + dz);
+        put(new THREE.CylinderGeometry(0.018, 0.018, 0.95, 6).rotateX(Math.PI / 2), frame, x, y0 + 0.55, back + 0.3);
+        put(new THREE.CylinderGeometry(0.018, 0.018, 0.5, 6).rotateX(0.5), frame, x, y0 + 0.5, back + 0.12);
+        put(boxGeo(0.06, 0.03, 0.22), tyre, x, y0 + 0.82, back + 0.12);
+      }
+      return;
+    }
+    if (lot.ground === 'cafe' || /DINER|NOODLES|PIZZA|BAKERY|COFFEE/.test(sign)) {
+      // counter with a pastry case + pendant-lit tables
+      put(boxGeo(w - 0.4, 0.9, 0.45), wood, cx, y0, back + 0.1);
+      put(boxGeo(w - 0.5, 0.35, 0.35), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.18, roughness: 0.05 }), cx, y0 + 0.9, back + 0.1);
+      for (let k = 0; k < Math.floor((w - 0.6) / 0.22); k++) {
+        const g = new THREE.CylinderGeometry(0.07, 0.08, 0.06 + r() * 0.05, 12);
+        put(g, this.paint([0xc98a4b, 0xf2d6a2, 0x8a4a2a, 0xf3b4c8][k % 4], 0.7, 0), cx - w / 2 + 0.4 + k * 0.22, y0 + 0.95, back + 0.1);
+      }
+      prop('bar_chair_round_01', cx - w * 0.2, y0, -0.45, r() * 6, 0.9);
+      prop('bar_chair_round_01', cx + w * 0.2, y0, -0.45, r() * 6, 0.9);
+      return;
+    }
+    // general store: 3D shelving full of stock
+    const levels = Math.max(2, Math.floor((h - 0.2) / 0.45));
+    for (let lv = 0; lv < levels; lv++) {
+      const y = y0 + 0.12 + lv * 0.45;
+      put(boxGeo(w - 0.2, 0.03, 0.42), wood, cx, y, back);
+      let x = cx - w / 2 + 0.18;
+      while (x < cx + w / 2 - 0.2) {
+        const kind = r();
+        const col = this.paint(PAL[Math.floor(r() * PAL.length)], 0.5, 0.05);
+        let pw: number;
+        if (kind < 0.45) { // boxes
+          pw = 0.1 + r() * 0.12;
+          const ph = 0.16 + r() * 0.18;
+          put(boxGeo(pw, ph, 0.18), col, x + pw / 2, y + 0.03, back + 0.02);
+        } else if (kind < 0.8) { // bottles
+          pw = 0.07;
+          const g = new THREE.CylinderGeometry(0.03, 0.033, 0.2, 10);
+          g.translate(0, 0.1, 0);
+          const neck = new THREE.CylinderGeometry(0.012, 0.03, 0.07, 8);
+          neck.translate(0, 0.235, 0);
+          put(g, col, x + 0.035, y + 0.03, back + 0.05);
+          put(neck, col, x + 0.035, y + 0.03, back + 0.05);
+        } else { // cans
+          pw = 0.08;
+          for (let k = 0; k < 2; k++) put(new THREE.CylinderGeometry(0.035, 0.035, 0.12, 10).translate(0, 0.06 + k * 0.12, 0), col, x + 0.04, y + 0.03, back + 0.05);
+        }
+        x += pw + 0.025;
+      }
     }
   }
 

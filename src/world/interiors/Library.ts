@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import type { Game } from '../game/Game';
 import type { Level } from '../game/Level';
-import { Room } from './Room';
+import { Room, type Placed } from './Room';
 import { sit } from '../game/Activity';
 import { bookItems } from './items';
 import { boxGeo } from '../world/geo';
@@ -52,7 +52,7 @@ export function buildLibrary(game: Game, index: number): Level {
   const spineCols: THREE.Color[] = [];
   const palette = [0x7a2a24, 0x2c4a3a, 0x2f3d5c, 0x8a6a2c, 0x5b3550, 0x3c5a5e, 0xc9b48a, 0x1e2a3a, 0x6b3a22, 0x9a3a2a, 0x2a2a2a, 0xd8cdb4];
   let coverIdx = 0;
-  const coverSpots: Array<{ index: number; pos: THREE.Vector3 }> = [];
+  const coverSpots: Placed[] = [];
   const coversPerUnit = Math.max(1, Math.ceil(books.length / units.length));
   for (const u of units) {
     const M = new THREE.Matrix4().makeRotationY(u.ry).setPosition(u.x, 0, u.z);
@@ -84,8 +84,9 @@ export function buildLibrary(game: Game, index: number): Level {
           const ch = Math.min(pitch - 0.1, 0.36);
           const cw = ch / 1.5;
           const local = new THREE.Vector3(x + cw / 2, y0 + ch / 2 + 0.01, depth / 2 - 0.09).applyMatrix4(M);
-          room.art(assets.art(b.art), cw, ch, local.x, local.y, local.z, u.ry + 0, { glow: 0.06 }).rotateX(-0.08);
-          coverSpots.push({ index: coverIdx, pos: room.v(local.x, local.y, local.z) });
+          const cm = room.art(assets.art(b.art), cw, ch, local.x, local.y, local.z, u.ry + 0, { glow: 0.06 });
+          cm.rotateX(-0.08);
+          coverSpots.push({ index: coverIdx, pos: room.v(local.x, local.y, local.z), mesh: cm });
           coverIdx++;
           coverShelves.add(-s - 1);
           x += cw + 0.05;
@@ -116,7 +117,7 @@ export function buildLibrary(game: Game, index: number): Level {
   spines.castShadow = spines.receiveShadow = true;
   spines.computeBoundingSphere();
   room.group.add(spines);
-  room.browseSpots(coverSpots, 5, 'the shelves', open);
+  room.aimBrowse(coverSpots, (i) => `${books[i]?.title ?? ''} — ${books[i]?.author ?? ''}`, open);
 
   // ---- rolling ladder on the left wall ----
   {
@@ -195,10 +196,19 @@ export function buildLibrary(game: Game, index: number): Level {
     room.prop('ArmChair_01', c.x, c.z, c.ry, {}, 'bounds');
     const fwd = new THREE.Vector3(Math.sin(c.ry), 0, Math.cos(c.ry));
     room.interactables.push({
-      id: `arm:${c.x}`, position: room.v(c.x + fwd.x * 0.8, 1, c.z + fwd.z * 0.8), radius: 1.3, verb: 'Sit', label: 'and read',
+      id: `arm:${c.x}`, position: room.v(c.x + fwd.x * 0.8, 1, c.z + fwd.z * 0.8), radius: 1.3, verb: 'Sit', label: 'and read a book',
       onInteract: () => sit(game, {
         hip: room.v(c.x + fwd.x * 0.05, 0.48, c.z + fwd.z * 0.05), facing: c.ry,
         shot: { position: room.v(c.x + fwd.x * 2.4 - fwd.z * 0.8, 1.5, c.z + fwd.z * 2.4 + fwd.x * 0.8), target: room.v(c.x, 0.9, c.z), fov: 50 },
+        // settle in, then the bookshelf opens; closing it gets you up
+        afterSeated: (stand) => {
+          game.uiOwnsPointer = true;
+          game.input.unlock();
+          game.browser.open({
+            heading: 'Reading · Goodreads', accent: '#e8c56a', items: bookItems(game.data), start: Math.max(0, featured), aspect: 1.5,
+            onClose: () => { game.uiOwnsPointer = false; game.input.lock(); stand(); },
+          });
+        },
       }),
     });
   }

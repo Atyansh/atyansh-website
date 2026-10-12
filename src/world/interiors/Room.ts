@@ -54,6 +54,8 @@ export interface WallRun {
   inset?: number;
 }
 
+export interface Placed { index: number; pos: THREE.Vector3; mesh: THREE.Mesh }
+
 export class Room {
   readonly group = new THREE.Group();
   readonly B = new Batches();
@@ -257,8 +259,8 @@ export class Room {
   }
 
   /** Lay out items along wall runs; returns placements for browse lookup */
-  wallOfArt(items: Array<{ art: string }>, runs: WallRun[], frame = 0x15161a, glow = 0.12): Array<{ index: number; pos: THREE.Vector3 }> {
-    const placed: Array<{ index: number; pos: THREE.Vector3 }> = [];
+  wallOfArt(items: Array<{ art: string }>, runs: WallRun[], frame = 0x15161a, glow = 0.12): Placed[] {
+    const placed: Placed[] = [];
     let i = 0;
     for (const run of runs) {
       const len = Math.hypot(run.x1 - run.x0, run.z1 - run.z0);
@@ -278,8 +280,8 @@ export class Room {
           const t = start + c * (run.w + gap);
           const x = run.x0 + dx * t + nx;
           const z = run.z0 + dz * t + nz;
-          this.art(this.assets.art(items[i].art), run.w, run.h, x, y, z, run.facing, { frame, glow });
-          placed.push({ index: i, pos: this.v(x, y, z) });
+          const mesh = this.art(this.assets.art(items[i].art), run.w, run.h, x, y, z, run.facing, { frame, glow });
+          placed.push({ index: i, pos: this.v(x, y, z), mesh });
           i++;
         }
       }
@@ -287,30 +289,27 @@ export class Room {
     return placed;
   }
 
-  /** Browse interactables along a wall of art: opens at the nearest item */
-  browseSpots(placed: Array<{ index: number; pos: THREE.Vector3 }>, every: number, label: string, open: (start: number) => void): void {
-    for (let k = 0; k < placed.length; k += every) {
-      const p = placed[k].pos.clone();
-      p.y = 1;
-      this.interactables.push({
-        id: `browse:${label}:${k}`,
-        position: p,
-        radius: 2.4,
-        verb: 'Browse',
-        label,
-        onInteract: () => {
-          // nearest placed item to the player
-          const pp = this.game.player.position;
-          let best = 0;
-          let bd = Infinity;
-          for (const pl of placed) {
-            const dd = pl.pos.distanceToSquared(new THREE.Vector3(pp.x, pl.pos.y, pp.z));
-            if (dd < bd) { bd = dd; best = pl.index; }
-          }
-          open(best);
-        },
-      });
-    }
+  /**
+   * Look-at browsing: aim at any placed item and press E to open the
+   * collection browser on exactly that item (prompt shows its title).
+   */
+  aimBrowse(placed: Placed[], titleOf: (index: number) => string, open: (index: number) => void, verb = 'Browse'): void {
+    if (!placed.length) return;
+    for (const p of placed) p.mesh.userData.pickIndex = p.index;
+    this.interactables.push({
+      id: `aim:${placed[0].mesh.uuid}`,
+      position: placed[0].pos,
+      radius: 3,
+      verb,
+      label: '',
+      aimOnly: true,
+      aim: placed.map((p) => p.mesh),
+      pick: (hit) => {
+        const i = hit.object.userData.pickIndex as number | undefined;
+        return i === undefined ? null : { verb, label: titleOf(i), act: () => open(i) };
+      },
+      onInteract: () => {},
+    });
   }
 
   // ---------------- lights ----------------

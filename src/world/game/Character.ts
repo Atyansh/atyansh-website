@@ -36,6 +36,9 @@ export interface OverrideOptions {
 
 /** Cache of measured clip ground speeds (shared across instances) */
 const speedCache = new Map<string, number>();
+const phaseCache = new Map<string, number>();
+/** Ground speeds the UAL locomotion clips were authored for (m/s) */
+const AUTHORED_SPEED: Record<string, number> = { Walk: 1.35, Jog: 3.7, Sprint: 6.6, CrouchWalk: 0.9 };
 
 export class Character {
   readonly root = new THREE.Group();
@@ -52,6 +55,7 @@ export class Character {
   private overrideTarget = 0;
   private overrideOpts: OverrideOptions = {};
   private natural: Record<string, number> = {};
+  private phaseOff: Record<string, number> = {};
   readonly materials: THREE.MeshStandardMaterial[] = [];
 
   constructor(gltf: GLTF, clipSource: THREE.AnimationClip[] = gltf.animations) {
@@ -110,41 +114,44 @@ export class Character {
     return this.clips.get(name)?.duration ?? 0;
   }
 
-  /** Ground speed implied by a looping clip, from foot-contact velocity */
+  /**
+   * Ground speed + phase offset of a looping locomotion clip.
+   * Speed: each foot sweeps front→back relative to the body once per cycle;
+   * during stance that sweep equals ground travel, so speed ≈ 2·range / T.
+   * Phase: the moment the left foot is furthest forward (heel strike), so
+   * blended clips plant the same foot at the same time.
+   */
   private measureSpeed(name: string): number {
     const cached = speedCache.get(name);
-    if (cached) return cached;
+    if (cached) {
+      this.phaseOff[name] = phaseCache.get(name) ?? 0;
+      return cached;
+    }
     const clip = this.clips.get(name);
     if (!clip) return 1;
     const probe = SkeletonUtils.clone(this.model);
     const mixer = new THREE.AnimationMixer(probe);
-    const a = mixer.clipAction(clip);
-    a.play();
+    mixer.clipAction(clip).play();
     const feet = ['foot_l', 'foot_r'].map((n) => probe.getObjectByName(n)!).filter(Boolean);
-    const N = 60;
-    const samples: Array<{ y: number; z: number }[]> = [];
-    for (let i = 0; i <= N; i++) {
+    const pelvis = probe.getObjectByName('pelvis')!;
+    const N = 72;
+    const zs: number[][] = feet.map(() => []);
+    for (let i = 0; i < N; i++) {
       mixer.setTime((i / N) * clip.duration);
       probe.updateMatrixWorld(true);
-      samples.push(feet.map((f) => {
-        const p = f.getWorldPosition(new THREE.Vector3());
-        return { y: p.y, z: p.z };
-      }));
+      const pz = pelvis.getWorldPosition(new THREE.Vector3()).z;
+      feet.forEach((f, fi) => zs[fi].push(f.getWorldPosition(new THREE.Vector3()).z - pz));
     }
-    const speeds: number[] = [];
-    feet.forEach((_, fi) => {
-      const minY = Math.min(...samples.map((s) => s[fi].y));
-      for (let i = 1; i <= N; i++) {
-        if (samples[i][fi].y < minY + 0.035 && samples[i - 1][fi].y < minY + 0.035) {
-          speeds.push(Math.abs(samples[i][fi].z - samples[i - 1][fi].z) / (clip.duration / N));
-        }
-      }
-    });
-    speeds.sort((x, y) => x - y);
-    const v = speeds.length ? speeds[Math.floor(speeds.length / 2)] : 1;
-    const result = clamp(v, 0.4, 12);
-    speedCache.set(name, result);
-    return result;
+    const range = zs.map((a) => Math.max(...a) - Math.min(...a)).reduce((a, b) => a + b, 0) / zs.length;
+    // Foot sweep misses the airborne part of a running stride, so the
+    // authored speeds of the known clips win; the measurement covers others
+    const v = AUTHORED_SPEED[name] ?? clamp((2 * range) / clip.duration, 0.4, 12);
+    const left = zs[0];
+    const off = left.indexOf(Math.max(...left)) / N;
+    speedCache.set(name, v);
+    phaseCache.set(name, off);
+    this.phaseOff[name] = off;
+    return v;
   }
 
   /** Model-space offset of a bone in a clip pose (e.g. pelvis while seated) */
@@ -200,8 +207,8 @@ export class Character {
       a.setEffectiveWeight(this.locoW[n] * (1 - this.overrideW));
       if (n === 'Idle' || n === 'CrouchIdle') a.timeScale = 1;
       else {
-        a.timeScale = 0; // phase-driven
-        a.time = this.phase * a.getClip().duration;
+        a.timeScale = 0; // phase-driven, aligned on left-foot strike
+        a.time = ((this.phase + (this.phaseOff[n] ?? 0)) % 1) * a.getClip().duration;
       }
     }
   }

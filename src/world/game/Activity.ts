@@ -31,6 +31,10 @@ export interface Seat {
   onUpdate?: (dt: number) => void;
   onSit?: () => void;
   onStand?: () => void;
+  /** Called once when fully seated; `stand` gets the player up */
+  afterSeated?: (stand: () => void) => void;
+  /** Hide the player's body while seated (first-person views) */
+  hideCharacter?: boolean;
 }
 
 let pelvisSeated: THREE.Vector3 | null = null;
@@ -49,6 +53,8 @@ export function sit(game: Game, seat: Seat): void {
   const start = game.player.position.clone();
   let t = 0;
   let standing = false;
+  let seatedFired = false;
+  let busy = false; // an overlay (browser) is open while seated
   ch.play('SitDown', { fade: 0.25, onDone: () => ch.play('SitIdle', { loop: true, fade: 0.2 }) });
   game.events.emit('sfx', { name: 'sit' });
   seat.onSit?.();
@@ -64,8 +70,21 @@ export function sit(game: Game, seat: Seat): void {
       ch.root.rotation.y = seat.facing;
       game.player.facing = seat.facing;
       if (!standing) seat.onUpdate?.(dt);
-      if (!standing && t >= 1 && (game.input.pressed('interact') || game.input.pressed('jump') || game.input.pressed('back'))) {
+      if (!seatedFired && t >= 1 && seat.afterSeated) {
+        seatedFired = true;
+        busy = true;
+        seat.afterSeated(() => { busy = false; standUp(); });
+      }
+      if (busy) { game.browser.update(); return; }
+      if (!standing && t >= 1 && (game.input.pressed('interact') || game.input.pressed('jump') || game.input.pressed('back'))) standUp();
+    },
+    end: () => { if (seat.hideCharacter) ch.root.visible = true; },
+  });
+  if (seat.hideCharacter) ch.root.visible = false;
+  function standUp(): void {
+        if (standing) return;
         standing = true;
+        ch.root.visible = true;
         ch.play('StandUp', {
           fade: 0.15,
           onDone: () => {
@@ -77,7 +96,5 @@ export function sit(game: Game, seat: Seat): void {
             seat.onStand?.();
           },
         });
-      }
-    },
-  });
+  }
 }

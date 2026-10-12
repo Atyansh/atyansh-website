@@ -93,7 +93,7 @@ export function buildArcade(game: Game, index: number): Level {
   carpet.position.y = 0.004;
   carpet.receiveShadow = true;
   room.group.add(carpet);
-  const open = (start: number) => game.browse({ heading: 'The Library · Steam', accent: '#c77dff', items: gameItems(game.data), start, aspect: 1.4 });
+  const open = (start: number) => game.browse({ heading: 'Game Library · Steam · Switch · PlayStation', accent: '#c77dff', items: gameItems(game.data), start, aspect: 1.4 });
 
   // ---- cabinet layout ----
   type Spot = { x: number; z: number; ry: number };
@@ -192,15 +192,11 @@ export function buildArcade(game: Game, index: number): Level {
     // controls
     ctrlStick.push(M.clone().multiply(new THREE.Matrix4().makeTranslation(-0.14, 1.16, 0.84 - 0.42)));
     for (const bx of [0.04, 0.13, 0.22]) ctrlButtons.push(M.clone().multiply(new THREE.Matrix4().makeTranslation(bx, 1.12, 0.8 - 0.42)));
-    // interaction per cabinet
-    const front = new THREE.Vector3(Math.sin(s.ry), 0, Math.cos(s.ry));
-    room.interactables.push({
-      id: `cab:${i}`, position: room.v(s.x + front.x * 0.9, 1, s.z + front.z * 0.9), radius: 1.0, verb: 'Look at', label: games[i].title,
-      onInteract: () => open(i),
-    });
   }
   const crt = crtMaterial(screenTex);
-  room.group.add(new THREE.Mesh(mergeGeometries(screenParts)!, crt));
+  const screensMesh = new THREE.Mesh(mergeGeometries(screenParts)!, crt);
+  room.group.add(screensMesh);
+  const bodyMeshes: THREE.InstancedMesh[] = [];
   const marqMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: marqTex, emissiveIntensity: 1.5 });
   room.group.add(new THREE.Mesh(mergeGeometries(marqParts)!, marqMat));
   bodyCols.forEach((c, k) => {
@@ -210,7 +206,22 @@ export function buildArcade(game: Game, index: number): Level {
     list.forEach((m, j) => inst.setMatrixAt(j, m));
     inst.castShadow = inst.receiveShadow = true;
     inst.computeBoundingSphere();
+    inst.userData.colorSlot = k;
     room.group.add(inst);
+    bodyMeshes.push(inst);
+  });
+  // look at any cabinet (screen or body) → that game
+  const gameLine = (i: number) => `${games[i].title} · ${games[i].hours ? `${games[i].hours}h` : games[i].platform ?? ''}`;
+  room.interactables.push({
+    id: 'cabinets', position: room.v(0, 1, 0), radius: 3, verb: 'Look at', label: '', aimOnly: true,
+    aim: [screensMesh, ...bodyMeshes],
+    pick: (hit) => {
+      let i: number | undefined;
+      if (hit.object === screensMesh && hit.faceIndex !== undefined && hit.faceIndex !== null) i = Math.floor(hit.faceIndex / 2);
+      else if (hit.instanceId !== undefined) i = (hit.object.userData.colorSlot as number) + hit.instanceId * bodyCols.length;
+      return i === undefined || i >= n ? null : { verb: 'Look at', label: gameLine(i), act: () => open(i!) };
+    },
+    onInteract: () => {},
   });
   const stick = new THREE.InstancedMesh((() => { const g = new THREE.CylinderGeometry(0.012, 0.012, 0.12, 8); g.translate(0, 0.06, 0); const b = new THREE.SphereGeometry(0.032, 10, 8); b.translate(0, 0.13, 0); return mergeGeometries([g.toNonIndexed(), b.toNonIndexed()])!; })(),
     room.paint(0xe8443a, 0.4, 0.2), ctrlStick.length);
@@ -283,10 +294,11 @@ export function buildArcade(game: Game, index: number): Level {
       game.player.facing = Math.PI / 2;
       ch.root.rotation.y = Math.PI / 2;
       ch.play('Push', { loop: true, fade: 0.3, timeScale: 0.25 });
+      ch.root.visible = false; // first-person at the cabinet: nothing between you and the screen
       game.beginActivity({
         name: 'arcade',
         hint: 'A/D  Move · Space  Launch · E  Leave',
-        shot: { position: room.v(ppos.x - 1.4, 1.72, ppos.z), target: room.v(ppos.x - 0.1, 1.46, ppos.z), fov: 36, blend: 0.8 },
+        shot: { position: room.v(ppos.x - 0.95, 1.6, ppos.z), target: room.v(ppos.x - 0.1, 1.47, ppos.z), fov: 42, blend: 0.8 },
         update: (dt) => {
           const i = game.input;
           const dir = (i.isDown('right') ? 1 : 0) - (i.isDown('left') ? 1 : 0) + game.input.padMove.x;
@@ -294,7 +306,7 @@ export function buildArcade(game: Game, index: number): Level {
           bb.update(dt, { dir, dx: mouse.dx, launch: i.pressed('jump') || i.pressed('confirm') && !i.pressed('interact') });
           if (i.pressed('interact') || i.pressed('back')) game.endActivity();
         },
-        end: () => { playing = false; ch.stopOverride(0.3); },
+        end: () => { playing = false; ch.stopOverride(0.3); ch.root.visible = true; },
       });
     },
   });
@@ -323,15 +335,20 @@ export function buildArcade(game: Game, index: number): Level {
   lg.fillText('MOST PLAYED', 512, 140);
   lg.font = '700 40px "Courier New", monospace';
   lg.fillStyle = '#3fe0ff';
-  lg.fillText('HOURS · STEAM', 512, 200);
+  lg.fillText('HOURS · STEAM + SWITCH', 512, 200);
   games.slice(0, 10).forEach((gm, i) => {
     const y = 290 + i * 70;
     lg.textAlign = 'left';
     lg.fillStyle = i < 3 ? '#ffd23f' : '#ffffff';
     lg.font = '700 44px "Courier New", monospace';
     let t = `${String(i + 1).padStart(2, ' ')}. ${gm.title.toUpperCase()}`;
-    while (lg.measureText(t).width > 700 && t.length > 6) t = `${t.slice(0, -2)}…`;
-    lg.fillText(t, 70, y);
+    while (lg.measureText(t).width > 640 && t.length > 6) t = `${t.slice(0, -2)}…`;
+    lg.fillStyle = gm.platform === 'Switch' ? '#ff5a5a' : '#3fe0ff';
+    lg.font = '700 24px "Courier New", monospace';
+    lg.fillText(gm.platform === 'Switch' ? 'NSW' : 'PC', 30, y);
+    lg.font = '700 44px "Courier New", monospace';
+    lg.fillStyle = i < 3 ? '#ffd23f' : '#ffffff';
+    lg.fillText(t, 92, y);
     lg.textAlign = 'right';
     lg.fillStyle = '#5ef08f';
     lg.fillText(String(gm.hours ?? 0), 954, y);

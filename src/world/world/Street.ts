@@ -306,7 +306,7 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
 
   // ---- bus shelter on Atyansh Ave ----
   const busX = 2;
-  const busZ = CURB.z - 1.6;
+  const busZ = CURB.z - 1.25;
   const glass = new THREE.MeshStandardMaterial({ color: 0xa8c0d0, transparent: true, opacity: 0.25, roughness: 0.05, envMapIntensity: 2 });
   {
     const posts: Array<[number, number]> = [[-1.9, -0.7], [1.9, -0.7], [-1.9, 0.6], [1.9, 0.6]];
@@ -372,7 +372,8 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
   }
 
   // ---- newsstand kiosk (blog) at the SE corner ----
-  const kiosk = new THREE.Vector3(CURB.x - 3.2, CURB_H, CURB.z - 2.4);
+  // against the anime café's east wall, out of the pedestrian flow
+  const kiosk = new THREE.Vector3(BLOCK.maxX + 1.0, CURB_H, BLOCK.maxZ - 3.2);
   {
     const kg = new THREE.Group();
     const body = new THREE.Mesh(boxGeo(2.6, 2.4, 1.8), new THREE.MeshStandardMaterial({ color: 0x24533e, roughness: 0.55, metalness: 0.2 }));
@@ -384,9 +385,9 @@ export function buildStreets(assets: Assets, physics: Physics, lights: NightLigh
     roof.castShadow = true;
     kg.add(roof);
     kg.position.copy(kiosk);
-    kg.rotation.y = Math.PI / 4;
+    kg.rotation.y = Math.PI / 2;
     group.add(kg);
-    physics.box(kiosk.x, CURB_H + 1.2, kiosk.z, 1.3, 1.2, 0.9, new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 4, 0)), { kind: 'static', surface: 'metal' });
+    physics.aabb(kiosk.x - 0.9, CURB_H, kiosk.z - 1.3, kiosk.x + 0.9, CURB_H + 2.6, kiosk.z + 1.3, { kind: 'static', surface: 'metal' });
   }
 
   flushInstances();

@@ -152,7 +152,8 @@ export async function boot(container: HTMLElement): Promise<void> {
     /** Trigger the nearest/named interactable as if E was pressed */
     interact: (id?: string) => {
       const list = [...game.level.interactables, ...game.globalInteractables];
-      const it = id ? list.find((x) => x.id.startsWith(id)) : game.interaction.current;
+      if (!id) { const r = game.interaction.current; r?.act(); return r?.it.id ?? null; }
+      const it = list.find((x) => x.id.startsWith(id));
       it?.onInteract();
       return it?.id ?? null;
     },

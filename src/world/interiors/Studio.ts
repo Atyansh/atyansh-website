@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import type { Game } from '../game/Game';
 import type { Level } from '../game/Level';
-import { Room } from './Room';
+import { Room, type Placed } from './Room';
 import { sit } from '../game/Activity';
 import { boxGeo } from '../world/geo';
 import { cardTexture, cardURL } from './cards';
@@ -127,13 +127,16 @@ export function buildStudio(game: Game, index: number): Level {
     return { title: p.title, art: cardURL(spec), badge: p.featured ? 'Featured' : 'Project', lines: [p.tech.slice(0, 4).join(' · '), p.start ? `Started ${p.start.slice(0, 7)}` : ''], blurb: p.description };
   });
   const openProjects = (start: number) => game.browse({ heading: 'Projects', accent: '#9fb6ff', items: projCards, start, aspect: 1.33 });
+  const projPlaced: Placed[] = [];
   projects.forEach((p, i) => {
     const z = -D / 2 + 2.2 + i * 2.4;
     const tex = cardTexture({ kicker: p.featured ? 'Featured project' : 'Project', title: p.title, body: p.description, chips: p.tech, accent: '#9fb6ff' });
-    room.art(tex, 1.5, 2.0, -W / 2 + 0.05, 2.0, z, Math.PI / 2, { frame: 0x22252a, glow: 0.18 });
+    const pm = room.art(tex, 1.5, 2.0, -W / 2 + 0.05, 2.0, z, Math.PI / 2, { frame: 0x22252a, glow: 0.18 });
     room.spot(-W / 2 + 2.2, H - 0.2, z, -W / 2, 2, z, 0xfff4e4, 10, 0.4);
-    room.interactables.push({ id: `proj:${i}`, position: room.v(-W / 2 + 1.2, 1, z), radius: 1.4, verb: 'Read about', label: p.title, onInteract: () => openProjects(i) });
+    projPlaced.push({ index: i, pos: room.v(-W / 2 + 0.05, 2, z), mesh: pm });
   });
+
+  room.aimBrowse(projPlaced, (i) => projects[i]?.title ?? '', openProjects, 'Read about');
 
   // ---- whiteboard (back wall) ----
   room.box(room.paint(0xc8ccd2, 0.3, 0.8), 0, 1.1, -D / 2 + 0.06, 5.2, 2.7, 0.06, false);
@@ -205,7 +208,7 @@ export function buildStudio(game: Game, index: number): Level {
     stand.position.y = -0.42;
     mon.add(stand);
     mon.position.set(s.x - fwd.x * 0.25, 0.71 + 0.58, s.z - fwd.z * 0.25);
-    mon.rotation.y = s.ry + Math.PI;
+    mon.rotation.y = s.ry; // screen faces the chair (+fwd)
     room.group.add(mon);
     if (i % 2 === 0) room.prop('desk_lamp_arm_01', s.x + 0.7, s.z - fwd.z * 0.2, s.ry + 2.4, { scale: 0.8 }, 'none', 0.71);
     else room.prop('classic_laptop', s.x + 0.45, s.z, s.ry + Math.PI + 0.3, { scale: 0.7 }, 'none', 0.71);

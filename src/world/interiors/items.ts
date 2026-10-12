@@ -20,9 +20,9 @@ export const albumItems = (d: WorldData): BrowserItem[] =>
 export const gameItems = (d: WorldData): BrowserItem[] => {
   const max = Math.max(1, ...(d.games ?? []).map((g) => g.hours ?? 0));
   return (d.games ?? []).map((g, i) => ({
-    title: g.title, art: g.art, badge: i < 3 ? `#${i + 1} most played` : 'Steam library',
-    lines: [plural(g.hours ?? 0, 'hour') + ' played'],
-    progress: (g.hours ?? 0) / max, progressLabel: 'relative to the most-played game',
+    title: g.title, art: g.art, badge: i < 3 && g.hours ? `#${i + 1} most played` : g.platform ?? 'Game',
+    lines: [g.platform ?? '', g.hours !== undefined ? `${plural(g.hours, 'hour')} played` : g.trophies !== undefined ? plural(g.trophies, 'trophy').replace('trophys', 'trophies') + ' earned' : ''],
+    progress: g.hours !== undefined ? g.hours / max : undefined, progressLabel: g.hours !== undefined ? 'relative to the most-played game' : undefined,
   }));
 };
 

@@ -146,13 +146,26 @@ async function main() {
     const artists = spotify.topArtists?.medium ?? spotify.topArtists?.long ?? spotify.topArtists?.short ?? [];
     data.topArtists = artists.slice(0, 10).map((a) => a.name);
   }
-  if (steam?.games && igdb) {
-    const sorted = [...steam.games].sort((a, b) => b.playtime_forever - a.playtime_forever);
-    data.games = await collect('games', sorted.map((g) => ({
-      title: g.name,
-      url: igdb[`steam:${g.appid}`]?.url?.replace('t_cover_big_2x', 't_cover_big'),
-      hours: Math.round(g.playtime_forever / 60),
-    })).filter((g) => g.url));
+  // Games across Steam (hours), Nintendo (hours) and PlayStation (trophies)
+  const psn = readCache('psn-data');
+  const nintendo = readCache('nintendo-data');
+  if (igdb || nintendo) {
+    const cover = (k) => igdb?.[k]?.url?.replace('t_cover_big_2x', 't_cover_big');
+    const all = [];
+    for (const g of steam?.games ?? []) {
+      all.push({ title: g.name, platform: 'Steam', hours: Math.round(g.playtime_forever / 60), url: cover(`steam:${g.appid}`) });
+    }
+    for (const g of nintendo?.games ?? []) {
+      all.push({ title: g.name, platform: 'Switch', hours: Math.round((g.totalPlayTime ?? 0) / 3600),
+        url: cover(`nintendo:${g.name.toLowerCase()}`) ?? g.imageUri });
+    }
+    for (const g of psn?.games ?? []) {
+      const t = g.earnedTrophies ?? {};
+      all.push({ title: g.name, platform: 'PlayStation', trophies: (t.bronze ?? 0) + (t.silver ?? 0) + (t.gold ?? 0) + (t.platinum ?? 0),
+        url: cover(`psn:${g.name.toLowerCase()}`) });
+    }
+    all.sort((a, b) => (b.hours ?? -1) - (a.hours ?? -1) || (b.trophies ?? 0) - (a.trophies ?? 0));
+    data.games = await collect('games', all.filter((g) => g.url));
   }
   if (goodreads?.books) {
     data.books = await collect('books', goodreads.books.map((b) => ({

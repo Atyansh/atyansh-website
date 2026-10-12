@@ -160,7 +160,7 @@ export function buildCinema(game: Game, index: number): Level {
   ];
   const placed = room.wallOfArt(movies, runs, 0xc9a24a, 0.16);
   const open = (start: number) => game.browse({ heading: 'The Watch Log · Letterboxd', accent: '#ff5a4e', items: movieItems(game.data), start, aspect: 1.5 });
-  room.browseSpots(placed, 12, 'the film wall', open);
+  room.aimBrowse(placed, (i) => movies[i]?.title ?? '', open);
 
   // ---------------- theatre ----------------
   const carpet = new THREE.MeshStandardMaterial({ map: carpetTexture('#3a0d12', '#5a1a20'), roughness: 0.96 });

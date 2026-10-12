@@ -23,6 +23,37 @@ const D = 46;
 const H = 11;
 const ROUTE_COLS = [0x3ddc7b, 0x3fa7dd, 0xf3d34a, 0xef8f3a, 0xe8443a, 0xb44df0, 0x24262d, 0xf2efe8];
 
+/** Downturned climbing shoe: rubber sole + toe rand, coloured upper, velcro strap */
+function climbingShoe(): { upper: THREE.BufferGeometry; sole: THREE.BufferGeometry; strap: THREE.BufferGeometry } {
+  const L = 0.25;
+  // side profile (x = heel→toe, y = up), downturned toe
+  const prof = new THREE.Shape();
+  prof.moveTo(0, 0.02);
+  prof.bezierCurveTo(0.0, 0.07, 0.03, 0.1, 0.07, 0.105);    // heel cup
+  prof.lineTo(0.12, 0.095);                                  // collar
+  prof.bezierCurveTo(0.17, 0.085, 0.22, 0.06, L, 0.012);     // instep → toe
+  prof.bezierCurveTo(L + 0.005, 0.0, L - 0.02, -0.008, 0.2, 0.0); // pointed downturned toe
+  prof.bezierCurveTo(0.14, 0.012, 0.08, 0.004, 0.02, 0.0);   // arched sole
+  prof.lineTo(0, 0.02);
+  const upper = new THREE.ExtrudeGeometry(prof, { depth: 0.075, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.012, bevelSegments: 3, curveSegments: 12 });
+  upper.translate(-L / 2, 0, -0.0375);
+  // sole + rand: a thin rubber shell along the bottom/toe
+  const soleShape = new THREE.Shape();
+  soleShape.moveTo(0.01, -0.004);
+  soleShape.bezierCurveTo(0.08, 0.0, 0.14, 0.008, 0.2, -0.004);
+  soleShape.bezierCurveTo(L - 0.015, -0.012, L + 0.012, 0.0, L + 0.004, 0.03);
+  soleShape.lineTo(L - 0.012, 0.03);
+  soleShape.bezierCurveTo(L - 0.01, 0.012, 0.21, 0.01, 0.2, 0.012);
+  soleShape.bezierCurveTo(0.14, 0.02, 0.08, 0.012, 0.01, 0.01);
+  soleShape.lineTo(0.01, -0.004);
+  const sole = new THREE.ExtrudeGeometry(soleShape, { depth: 0.085, bevelEnabled: true, bevelSize: 0.008, bevelThickness: 0.008, bevelSegments: 2, curveSegments: 10 });
+  sole.translate(-L / 2, 0, -0.0425);
+  const strap = new THREE.BoxGeometry(0.028, 0.012, 0.11);
+  strap.rotateZ(-0.35);
+  strap.translate(0.03, 0.1, 0);
+  return { upper, sole, strap };
+}
+
 export function buildGym(game: Game, index: number): Level {
   const room = new Room(game, index, W, D, H);
   const { assets, physics } = game;
@@ -329,12 +360,24 @@ export function buildGym(game: Game, index: number): Level {
   room.box(room.paint(0xffa53a, 0.4, 0.2), desk.x, 1.05, desk.z, 4.1, 0.06, 1.1, false);
   room.prop('CashRegister_01', desk.x - 1, desk.z, 0, { scale: 0.8 }, 'none', 1.11);
   const cubby = room.paint(0xe8e2d4, 0.8);
+  const shoeGeo = climbingShoe();
+  const rubber = room.paint(0x1a1a1c, 0.75);
+  const strap = room.paint(0x2a2c30, 0.6);
+  const SHOE_COLS = [0xd8432f, 0x2f6fd8, 0xf2c230, 0x2fa86a, 0x8a3fd8, 0xff8a3d];
   for (let cx = 0; cx < 6; cx++) for (let cy = 0; cy < 4; cy++) {
-    room.box(cubby, W / 2 - 0.3, 0.2 + cy * 0.45, D / 2 - 9 - cx * 0.6, 0.4, 0.04, 0.56, false);
-    const shoe = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.16, 4, 8), room.paint(ROUTE_COLS[(cx + cy) % ROUTE_COLS.length], 0.6));
-    shoe.rotation.z = Math.PI / 2;
-    shoe.position.set(W / 2 - 0.3, 0.3 + cy * 0.45, D / 2 - 9 - cx * 0.6);
-    room.group.add(shoe);
+    const z = D / 2 - 9 - cx * 0.6;
+    const y = 0.2 + cy * 0.45;
+    room.box(cubby, W / 2 - 0.3, y, z, 0.4, 0.04, 0.56, false);
+    if ((cx * 7 + cy * 3) % 5 === 0) continue; // a few empty slots
+    const upper = room.paint(SHOE_COLS[(cx + cy * 2) % SHOE_COLS.length], 0.55);
+    for (const side of [-1, 1]) {
+      const pair = new THREE.Group();
+      pair.add(new THREE.Mesh(shoeGeo.upper, upper), new THREE.Mesh(shoeGeo.sole, rubber), new THREE.Mesh(shoeGeo.strap, strap));
+      pair.position.set(W / 2 - 0.32, y + 0.02, z + side * 0.07);
+      pair.rotation.y = Math.PI / 2; // toes out toward the room
+      pair.traverse((o) => { (o as THREE.Mesh).castShadow = true; });
+      room.group.add(pair);
+    }
   }
   room.aabb(W / 2 - 0.6, 0, D / 2 - 12.6, W / 2, 2.0, D / 2 - 8.6, 'wood');
   for (const [cx, cz] of [[-6, 2.5], [12, -4], [0, -D / 2 + 7.5]]) {

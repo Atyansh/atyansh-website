@@ -8,8 +8,10 @@ export interface ArtItem {
   /** music: artist · books: author */
   artist?: string;
   author?: string;
-  /** games: hours played */
+  /** games: hours played (Steam, Switch) / trophies (PlayStation) */
   hours?: number;
+  platform?: string;
+  trophies?: number;
   /** anime: episodes watched / total, MAL status */
   episodes?: number;
   watched?: number;

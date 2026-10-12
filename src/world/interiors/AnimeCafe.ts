@@ -70,7 +70,7 @@ export function buildAnimeCafe(game: Game, index: number): Level {
     { x0: 1.6, z0: D / 2 - 0.03, x1: W / 2 - 1.2, z1: D / 2 - 0.03, facing: Math.PI, y0: 1.05, rows: 3, w: pw, h: ph, gap: 0.2, rowGap: 0.22 },
   ];
   const placed = room.wallOfArt(anime, runs, 0xf4ecdc, 0.1);
-  room.browseSpots(placed, 8, 'the series wall', open);
+  room.aimBrowse(placed, (i) => anime[i]?.title ?? '', open);
 
   // ---- counter (back right) ----
   const cx = W / 2 - 2.3;

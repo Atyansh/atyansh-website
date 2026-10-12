@@ -72,7 +72,7 @@ export function buildRecords(game: Game, index: number): Level {
   const placed = room.wallOfArt(albums, [
     { x0: -W / 2 + 0.03, z0: D / 2 - 2.2, x1: -W / 2 + 0.03, z1: -D / 2 + 0.8, facing: Math.PI / 2, y0: 0.9, rows: 3, w: 0.82, h: 0.82, gap: 0.32, rowGap: 0.3 },
   ], 0x1a1714, 0.14);
-  room.browseSpots(placed, 6, 'the album wall', open);
+  room.aimBrowse(placed, (i) => `${albums[i]?.title ?? ''} — ${albums[i]?.artist ?? ''}`, open);
 
   // ---- crates of sleeves ----
   const sleeveMat = [0x2b2b2e, 0x3a3027, 0x4a3b33, 0x1f2a30, 0x3b2228].map((c) => room.paint(c, 0.7));
@@ -149,7 +149,7 @@ export function buildRecords(game: Game, index: number): Level {
 
   // ---- top tracks chalkboard + neon ----
   const tracks = (game.data.topTracks ?? []).map((t) => `${t.title} — ${t.artist}`);
-  room.art(chalkboard('On Rotation', tracks.slice(0, 10), 'top tracks this season'), 2.0, 2.5, 2.6, 2.3, -D / 2 + 0.06, 0, { frame: 0x5a3a24, frameW: 0.08, glow: 0.18 });
+  room.art(chalkboard('On Rotation', tracks.slice(0, 10), 'top tracks this season'), 2.0, 2.5, 0.6, 2.3, -D / 2 + 0.06, 0, { frame: 0x5a3a24, frameW: 0.08, glow: 0.18 });
   const neon = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.05), new THREE.MeshStandardMaterial({ map: neonTexture('Records', '#36e0a0'), transparent: true, emissive: 0xffffff, emissiveMap: neonTexture('Records', '#36e0a0'), emissiveIntensity: 2.2 }));
   neon.position.set(-3.2, 3.6, -D / 2 + 0.08);
   room.group.add(neon);
@@ -166,25 +166,37 @@ export function buildRecords(game: Game, index: number): Level {
   const picks = albums.slice(0, 3);
   picks.forEach((a, i) => room.art(assets.art(a.art), 0.6, 0.6, W / 2 - 0.06, 1.75 + (i % 2) * 0.1, ctrZ - 1.1 + i * 0.85, -Math.PI / 2, { frame: 0x1a1714, glow: 0.2 }));
 
-  // ---- listening booth (back right) ----
-  const bx = W / 2 - 2.0;
-  const bz = -D / 2 + 2.2;
-  const glass = new THREE.MeshStandardMaterial({ color: 0xbfd8e8, transparent: true, opacity: 0.18, roughness: 0.05, envMapIntensity: 2 });
-  room.box(glass, bx - 2.0, 0, bz, 0.05, 2.6, 3.6, true, 'wood', false);
-  room.box(glass, bx - 0.6, 0, bz + 1.8, 2.8, 2.6, 0.05, false, 'wood', false);
-  room.aabb(bx - 0.6 + 0.6, 0, bz + 1.77, bx + 0.8, 2.6, bz + 1.83, 'wood', false, true);
-  room.box(room.paint(0x2a2620, 0.6), bx - 0.6, 2.6, bz, 2.9, 0.1, 3.7, false);
-  room.prop('mid_century_lounge_chair', bx, bz - 0.6, Math.PI * 0.85, {}, 'bounds');
-  room.prop('side_table_01', bx + 0.95, bz + 0.2, 0, {}, 'bounds');
-  room.prop('boombox', bx + 0.95, bz + 0.2, -0.6, { scale: 0.6 }, 'none', 0.45);
-  room.point(bx, 2.3, bz, 0xffcf96, 2.6, 5);
-  const boothSeatHip = room.v(bx - 0.05, 0.5, bz - 0.5);
+  // ---- listening booth (back-right corner): glass walls, doorway, chair facing the speakers ----
+  const bx0 = W / 2 - 3.8;           // west glass wall
+  const bz1 = -D / 2 + 3.8;          // south glass wall
+  const doorW = 1.2;                 // doorway at the east end of the south wall
+  const glass = new THREE.MeshStandardMaterial({ color: 0xbfd8e8, transparent: true, opacity: 0.16, roughness: 0.05, envMapIntensity: 2, depthWrite: false });
+  const frame = room.paint(0x2a2620, 0.5, 0.3);
+  // west wall: glass + frame, solid collider
+  room.box(glass, bx0, 0, (-D / 2 + bz1) / 2, 0.04, 2.6, bz1 + D / 2, false, 'wood', false);
+  room.aabb(bx0 - 0.06, 0, -D / 2, bx0 + 0.06, 2.6, bz1, 'wood', false, true);
+  // south wall up to the doorway
+  const sx1 = W / 2 - doorW;
+  room.box(glass, (bx0 + sx1) / 2, 0, bz1, sx1 - bx0, 2.6, 0.04, false, 'wood', false);
+  room.aabb(bx0, 0, bz1 - 0.06, sx1, 2.6, bz1 + 0.06, 'wood', false, true);
+  for (const [fx, fz] of [[bx0, bz1], [bx0, -D / 2 + 0.05], [sx1, bz1], [(bx0 + sx1) / 2, bz1], [bx0, (-D / 2 + bz1) / 2]]) {
+    room.box(frame, fx, 0, fz, 0.08, 2.6, 0.08, false, 'wood');
+  }
+  room.box(frame, (bx0 + W / 2) / 2, 2.6, (-D / 2 + bz1) / 2, W / 2 - bx0, 0.1, bz1 + D / 2, false);
+  // inside: chair faces the back wall (−z), speakers + boombox in front of it
+  const chairX = bx0 + 1.6;
+  const chairZ = bz1 - 1.5;
+  room.prop('mid_century_lounge_chair', chairX, chairZ, Math.PI, {}, 'bounds');
+  room.prop('side_table_01', chairX, -D / 2 + 0.45, 0, {}, 'bounds');
+  room.prop('boombox', chairX, -D / 2 + 0.45, 0, { scale: 0.7 }, 'none', 0.45);
+  for (const sxo of [-1.0, 1.0]) room.box(room.paint(0x1a1714, 0.5, 0.2), chairX + sxo, 0, -D / 2 + 0.35, 0.4, 1.0, 0.35, true, 'wood');
+  room.point(chairX, 2.3, chairZ, 0xffcf96, 2.6, 5);
   room.interactables.push({
-    id: 'booth', position: room.v(bx - 0.6, 1, bz + 0.6), radius: 1.8, verb: 'Listen', label: 'in the booth', priority: 1,
+    id: 'booth', position: room.v(chairX, 1, chairZ + 0.7), radius: 1.6, verb: 'Listen', label: 'in the booth', priority: 1,
     onInteract: () => sit(game, {
-      hip: boothSeatHip, facing: Math.PI * 0.85 + Math.PI,
+      hip: room.v(chairX, 0.46, chairZ - 0.05), facing: Math.PI,
       hint: 'E  Stand up',
-      shot: { position: room.v(bx - 1.5, 1.7, bz + 1.4), target: room.v(bx, 0.9, bz - 0.6), fov: 50 },
+      shot: { position: room.v(chairX + 0.9, 1.65, chairZ + 1.4), target: room.v(chairX, 0.8, -D / 2 + 0.4), fov: 52 },
       onSit: () => {
         game.events.emit('progress', { key: 'listened' });
         game.ui.toast('Listening booth', tracks.length ? `On rotation: ${tracks[0]}` : 'Pull up a chair', '♫');

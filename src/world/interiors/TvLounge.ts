@@ -31,7 +31,7 @@ export function buildTvLounge(game: Game, index: number): Level {
     { x0: -W / 2 + 1.0, z0: D / 2 - 0.03, x1: -1.6, z1: D / 2 - 0.03, facing: Math.PI, y0: 0.5, rows: 3, w: pw, h: ph, gap: 0.24, rowGap: 0.18 },
     { x0: 1.6, z0: D / 2 - 0.03, x1: W / 2 - 1.0, z1: D / 2 - 0.03, facing: Math.PI, y0: 0.5, rows: 3, w: pw, h: ph, gap: 0.24, rowGap: 0.18 },
   ], 0x1d2026, 0.12);
-  room.browseSpots(placed, 7, 'the show wall', open);
+  room.aimBrowse(placed, (i) => shows[i]?.title ?? '', open);
 
   // ---- media wall: console + big TV ----
   const tvZ = -D / 2 + 0.35;
@@ -192,7 +192,7 @@ export function buildTvLounge(game: Game, index: number): Level {
       onInteract: () => sit(game, {
         hip: room.v(sx, 0.48, sofaZ - 0.05), facing: Math.PI,
         hint: 'E  Stand up · A/D  Channel',
-        shot: { position: room.v(sx + 0.4, 1.35, sofaZ + 0.9), target: room.v(0, tvY + tvH / 2, tvZ), fov: 50 },
+        shot: { position: room.v(sx * 0.4, 2.05, sofaZ + 1.5), target: room.v(0, tvY + tvH / 2 - 0.1, tvZ), fov: 46 },
         onUpdate: () => {
           if (game.input.pressed('next')) zap(1);
           if (game.input.pressed('prev')) zap(-1);

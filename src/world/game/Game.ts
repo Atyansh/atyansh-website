@@ -63,6 +63,8 @@ export class Game {
   private interiorEnv: THREE.Texture | null = null;
   /** True while UI deliberately holds the pointer (menus, browser) */
   uiOwnsPointer = false;
+  /** Pointer lock was lost during an activity; a click restores it */
+  needRelock = false;
   /** Called right after each composer render (photo capture needs the fresh buffer) */
   afterRender: Array<() => void> = [];
   /** When set, owns the camera instead of the player rig (title flyover, harness bookmarks) */
@@ -81,7 +83,16 @@ export class Game {
     this.rig = new CameraRig(this.renderer.camera, this.physics);
     this.applySettings();
     this.input.onLockChange = (locked) => {
-      if (!locked && this.state === 'playing' && !this.uiOwnsPointer) this.pause();
+      if (locked) {
+        this.needRelock = false;
+        if (!this.activity) this.ui.setActivityHint(null);
+        return;
+      }
+      if (this.state !== 'playing' || this.uiOwnsPointer) return;
+      // Esc inside an activity (seat, cabinet, climbing…) means "leave that",
+      // not "pause": the activity handles the key; we just need the pointer back
+      if (this.activity) { this.needRelock = true; return; }
+      this.pause();
     };
     this.browser = new Browser(this);
     const pm = new THREE.PMREMGenerator(this.renderer.renderer);
@@ -227,12 +238,12 @@ export class Game {
     // Interaction
     if (playing && !hadActivity && !this.activity && this.player && this.player.state !== 'locked' && this.player.state !== 'mantle') {
       const list = [...this.level.interactables, ...this.globalInteractables];
-      const it = this.interaction.resolve(list, this.player.position, this.player.facing);
-      this.ui.setPrompt(it);
-      if (it && this.input.pressed('interact')) {
+      const r = this.interaction.resolve(list, this.player.position, this.renderer.camera);
+      this.ui.setPrompt(r);
+      if (r && this.input.pressed('interact')) {
         this.ui.setPrompt(null);
-        it.onInteract();
-        this.events.emit('interact', { id: it.id });
+        r.act();
+        this.events.emit('interact', { id: r.it.id });
       }
     } else {
       this.ui.setPrompt(null);
@@ -279,9 +290,13 @@ export class Game {
     this.player.unlock();
     this.activityOwnsCamera = false;
     this.ui.setActivityHint(null);
-    if (this.uiOwnsPointer) {
+    if (this.uiOwnsPointer || this.needRelock) {
       this.uiOwnsPointer = false;
       this.input.lock();
+      // browsers refuse an immediate re-lock after Esc; ask for a click
+      setTimeout(() => {
+        if (!this.input.pointerLocked && this.state === 'playing' && !this.activity) this.ui.setActivityHint('Click  to resume control');
+      }, 250);
     }
   }
 

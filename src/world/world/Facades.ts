@@ -79,6 +79,7 @@ export class CityBuilder {
   readonly doors: Array<{ lot: Lot; position: THREE.Vector3; facing: number }> = [];
   readonly group = new THREE.Group();
   private inst: ReturnType<Assets['instancer']>;
+  private shutterW = 0;
 
   constructor(private assets: Assets, private physics: Physics, private lights: NightLights, private display: DisplayProvider, private allLots: Lot[]) {
     this.inst = assets.instancer();
@@ -362,6 +363,15 @@ export class CityBuilder {
     const door = isFront && lot.ground !== 'shutter' ? { x: lot.w > 16 ? -L * 0.2 * (r() > 0.5 ? 1 : -1) : 0, w: lot.ground === 'cinema' ? 3.6 : 2.0 } : null;
     if (lot.enter && door) door.x = 0;
 
+    // solid dark interior wall behind the whole frontage: nothing can be
+    // seen through gaps into the building's empty volume
+    {
+      const plugMat = this.paint(0x16171b, 0.95, 0);
+      const pg = new THREE.PlaneGeometry(L - 0.2, gf);
+      pg.translate(0, gf / 2, -(lot.ground === 'gym' ? 2.3 : 1.15));
+      pg.applyMatrix4(m);
+      this.batches.add(plugMat, pg, undefined, false, false);
+    }
     // corner piers + sign band backing
     this.box(wallMat, m, -L / 2 + pier / 2, 0, 0.1, pier, gf, 0.2);
     this.box(wallMat, m, L / 2 - pier / 2, 0, 0.1, pier, gf, 0.2);
@@ -566,13 +576,18 @@ export class CityBuilder {
 
   private shutters(lot: Lot, m: THREE.Matrix4, x0: number, x1: number, openTop: number, r: () => number): void {
     const sw = x1 - x0;
-    const n = Math.max(1, Math.round(sw / 3.1));
+    // the source model holds two doors side by side; measure one
+    if (!this.shutterW) {
+      const b = new THREE.Box3().setFromObject(this.assets.prop('rollershutter_door', { parts: ['rollershutter_door'] }));
+      this.shutterW = b.max.x - b.min.x;
+    }
+    const n = Math.max(1, Math.round(sw / 2.6));
     const step = sw / n;
     const wallMat = this.wallMat(STYLES[lot.style]);
     for (let i = 0; i < n; i++) {
       const cx = x0 + step * (i + 0.5);
       const graffiti = r() < 0.5;
-      const scaleX = (step - 0.1) / 3.08;
+      const scaleX = (step - 0.06) / this.shutterW;
       const sm = m.clone().multiply(new THREE.Matrix4().compose(new THREE.Vector3(cx, 0, -0.02), new THREE.Quaternion(), new THREE.Vector3(scaleX, Math.min(1.15, (openTop - 0.1) / 2.4), 1)));
       this.inst.add('rollershutter_door', sm, { parts: [graffiti ? 'rollershutter_door_graffiti' : 'rollershutter_door'], castShadow: false });
       const top = 2.4 * Math.min(1.15, (openTop - 0.1) / 2.4);
@@ -585,7 +600,7 @@ export class CityBuilder {
     for (let i = 0; i < n; i++) {
       const x = -L / 2 + 2.2 + i * ((L - 4.4) / Math.max(1, n - 1 || 1));
       const set = this.assets.prop('outdoor_table_chair_set_01');
-      set.position.set(x, 0, 1.7);
+      set.position.set(x, 0, 1.25);
       set.rotation.y = Math.PI / 2 + (r() - 0.5) * 0.4;
       set.applyMatrix4(m);
       this.group.add(set);
@@ -597,7 +612,7 @@ export class CityBuilder {
     board.position.set(0, 0.62, 0);
     board.rotation.x = -0.12;
     easel.add(board);
-    easel.position.set(L / 2 - 1.3, 0, 0.8);
+    easel.position.set(L / 2 - 1.3, 0, 0.6);
     easel.applyMatrix4(m);
     this.group.add(easel);
   }

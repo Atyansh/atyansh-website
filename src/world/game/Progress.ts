@@ -58,7 +58,11 @@ export class Progress {
       { id: 'gacha', title: 'Gotta Watch ’Em All', hint: `Collect ${GACHA_TARGET} different cards from the café gacha`, progress: () => Math.min(GACHA_TARGET, new Set(s.data.gachaCards).size), total: GACHA_TARGET },
       { id: 'records', title: 'Golden Records', hint: 'Find the golden records hidden around the block', progress: () => s.data.collectibles.length, total: recordSpots().length, reward: 'gold' },
     ];
-    for (const g of this.goals) if (g.progress() >= g.total) this.done.add(g.id);
+    for (const g of this.goals) {
+      if (g.progress() < g.total) continue;
+      this.done.add(g.id);
+      if (!s.data.rewards.includes(g.id)) { s.data.rewards.push(g.id); s.write(); }
+    }
     game.events.on('levelEnter', ({ id }) => {
       if (ENTERABLE.includes(id) && s.setFlag(`visited:${id}`)) this.check();
     });
@@ -76,9 +80,10 @@ export class Progress {
       if (this.done.has(g.id) || g.progress() < g.total) continue;
       this.done.add(g.id);
       this.game.events.emit('sfx', { name: 'goal' });
-      this.game.ui.toast(`Goal complete · ${g.title}`, g.reward ? `Unlocked the ${OUTFITS.find((o) => o.unlock === g.reward)?.name ?? ''} outfit — open the phone's Wardrobe` : g.hint, '🏆', 'reward');
-      if (g.reward && !this.game.save.data.rewards.includes(g.reward)) {
-        this.game.save.data.rewards.push(g.reward);
+      const outfit = OUTFITS.find((o) => o.unlock === g.id);
+      this.game.ui.toast(`Goal complete · ${g.title}`, outfit ? `Unlocked the ${outfit.name} outfit — open the phone's Wardrobe` : g.hint, '🏆', 'reward');
+      if (!this.game.save.data.rewards.includes(g.id)) {
+        this.game.save.data.rewards.push(g.id);
         this.game.save.write();
       }
       if (this.done.size === this.goals.length) {
@@ -110,13 +115,25 @@ export class GoldenRecords {
     label.rotation.x = Math.PI / 2;
     disc.add(label);
     const street = game.levels.get('street')!;
+    const hc = document.createElement('canvas');
+    hc.width = hc.height = 64;
+    const hg = hc.getContext('2d')!;
+    const grad = hg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    hg.fillStyle = grad;
+    hg.fillRect(0, 0, 64, 64);
+    const haloTex = new THREE.CanvasTexture(hc);
     recordSpots().forEach((p, i) => {
       const id = `record:${i}`;
       if (game.save.data.collectibles.includes(id)) return;
       const m = disc.clone();
       m.position.copy(p);
-      const glow = new THREE.PointLight(0xffc94a, 1.2, 3.5, 2);
-      m.add(glow);
+      // glow sprite, not a light: removing a light on pickup would force every
+      // shader in the scene to recompile (a multi-second hitch)
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: 0xffc94a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 }));
+      halo.scale.setScalar(1.3);
+      m.add(halo);
       street.group.add(m);
       this.items.push({ id, mesh: m, base: p.clone() });
     });

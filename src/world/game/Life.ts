@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import type { Game } from './Game';
 import { Character } from './Character';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import type RAPIER from '@dimforge/rapier3d-compat';
 import { CURB, CURB_H, PARK } from '../world/layout';
 import { clamp, dampAngle, rng } from '../engine/math';
 
@@ -28,6 +29,7 @@ interface Npc {
   pause: number;
   clip?: string;
   wave: number;
+  body?: RAPIER.RigidBody;
 }
 
 export class Life {
@@ -48,17 +50,21 @@ export class Life {
       ch.root.scale.setScalar(s);
       (opts.group ?? street).add(ch.root);
       if (opts.clip) ch.play(opts.clip, { loop: true, fade: 0 });
-      this.npcs.push({ ch, seg: 0, t: 0, speed: 1.25 + this.r() * 0.3, pos: pos.clone(), heading, pause: 0, wave: 0, ...opts });
+      // collision: you bump into people instead of walking through them
+      const wp = (opts.group ?? street).localToWorld(pos.clone());
+      const sitting = opts.clip === 'SitIdle';
+      const { body } = game.physics.kinematicCapsule(wp.x, wp.y + 0.85, wp.z, sitting ? 0.3 : 0.55, 0.28, { kind: 'npc' });
+      this.npcs.push({ ch, seg: 0, t: 0, speed: 1.25 + this.r() * 0.3, pos: pos.clone(), heading, pause: 0, wave: 0, ...opts, body });
     };
 
     // stationed — street
     add(new THREE.Vector3(3.8, CURB_H, CURB.z - 1.0), Math.PI * 0.85, { clip: 'Phone' });
     add(new THREE.Vector3(PARK.minX + 3.6, CURB_H, PARK.maxZ - 4.4), 0.8, { clip: 'SitIdle' });
-    add(new THREE.Vector3(-3.4, CURB_H, CURB.z - 3.4), 0.6, { clip: 'Talk' });
-    add(new THREE.Vector3(-2.4, CURB_H, CURB.z - 2.8), -2.3, { clip: 'FoldArms' });
+    add(new THREE.Vector3(-3.4, CURB_H, CURB.z - 3.75), 0.9, { clip: 'Talk' });
+    add(new THREE.Vector3(-2.4, CURB_H, CURB.z - 3.35), -2.2, { clip: 'FoldArms' });
     add(new THREE.Vector3(CURB.x - 3.8, CURB_H, CURB.z - 0.9), -0.3, { clip: 'RailLean' });
     // walkers: rectangular loops round the block sidewalk (clockwise/counter)
-    const inset = 2.2;
+    const inset = 2.4; // clear of kerb furniture, the bus shelter and café tables
     const loop = (dir: number) => {
       const pts = [
         new THREE.Vector3(-CURB.x + inset, CURB_H, CURB.z - inset), new THREE.Vector3(CURB.x - inset, CURB_H, CURB.z - inset),
@@ -82,7 +88,7 @@ export class Life {
     };
     staff('cinema', 9.5, 2 + 5 - 1.1, Math.PI, 'Idle');
     staff('anime', 7 - 2.3, -8 + 2.6 - 1.0, 0, 'Talk');
-    staff('records', 7 - 1.9, 10 - 4.5, -Math.PI / 2, 'FoldArms');
+    staff('records', 7 - 0.5, 10 - 4.5, -Math.PI / 2, 'FoldArms'); // behind the counter, not in it
     staff('climb', 20 - 4, 23 - 4 - 1.0, Math.PI, 'Idle');
 
     // pigeons by the bus shelter plaza and park gates
@@ -166,6 +172,7 @@ export class Life {
         if (step.lengthSq() > 1e-6) n.heading = dampAngle(n.heading, Math.atan2(step.x, step.z), 8, dt);
         n.ch.root.position.copy(n.pos);
         n.ch.root.rotation.y = n.heading;
+        n.body?.setNextKinematicTranslation({ x: n.pos.x, y: n.pos.y + 0.85, z: n.pos.z });
         n.ch.locomote(clamp(v, 0, 3), false, dt);
         // wave hello now and then when passing close
         n.wave -= dt;

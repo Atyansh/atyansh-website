@@ -3,7 +3,7 @@
 
 import './ui.css';
 import type { Game } from '../game/Game';
-import { InteractionSystem, type Interactable } from '../game/Interaction';
+import type { Resolved } from '../game/Interaction';
 import type { TimeOfDay } from '../world/Sky';
 
 const TIPS = [
@@ -76,6 +76,16 @@ export class UI {
     this.fps.style.display = 'none';
 
     this.root.append(this.title, this.pauseModal, this.settingsModal, this.controlsModal);
+    // Esc closes the topmost panel first (capture phase: the game never sees it)
+    window.addEventListener('keydown', (e) => {
+      if (e.code !== 'Escape') return;
+      if (this.controlsModal.classList.contains('on')) this.showControls(false);
+      else if (this.settingsModal.classList.contains('on')) this.showSettings(false);
+      else if (this.pauseModal.classList.contains('on') && this.game?.state === 'paused') this.game.resume();
+      else return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }, true);
   }
 
   // ---------------- loading / title ----------------
@@ -123,16 +133,17 @@ export class UI {
     for (const h of this.hud) h.classList.toggle('wui-hidden', !v);
   }
 
-  setPrompt(it: Interactable | null): void {
-    const key = it ? `${it.id}|${InteractionSystem.text(it.verb)}|${InteractionSystem.text(it.label)}` : '';
+  setPrompt(r: Resolved | null): void {
+    const key = r ? `${r.it.id}|${r.verb}|${r.label}` : '';
     if (key === this.lastPromptKey) return;
     this.lastPromptKey = key;
-    if (!it) {
+    if (!r) {
       this.prompt.classList.remove('on');
       return;
     }
     const pad = this.game?.input.lastDevice === 'pad';
-    this.prompt.innerHTML = `<span class="wui-key">${pad ? 'X' : 'E'}</span><b>${InteractionSystem.text(it.verb)}</b><span class="lbl">${InteractionSystem.text(it.label)}</span>`;
+    const esc = (t: string) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
+    this.prompt.innerHTML = `<span class="wui-key">${pad ? 'X' : 'E'}</span><b>${esc(r.verb)}</b><span class="lbl">${esc(r.label)}</span>`;
     this.prompt.classList.add('on');
   }
 

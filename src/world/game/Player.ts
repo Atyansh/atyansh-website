@@ -21,7 +21,7 @@ const HALF_HEIGHT = 0.55;
 const RADIUS = 0.3;
 const CENTER = HALF_HEIGHT + RADIUS; // capsule centre above the feet
 
-export const SPEED = { walk: 1.9, jog: 4.6, sprint: 7.4, crouch: 1.5 };
+export const SPEED = { walk: 1.5, jog: 4.2, sprint: 7.0, crouch: 1.1 };
 const GRAVITY = 24;
 const JUMP_V = 7.6;
 const COYOTE = 0.12;
@@ -196,7 +196,14 @@ export class Player {
     if (this.grounded && this.velocity.y < 0) this.velocity.y = -2;
     const wasGrounded = this.grounded;
     const fallSpeed = -this.velocity.y;
+    const wantH = Math.hypot(horiz.x, horiz.z) * dt;
     this.moveBy(new THREE.Vector3(horiz.x * dt, this.velocity.y * dt, horiz.z * dt), dt);
+    // Step-up assist: curbs and low steps at walking speed (the KCC's own
+    // autostep misses a capsule's rounded foot against a sharp 15cm edge)
+    if (wasGrounded && wantH > 0.004) {
+      const got = this.kcc.computedMovement();
+      if (Math.hypot(got.x, got.z) < wantH * 0.5) this.stepUp(new THREE.Vector3(horiz.x, 0, horiz.z).normalize());
+    }
     this.velocity.y = this.grounded && this.velocity.y < 0 ? -2 : this.velocity.y;
     // Bumped head
     if (!this.grounded && this.velocity.y > 0 && this.kcc.computedMovement().y < this.velocity.y * dt * 0.5) this.velocity.y = 0;
@@ -238,6 +245,21 @@ export class Player {
     this.shake = Math.max(this.shake, impact * 0.6);
     if (impact > 0.15) this.character.play('JumpLand', { from: 0.12, to: 0.55, timeScale: 1.4, fade: 0.06 });
     else this.character.stopOverride(0.12);
+  }
+
+  private stepUp(dir: THREE.Vector3): void {
+    const probe = this.position.clone().addScaledVector(dir, RADIUS + 0.14);
+    probe.y += 0.5;
+    const hit = this.physics.raycast(probe, new THREE.Vector3(0, -1, 0), 0.6, { exclude: this.collider, ignore: ['pet', 'ball', 'player', 'npc'] });
+    if (!hit || hit.normal.y < 0.75) return;
+    const h = hit.point.y - this.position.y;
+    if (h < 0.02 || h > 0.42) return;
+    // room for the capsule on top?
+    const head = this.physics.raycast(hit.point.clone().add(new THREE.Vector3(0, 0.05, 0)), new THREE.Vector3(0, 1, 0), 1.7, { exclude: this.collider, ignore: ['pet', 'ball', 'player'] });
+    if (head) return;
+    this.moveBy(new THREE.Vector3(0, h + 0.03, 0), 0);
+    this.moveBy(dir.clone().multiplyScalar(0.1), 0);
+    this.grounded = true;
   }
 
   probeSurface(): Surface {

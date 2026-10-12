@@ -67,6 +67,8 @@ export class Game {
   browser!: Browser;
   /** Neutral studio-room IBL used inside buildings */
   private interiorEnv: THREE.Texture | null = null;
+  /** Where the player stood when the current activity began (a known-clear spot) */
+  private activityFrom = new THREE.Vector3();
   /** Escape + pointer-lock owner (see engine/Focus.ts) */
   focus!: Focus;
   autoStats: Record<string, AutoStats> = {};
@@ -320,6 +322,7 @@ export class Game {
   beginActivity(a: Activity): void {
     if (this.activity) this.endActivity();
     this.activity = a;
+    this.activityFrom.copy(this.player.position);
     this.player.lock(null);
     this.activityOwnsCamera = !a.freeCamera;
     if (a.shot) this.rig.setShot(a.shot);
@@ -333,6 +336,8 @@ export class Game {
     a.end?.();
     this.rig.releaseShot();
     this.player.unlock();
+    // whatever the activity did with the body, never leave it inside geometry
+    this.player.ensureFree([this.activityFrom]);
     this.activityOwnsCamera = false;
     this.ui.setActivityHint(null);
     this.focus.sync();

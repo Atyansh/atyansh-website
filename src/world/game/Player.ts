@@ -21,13 +21,14 @@ const HALF_HEIGHT = 0.55;
 const RADIUS = 0.3;
 const CENTER = HALF_HEIGHT + RADIUS; // capsule centre above the feet
 
-export const SPEED = { walk: 1.5, jog: 4.6, sprint: 7.0, crouch: 1.1 };
+// `jog` is the default run: it plays the sprint cycle (the jog read as a fast walk)
+export const SPEED = { walk: 1.5, jog: 6.4, sprint: 7.8, crouch: 1.1 };
 const GRAVITY = 24;
 const JUMP_V = 7.6;
 const COYOTE = 0.12;
 const JUMP_BUFFER = 0.14;
 
-export type PlayerState = 'move' | 'air' | 'mantle' | 'locked';
+export type PlayerState = 'move' | 'air' | 'mantle' | 'locked' | 'exit';
 
 export class Player {
   character: Character;
@@ -60,6 +61,13 @@ export class Player {
   shake = 0;
   /** When set, gameplay updates are delegated (activities) */
   lockedUpdate: ((dt: number) => void) | null = null;
+  /** >0: seconds left walking through NPCs after getting tangled with one */
+  private npcGhost = 0;
+  /** seconds spent pushing into something without getting anywhere */
+  private stuckT = 0;
+  /** scripted walk out of a tight spot (seat rows, after activities) */
+  private exitPath: THREE.Vector3[] = [];
+  private exitDone: (() => void) | null = null;
   /** Lets a level take over the jump button (e.g. grab a climbing wall) */
   jumpInterceptor: (() => boolean) | null = null;
 
@@ -81,6 +89,8 @@ export class Player {
 
   private filter = (c: RAPIER.Collider) => {
     const k = this.physics.tagOf(c).kind;
+    // tangled with someone: slip past people for a moment instead of locking up
+    if (k === 'npc' && this.npcGhost > 0) return false;
     return k !== 'pet' && k !== 'player' && k !== 'ball';
   };
 
@@ -147,6 +157,12 @@ export class Player {
       this.syncVisual(dt);
       return;
     }
+    if (this.state === 'exit') {
+      this.updateExit(dt);
+      this.syncVisual(dt);
+      return;
+    }
+    this.npcGhost = Math.max(0, this.npcGhost - dt);
 
     // Crouch toggle
     if (controlsEnabled && input.pressed('crouch')) this.crouching = !this.crouching;
@@ -168,6 +184,9 @@ export class Player {
     const accel = this.grounded ? (targetSpeed > horiz.length() ? 16 : 20) : 3.5;
     horiz.x = damp(horiz.x, targetVel.x, accel, dt);
     horiz.z = damp(horiz.z, targetVel.z, accel, dt);
+    // settle fully when there's no input (otherwise a creeping residual speed
+    // keeps the renderer out of its idle 30 fps mode forever)
+    if (wish <= 0.01 && this.grounded && Math.hypot(horiz.x, horiz.z) < 0.12) { horiz.x = 0; horiz.z = 0; }
 
     // Jump with coyote time + buffering
     if (controlsEnabled && input.pressed('jump')) this.jumpBuffer = JUMP_BUFFER;
@@ -211,6 +230,7 @@ export class Player {
     if (!this.grounded && this.velocity.y > 0 && this.kcc.computedMovement().y < this.velocity.y * dt * 0.5) this.velocity.y = 0;
 
     this.speed = Math.hypot(this.velocity.x, this.velocity.z);
+    this.checkStuck(wantH, dt);
 
     if (!this.grounded) {
       this.airTime += dt;
@@ -238,6 +258,91 @@ export class Player {
 
     this.character.locomote(this.grounded ? this.speed : 0, this.crouching, dt);
     this.syncVisual(dt);
+  }
+
+  // ---------------- getting un-stuck ----------------
+
+  private free(p: THREE.Vector3): boolean {
+    return this.physics.capsuleFree(p, HALF_HEIGHT, RADIUS, this.collider);
+  }
+
+  /** Nearest spot the capsule fits: preferred points first, then rings around `around` */
+  freeSpot(prefer: THREE.Vector3[] = [], around = this.position): THREE.Vector3 | null {
+    for (const p of prefer) if (this.free(p)) return p.clone();
+    for (let r = 0.3; r <= 2.6; r += 0.25) {
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2;
+        for (const dy of [0, 0.2, -0.2, 0.45]) {
+          const p = around.clone().add(new THREE.Vector3(Math.sin(a) * r, dy, Math.cos(a) * r));
+          // must stand on something
+          const ground = this.physics.raycast(p.clone().add(new THREE.Vector3(0, 0.5, 0)), new THREE.Vector3(0, -1, 0), 1.2, { exclude: this.collider, ignore: ['pet', 'ball', 'player', 'npc'] });
+          if (!ground || ground.normal.y < 0.7) continue;
+          p.y = ground.point.y + 0.02;
+          if (this.free(p)) return p;
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Walk (animated, ignoring collision) along a short path, then hand control back */
+  walkOut(path: THREE.Vector3[], onDone?: () => void): void {
+    this.exitPath = path.map((p) => p.clone());
+    this.exitDone = onDone ?? null;
+    this.state = 'exit';
+    this.velocity.set(0, 0, 0);
+  }
+
+  /** If the capsule is inside something, walk to the nearest free spot */
+  ensureFree(prefer: THREE.Vector3[] = []): void {
+    if (this.free(this.position)) return;
+    const spot = this.freeSpot(prefer);
+    if (spot) this.walkOut([spot]);
+  }
+
+  private updateExit(dt: number): void {
+    const target = this.exitPath[0];
+    if (!target) { this.finishExit(); return; }
+    const to = target.clone().sub(this.position);
+    const flat = Math.hypot(to.x, to.z);
+    const step = 1.5 * dt;
+    if (flat <= step) {
+      this.setPosition(target);
+      this.exitPath.shift();
+      if (!this.exitPath.length) { this.finishExit(); return; }
+    } else {
+      const p = this.position.clone().addScaledVector(to, step / Math.max(flat, 1e-4));
+      p.y = THREE.MathUtils.lerp(this.position.y, target.y, Math.min(1, step / Math.max(flat, 1e-4)));
+      this.setPosition(p);
+      this.facing = dampAngle(this.facing, Math.atan2(to.x, to.z), 10, dt);
+    }
+    this.speed = 1.5;
+    this.character.locomote(1.5, false, dt);
+  }
+
+  private finishExit(): void {
+    this.state = 'move';
+    this.speed = 0;
+    this.body.setTranslation({ x: this.position.x, y: this.position.y + CENTER, z: this.position.z }, true);
+    const done = this.exitDone;
+    this.exitDone = null;
+    done?.();
+  }
+
+  /** Pushing into something without moving: slip past people, or walk out of geometry */
+  private checkStuck(wantH: number, dt: number): void {
+    const got = this.kcc.computedMovement();
+    const moved = Math.hypot(got.x, got.z);
+    if (wantH > 0.01 && moved < wantH * 0.25) this.stuckT += dt;
+    else this.stuckT = Math.max(0, this.stuckT - dt * 2);
+    if (this.stuckT < 0.35) return;
+    this.stuckT = 0;
+    let npcNear = false;
+    this.physics.world.intersectionsWithShape(
+      { x: this.position.x, y: this.position.y + CENTER, z: this.position.z }, { x: 0, y: 0, z: 0, w: 1 }, new this.physics.R.Ball(0.75),
+      (c) => { if (this.physics.tagOf(c).kind === 'npc') { npcNear = true; return false; } return true; });
+    if (npcNear) { this.npcGhost = 1.2; return; }
+    this.ensureFree();
   }
 
   private land(fallSpeed: number): void {

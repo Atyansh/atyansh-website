@@ -121,12 +121,15 @@ export function sit(game: Game, seat: Seat): void {
         ch.play('StandUp', {
           fade: 0.15,
           onDone: () => {
-            // step forward off the seat
+            // Walk back out to where you stood before sitting (known to be
+            // clear), else the nearest clear spot: never pop into a seat row
             const out = root.clone().addScaledVector(fwd, 0.55);
             out.y = Math.max(seat.hip.y - 0.5, start.y);
-            game.player.setPosition(out);
             game.endActivity();
-            seat.onStand?.();
+            const p = game.player;
+            const spot = p.freeSpot([start, out], seat.hip.clone().setY(start.y));
+            if (spot) p.walkOut([spot], () => seat.onStand?.());
+            else seat.onStand?.();
           },
         });
   }

@@ -441,7 +441,7 @@ export class Pets {
       // spook her; a big scare sends her into hiding.
       const close = dp < 3.0;
       const gentle = (player.crouching || player.speed < 2.2) && close;
-      const sprinting = player.speed > 5.2 && dp < 8;
+      const sprinting = player.speed > 7 && dp < 8;
       const rushing = player.speed > 2.5 && dp < 4.5;
       const stomping = !player.grounded && dp < 3.5;
       const before = p.trust;

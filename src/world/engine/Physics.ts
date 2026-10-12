@@ -182,6 +182,15 @@ export class Physics {
     return hit ? hit.time_of_impact : null;
   }
 
+  /** Is a standing capsule (feet at `feet`) free of solid colliders? */
+  capsuleFree(feet: THREE.Vector3, halfHeight: number, radius: number, exclude?: RAPIER.Collider): boolean {
+    const shape = new RAPIER.Capsule(halfHeight, radius * 0.95);
+    const hit = this.world.intersectionWithShape(
+      { x: feet.x, y: feet.y + halfHeight + radius + 0.02, z: feet.z }, { x: 0, y: 0, z: 0, w: 1 }, shape,
+      undefined, undefined, exclude, undefined, (c) => { const k = this.tagOf(c).kind; return k === 'static' || k === 'prop' || k === 'npc'; });
+    return !hit;
+  }
+
   step(): void {
     this.world.step();
   }

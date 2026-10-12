@@ -502,8 +502,18 @@ export function buildGym(game: Game, index: number): Level {
         onUpdate: () => { if (game.input.pressed('next')) show(cur + 1); if (game.input.pressed('prev')) show(cur - 1); },
       }),
     });
-    room.onEnter(() => show(cur));
-    room.onExit(() => el.pause());
+    // Decode the video only while someone could be watching it: near the
+    // screen (or seated in front of it); otherwise it rests on its poster
+    const screenAt = room.v(sx + 3, 1.5, sz);
+    let inRoom = false;
+    room.onEnter(() => { inRoom = true; show(cur); });
+    room.onExit(() => { inRoom = false; el.pause(); });
+    room.updates.push(() => {
+      if (!inRoom) return;
+      const near = game.player.position.distanceTo(screenAt) < 15;
+      if (near && el.paused && el.src) el.play().catch(() => {});
+      else if (!near && !el.paused) el.pause();
+    });
   }
 
   // ---- send pyramid + stats ----
@@ -587,7 +597,22 @@ export function buildGym(game: Game, index: number): Level {
   room.aabb(-W / 2, 0, 14.6, -W / 2 + 0.7, 2.0, 19.9, 'metal');
 
   // ---- lights ----
-  for (let x = -12; x <= 12; x += 12) for (const z of [-12, 0, 12]) room.rect(x, H - 0.05, z, 5, 1.2, 0xf4f7ff, 7.5);
+  // Nine fixture panels, but only three area lights (one per row, spanning
+  // it): every RectAreaLight is evaluated per pixel across this huge hall,
+  // so nine of them made the gym the most expensive room to render
+  const panel = room.glow(0xf4f7ff, 2.2);
+  for (let x = -12; x <= 12; x += 12) for (const z of [-12, 0, 12]) {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.2), panel);
+    p.position.set(x, H - 0.04, z);
+    p.rotation.x = Math.PI / 2;
+    room.group.add(p);
+  }
+  for (const z of [-12, 0, 12]) {
+    const l = new THREE.RectAreaLight(0xf4f7ff, 7.5, 29, 1.2);
+    l.position.set(0, H - 0.05, z);
+    room.group.add(l);
+    l.lookAt(room.v(0, 0, z));
+  }
 
   // ---- climbing ----
   // standing height under any point: crash pads are 0.36 m, the floor is 0

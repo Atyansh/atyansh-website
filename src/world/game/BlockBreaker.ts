@@ -218,15 +218,15 @@ export class BlockBreaker {
     g.font = '700 26px "Courier New", monospace';
     g.fillStyle = '#5ef0ff';
     g.textAlign = 'left';
-    g.fillText(`SCORE ${String(this.score).padStart(5, '0')}`, 18, 40);
+    g.fillText(`SCORE ${String(this.score).padStart(5, '0')}`, 18, 48);
     g.textAlign = 'right';
     g.fillStyle = '#ff5ad1';
-    g.fillText(`HI ${String(Math.max(this.best, this.score)).padStart(5, '0')}`, CW - 18, 40);
+    g.fillText(`HI ${String(Math.max(this.best, this.score)).padStart(5, '0')}`, CW - 18, 48);
     g.textAlign = 'center';
     g.fillStyle = '#ffd23f';
-    g.fillText('♥'.repeat(Math.max(0, this.lives)), CW / 2, 40);
+    g.fillText('♥'.repeat(Math.max(0, this.lives)), CW / 2, 48);
     g.fillStyle = 'rgba(94,240,255,0.5)';
-    g.fillRect(0, 60, CW, 2);
+    g.fillRect(0, 62, CW, 2);
     // bricks
     for (const k of this.bricks) {
       if (k.hp <= 0) continue;

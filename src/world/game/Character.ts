@@ -1,4 +1,5 @@
-// Skinned humanoid (Quaternius UAL mannequin) + animation controller.
+// Skinned humanoid (Rocketbox avatar, or the UAL mannequin fallback) +
+// animation controller.
 // Shared by the player and NPCs.
 //
 // Two layers:
@@ -21,19 +22,6 @@ const LOCO = ['Idle', 'Walk', 'Jog', 'Sprint'] as const;
 const CROUCH = ['CrouchIdle', 'CrouchWalk'] as const;
 type LocoName = (typeof LOCO)[number] | (typeof CROUCH)[number];
 
-/** How a person (UBC body) is dressed */
-export interface Look {
-  skin: 'light' | 'dark';
-  top: 'shirt_short' | 'shirt_long' | 'jacket';
-  bottom: 'pants' | 'shorts';
-  topColor: string;
-  bottomColor: string;
-  shoeColor: string;
-  hair: string | null;
-  hairColor: string;
-  beard?: boolean;
-}
-
 export interface OverrideOptions {
   fade?: number;
   loop?: boolean;
@@ -45,52 +33,6 @@ export interface OverrideOptions {
   onDone?: () => void;
   /** keep holding the last frame instead of fading back to locomotion */
   hold?: boolean;
-}
-
-let _fabric: THREE.CanvasTexture | null = null;
-let _fabricN: THREE.CanvasTexture | null = null;
-/** Subtle woven-fabric albedo variation (tinted by material colour) */
-function fabricTexture(): THREE.CanvasTexture {
-  if (_fabric) return _fabric;
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#e6e6e6';
-  g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 9000; i++) {
-    const v = 200 + Math.floor(Math.random() * 55);
-    g.fillStyle = `rgb(${v},${v},${v})`;
-    g.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5);
-  }
-  _fabric = new THREE.CanvasTexture(c);
-  _fabric.colorSpace = THREE.SRGBColorSpace;
-  _fabric.wrapS = _fabric.wrapT = THREE.RepeatWrapping;
-  _fabric.repeat.set(6, 6);
-  return _fabric;
-}
-/** Twill weave normal map */
-function fabricNormal(): THREE.CanvasTexture {
-  if (_fabricN) return _fabricN;
-  const S = 128;
-  const c = document.createElement('canvas');
-  c.width = c.height = S;
-  const g = c.getContext('2d')!;
-  const img = g.createImageData(S, S);
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const ph = ((x + y) % 8) / 8; // diagonal twill
-    const nx = Math.sin(ph * Math.PI * 2) * 0.35;
-    const ny = Math.cos(((x * 3) % 16) / 16 * Math.PI * 2) * 0.12;
-    const i = (y * S + x) * 4;
-    img.data[i] = Math.round((nx * 0.5 + 0.5) * 255);
-    img.data[i + 1] = Math.round((ny * 0.5 + 0.5) * 255);
-    img.data[i + 2] = 255;
-    img.data[i + 3] = 255;
-  }
-  g.putImageData(img, 0, 0);
-  _fabricN = new THREE.CanvasTexture(c);
-  _fabricN.wrapS = _fabricN.wrapT = THREE.RepeatWrapping;
-  _fabricN.repeat.set(24, 24);
-  return _fabricN;
 }
 
 /** Cache of measured clip ground speeds (shared across instances) */
@@ -122,7 +64,9 @@ export class Character {
     this.root.add(this.model);
     this.model.traverse((o) => {
       const m = o as THREE.SkinnedMesh;
-      if ((o as THREE.Bone).isBone) this.bones.set(o.name, o as THREE.Bone);
+      // skeleton nodes that carry no skin weights (Rocketbox's Bip01 root →
+      // 'pelvis') load as plain Object3Ds; they still drive the pose
+      if ((o as THREE.Bone).isBone || (o.name && !m.isMesh && !this.bones.has(o.name) && o !== this.model)) this.bones.set(o.name, o as THREE.Bone);
       if (m.isMesh) {
         m.castShadow = true;
         m.receiveShadow = true;
@@ -164,7 +108,6 @@ export class Character {
       });
       this.clips.set(c.name, c);
     }
-    this.collectParts();
     for (const name of [...LOCO, ...CROUCH]) {
       const a = this.action(name);
       if (!a) continue;
@@ -350,96 +293,6 @@ export class Character {
       }
     }
     this.mixer.update(dt);
-  }
-
-  // ---------------- people (UBC bodies) ----------------
-
-  private garments = new Map<string, THREE.Mesh[]>();
-  private bodyMesh: THREE.Mesh | null = null;
-  private skinTex: Record<'light' | 'dark', THREE.Texture | null> = { light: null, dark: null };
-  private hairMesh: THREE.Object3D | null = null;
-  get isPerson(): boolean { return this.bodyMesh !== null; }
-
-  private collectParts(): void {
-    this.model.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (!m.isMesh) return;
-      if (o.name.startsWith('garment_')) {
-        // multi-primitive meshes load as name_1, name_2…
-        const key = o.name.slice(8).replace(/_\d+$/, '');
-        const list = this.garments.get(key) ?? [];
-        list.push(m);
-        this.garments.set(key, list);
-        for (const mat of (Array.isArray(m.material) ? m.material : [m.material]) as THREE.MeshStandardMaterial[]) {
-          if (mat.name === 'Garment_sole') continue;
-          mat.map = fabricTexture();
-          mat.normalMap = fabricNormal();
-          mat.normalScale.setScalar(0.6);
-          mat.roughness = mat.name === 'Garment_shoes' ? 0.55 : 0.9;
-        }
-      } else if (o.name === 'body') {
-        this.bodyMesh = m;
-        this.skinTex.dark = (m.material as THREE.MeshStandardMaterial).map;
-      } else if (o.name === 'skin_light_holder') {
-        this.skinTex.light = (m.material as THREE.MeshStandardMaterial).map;
-        m.visible = false;
-      }
-    });
-  }
-
-  /** Dress a person: skin tone, garments + colours, hairstyle */
-  dress(look: Look, hairLib?: THREE.Object3D, female = false): void {
-    if (!this.bodyMesh) return;
-    const bm = this.bodyMesh.material as THREE.MeshStandardMaterial;
-    const tex = this.skinTex[look.skin] ?? this.skinTex.dark;
-    if (tex && bm.map !== tex) { bm.map = tex; bm.needsUpdate = true; }
-    for (const [name, meshes] of this.garments) for (const mesh of meshes) {
-      const on = name === look.top || name === look.bottom || name === 'shoes';
-      mesh.visible = on;
-      for (const mat of (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as THREE.MeshStandardMaterial[]) {
-        if (mat.name === 'Garment_sole') continue;
-        if (name === 'shoes') mat.color.set(look.shoeColor);
-        else if (name === look.top) mat.color.set(look.topColor);
-        else if (name === look.bottom) mat.color.set(look.bottomColor);
-        if (name === 'pants' || name === 'shorts') mat.normalScale.setScalar(0.9);
-      }
-    }
-    this.model.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh && /brow/i.test(o.name)) (m.material as THREE.MeshStandardMaterial).color.set(look.hairColor);
-    });
-    // hair: model-space mesh re-parented to the head bone at its bind pose
-    if (this.hairMesh) { this.hairMesh.removeFromParent(); this.hairMesh = null; }
-    const head = this.bones.get('Head');
-    const skinned = this.bodyMesh as THREE.SkinnedMesh;
-    if (look.hair && hairLib && head && skinned.isSkinnedMesh) {
-      const src = hairLib.getObjectByName(look.hair);
-      if (src) {
-        const group = new THREE.Group();
-        for (const part of [src, look.beard ? hairLib.getObjectByName('Hair_Beard') : null]) {
-          if (!part) continue;
-          const h = part.clone(true);
-          h.traverse((o) => {
-            const mm = o as THREE.Mesh;
-            if (!mm.isMesh) return;
-            mm.material = (mm.material as THREE.MeshStandardMaterial).clone();
-            (mm.material as THREE.MeshStandardMaterial).color.set(look.hairColor);
-            mm.castShadow = true;
-          });
-          group.add(h);
-        }
-        // hair is authored around the male head; shift for the female head
-        if (female) group.position.set(0, -0.05, 0.006);
-        // map model space → head bone space using the rest pose (dress runs
-        // before the first mixer update, so the skeleton is still at rest)
-        this.model.updateMatrixWorld(true);
-        const holder = new THREE.Group();
-        holder.add(group);
-        holder.applyMatrix4(head.matrixWorld.clone().invert().multiply(this.model.matrixWorld));
-        head.add(holder);
-        this.hairMesh = holder;
-      }
-    }
   }
 
   /** Recolour the mannequin (outfits / NPC variety) */

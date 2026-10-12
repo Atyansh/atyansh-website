@@ -180,6 +180,7 @@ export class Vegetation {
   private leafMats: THREE.MeshStandardMaterial[];
 
   constructor(assets: Assets, private physics: Physics) {
+    this.group.userData.noCollide = true; // trees/bushes author their own colliders
     this.barkMat = assets.pbr('bark_brown_01', { scale: 1.2 });
     this.leafMats = [
       leafMaterial(leafTexture(11, 0.27), 0xffffff),

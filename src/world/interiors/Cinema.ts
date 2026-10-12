@@ -149,8 +149,8 @@ export function buildCinema(game: Game, index: number): Level {
   const pw = 0.8;
   const ph = 1.2;
   const runs = [
-    { x0: -W / 2 + 0.6, z0: D / 2 - 0.6, x1: -W / 2 + 0.6, z1: PART_Z + 0.6, facing: Math.PI / 2, y0: 0.75, rows: 4, w: pw, h: ph, gap: 0.2, rowGap: 0.28 },
-    { x0: W / 2 - 0.6, z0: PART_Z + 0.6, x1: W / 2 - 0.6, z1: D / 2 - 0.6, facing: -Math.PI / 2, y0: 0.75, rows: 4, w: pw, h: ph, gap: 0.2, rowGap: 0.28 },
+    { x0: -W / 2 + 0.02, z0: D / 2 - 0.6, x1: -W / 2 + 0.02, z1: PART_Z + 0.6, facing: Math.PI / 2, y0: 0.75, rows: 4, w: pw, h: ph, gap: 0.2, rowGap: 0.28 },
+    { x0: W / 2 - 0.02, z0: PART_Z + 0.6, x1: W / 2 - 0.02, z1: D / 2 - 0.6, facing: -Math.PI / 2, y0: 0.75, rows: 4, w: pw, h: ph, gap: 0.2, rowGap: 0.28 },
     { x0: -W / 2 + 0.6, z0: D / 2 - 0.02, x1: -1.6, z1: D / 2 - 0.02, facing: Math.PI, y0: 0.75, rows: 4, w: pw, h: ph, gap: 0.2, rowGap: 0.28 },
     { x0: 1.6, z0: D / 2 - 0.02, x1: W / 2 - 0.6, z1: D / 2 - 0.02, facing: Math.PI, y0: 0.75, rows: 4, w: pw, h: ph, gap: 0.2, rowGap: 0.28 },
     { x0: -(W / 2 - aisle) + 0.4, z0: PART_Z + 0.17, x1: (W / 2 - aisle) - 0.4, z1: PART_Z + 0.17, facing: 0, y0: 0.75, rows: 4, w: pw, h: ph, gap: 0.2, rowGap: 0.28 },

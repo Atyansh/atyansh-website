@@ -37,7 +37,7 @@ export function recordSpots(): THREE.Vector3[] {
     new THREE.Vector3(56.5, CURB_H + 0.5, -47.0),                                // far NE corner
     roof('deli'),                                                                // roof — via the fire escape
     new THREE.Vector3(2.2, CURB_H + 1.0 + 0.9, 33.0),                            // on the bus shelter roof
-    new THREE.Vector3(-20, CURB_H + 1.4, 34.0),                                  // ticket booth top
+    new THREE.Vector3(-26, CURB_H + 0.5, 33.6),                                  // under the cinema marquee
   ];
 }
 
@@ -146,7 +146,8 @@ export class GoldenRecords {
     for (const it of this.items) {
       it.mesh.rotation.y += dt * 1.8;
       it.mesh.position.y = it.base.y + Math.sin(t * 2 + it.base.x) * 0.08;
-      if (pp.distanceTo(it.base) < 1.2 && it.mesh.visible) {
+      const horiz = Math.hypot(pp.x - it.base.x, pp.z - it.base.z);
+      if (horiz < 1.0 && it.base.y > pp.y - 0.4 && it.base.y < pp.y + 2.1 && it.mesh.visible) {
         it.mesh.visible = false;
         this.game.save.data.collectibles.push(it.id);
         this.game.save.write();

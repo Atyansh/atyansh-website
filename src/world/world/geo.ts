@@ -3,6 +3,7 @@
 // one merged mesh per material per level, keeping draw calls low.
 
 import * as THREE from 'three';
+import { geometryParts } from '../engine/AutoCollide';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const _m = new THREE.Matrix4();
@@ -58,8 +59,17 @@ function normalise(g: THREE.BufferGeometry): THREE.BufferGeometry {
 export class Batches {
   private parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
   private flags = new Map<THREE.Material, { cast: boolean; receive: boolean }>();
+  private solids = new Map<THREE.Material, Array<{ part: ReturnType<typeof geometryParts>[number]; m: THREE.Matrix4 }>>();
+  /** false = nothing in this batch gets automatic collision (see AutoCollide) */
+  solid = true;
 
   add(mat: THREE.Material, geo: THREE.BufferGeometry, matrix?: THREE.Matrix4, cast = true, receive = true): void {
+    if (this.solid && !mat.userData.noCollide) {
+      let list = this.solids.get(mat);
+      if (!list) this.solids.set(mat, (list = []));
+      const m = matrix ? matrix.clone() : new THREE.Matrix4();
+      for (const part of geometryParts(geo, false)) list.push({ part, m });
+    }
     const g = normalise(geo);
     if (matrix) g.applyMatrix4(matrix);
     let list = this.parts.get(mat);
@@ -86,10 +96,12 @@ export class Batches {
       const f = this.flags.get(mat)!;
       mesh.castShadow = f.cast;
       mesh.receiveShadow = f.receive;
+      mesh.userData.solids = this.solids.get(mat) ?? [];
       parent.add(mesh);
       out.push(mesh);
     }
     this.parts.clear();
+    this.solids.clear();
     return out;
   }
 }

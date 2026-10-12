@@ -152,6 +152,8 @@ export class PetRig {
   pose: Pose = 'stand';
   private poseW: Record<Pose, number> = { stand: 1, sit: 0, loaf: 0, sleep: 0, belly: 0, stretch: 0 };
   lookTarget: THREE.Vector3 | null = null;
+  private gazeYaw = 0;
+  private gazePitch = 0;
   private tailVel: number[] = [];
   private tailAng: number[] = [];
   private earT = 0;
@@ -479,9 +481,16 @@ export class PetRig {
       this.root.updateMatrixWorld(true);
       const hp = B.head.getWorldPosition(new THREE.Vector3());
       const to = this.lookTarget.clone().sub(hp).applyQuaternion(this.root.getWorldQuaternion(new THREE.Quaternion()).invert());
-      yaw = clamp(Math.atan2(to.x, to.z), -1.0, 1.0);
-      pitch = clamp(-Math.atan2(to.y, Math.hypot(to.x, to.z)), -0.6, 0.5);
+      // targets behind the head would flip ±π: look over the nearer shoulder instead
+      yaw = to.z < 0 ? Math.sign(to.x || 1) * 1.0 : clamp(Math.atan2(to.x, to.z), -1.0, 1.0);
+      pitch = clamp(-Math.atan2(to.y, Math.hypot(to.x, Math.max(0.05, to.z))), -0.6, 0.5);
     }
+    // ease the gaze so the head never snaps
+    const ease = 1 - Math.exp(-dt * 7);
+    this.gazeYaw += (yaw - this.gazeYaw) * ease;
+    this.gazePitch += (pitch - this.gazePitch) * ease;
+    yaw = this.gazeYaw;
+    pitch = this.gazePitch;
     // sitting tilts the body up; the neck and head level the gaze back out
     const sitLevel = -sitPitch;
     B.neck.quaternion.copy(E(w.sit * (0.1 + sitLevel * 0.7) + lieW * 0.25 + w.sleep * 0.5 - w.stretch * 0.3, w.sleep * 0.9 + yaw * 0.35, 0));

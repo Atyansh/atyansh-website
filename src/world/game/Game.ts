@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { Renderer } from '../engine/Renderer';
 import { Physics } from '../engine/Physics';
+import { autoCollide, type AutoStats } from '../engine/AutoCollide';
 import { Assets } from '../engine/Assets';
 import { Input } from '../engine/Input';
 import { Save } from '../engine/Save';
@@ -17,7 +18,7 @@ import type { Level } from './Level';
 import type { WorldData } from '../data';
 import type { UI } from '../ui/UI';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { outfitById, PLAYER_LOOK } from './outfits';
+import { outfitById } from './outfits';
 import type { Activity } from './Activity';
 import { Browser } from '../ui/Browser';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -42,8 +43,10 @@ export class Game {
   ui!: UI;
   data: WorldData = {};
   characterGltf!: GLTF;
-  /** Dressed people: UBC bodies + hair library; clips come from characterGltf */
-  people: { m?: GLTF; f?: GLTF; hair?: THREE.Object3D } = {};
+  /** Clip sets retargeted onto the Rocketbox male / female skeletons */
+  people: { m?: GLTF; f?: GLTF } = {};
+  /** Loaded Rocketbox avatars by id (characters/rb/<id>.glb) */
+  readonly avatars = new Map<string, GLTF>();
   levels = new Map<string, Level>();
   level!: Level;
   state: GameState = 'loading';
@@ -67,6 +70,8 @@ export class Game {
   uiOwnsPointer = false;
   /** Pointer lock was lost during an activity; a click restores it */
   needRelock = false;
+  private lastActivityEnd = -1e9;
+  autoStats: Record<string, AutoStats> = {};
   /** Called right after each composer render (photo capture needs the fresh buffer) */
   afterRender: Array<() => void> = [];
   /** When set, owns the camera instead of the player rig (title flyover, harness bookmarks) */
@@ -91,9 +96,14 @@ export class Game {
         return;
       }
       if (this.state !== 'playing' || this.uiOwnsPointer) return;
-      // Esc inside an activity (seat, cabinet, climbing…) means "leave that",
-      // not "pause": the activity handles the key; we just need the pointer back
-      if (this.activity) { this.needRelock = true; return; }
+      // Esc inside an activity (seat, cabinet, browser…) means "leave that",
+      // not "pause". The key may end the activity a frame before the browser
+      // reports the lost lock, so recent endings count too.
+      if (this.activity || performance.now() - this.lastActivityEnd < 600) {
+        this.needRelock = true;
+        this.ui.setActivityHint('Click  to resume control');
+        return;
+      }
       this.pause();
     };
     this.browser = new Browser(this);
@@ -115,31 +125,39 @@ export class Game {
     this.save.write();
   }
 
-  /** A dressed person (falls back to the mannequin if bodies failed to load) */
-  makePerson(female: boolean, look: import('./Character').Look): Character {
-    const body = female ? this.people.f : this.people.m;
-    if (!body) {
-      const c = new Character(this.characterGltf);
-      c.tint(look.topColor, look.bottomColor);
-      return c;
-    }
-    // clips retargeted onto the UBC skeleton live in person_m.glb (shared by both bodies)
-    const clips = this.people.m?.animations.length ? this.people.m.animations : this.characterGltf.animations;
-    const c = new Character(body, clips);
-    c.dress(look, this.people.hair, female);
-    return c;
+  /** Load (once) a Rocketbox avatar */
+  async loadAvatar(id: string): Promise<GLTF | undefined> {
+    if (this.avatars.has(id)) return this.avatars.get(id);
+    const g = await this.assets.glb(`characters/rb/${id}.glb`).catch(() => undefined);
+    if (g) this.avatars.set(id, g);
+    return g;
   }
 
-  dressPlayer(): void {
+  /** A person from a loaded avatar (falls back to the mannequin) */
+  makePerson(avatar: string): Character {
+    const body = this.avatars.get(avatar);
+    const clips = (avatar.startsWith('f') ? this.people.f : this.people.m)?.animations;
+    if (!body || !clips?.length) return new Character(this.characterGltf);
+    return new Character(body, clips);
+  }
+
+  /** Swap the player's avatar to the selected look */
+  async dressPlayer(): Promise<void> {
     const outfit = outfitById(this.save.settings.outfit);
-    const ch = this.player.character;
-    if (ch.isPerson) ch.dress({ ...PLAYER_LOOK, ...outfit.look }, this.people.hair, false);
-    else ch.tint(outfit.body, outfit.joints);
+    if (!(await this.loadAvatar(outfit.avatar))) return;
+    const old = this.player.character;
+    const ch = this.makePerson(outfit.avatar);
+    ch.root.position.copy(old.root.position);
+    ch.root.rotation.copy(old.root.rotation);
+    ch.root.visible = old.root.visible;
+    (old.root.parent ?? this.scene).add(ch.root);
+    old.root.removeFromParent();
+    this.player.character = ch;
   }
 
   createPlayer(spawn: THREE.Vector3, facing: number): void {
     const outfit = outfitById(this.save.settings.outfit);
-    const character = this.makePerson(false, { ...PLAYER_LOOK, ...outfit.look });
+    const character = this.makePerson(outfit.avatar);
     this.scene.add(character.root);
     this.player = new Player(this.physics, this.events, character, spawn);
     this.player.facing = facing;
@@ -149,6 +167,11 @@ export class Game {
 
   addLevel(level: Level): void {
     this.levels.set(level.id, level);
+    const st = autoCollide(level.group, this.physics, {
+      floorY: level.spawn.position.y,
+      avoid: [level.spawn.position, ...((level as { doors?: Array<{ position: THREE.Vector3 }> }).doors ?? []).map((d) => d.position)],
+    });
+    this.autoStats[level.id] = st;
     level.group.visible = false;
     this.scene.add(level.group);
   }
@@ -307,6 +330,7 @@ export class Game {
   endActivity(): void {
     const a = this.activity;
     if (!a) return;
+    this.lastActivityEnd = performance.now();
     this.activity = null;
     a.end?.();
     this.rig.releaseShot();

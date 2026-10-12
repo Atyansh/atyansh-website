@@ -14,6 +14,8 @@ import { Phone } from './ui/Phone';
 import { PhotoMode } from './game/PhotoMode';
 import { WorldAudio } from './audio/WorldAudio';
 import { Life } from './game/Life';
+import { PhonePose } from './game/PhonePose';
+import { outfitById, NPC_AVATARS } from './game/outfits';
 import type { TimeOfDay } from './world/Sky';
 
 const PROPS = [
@@ -49,12 +51,13 @@ export async function boot(container: HTMLElement): Promise<void> {
     game.assets.preloadProps(PROPS),
   ]);
   game.characterGltf = gltf;
-  const [pm, pf, hair] = await Promise.all([
-    game.assets.glb('characters/person_m.glb').catch(() => undefined),
-    game.assets.glb('characters/person_f.glb').catch(() => undefined),
-    game.assets.glb('characters/hair.glb').catch(() => undefined),
+  const [pm, pf] = await Promise.all([
+    game.assets.glb('characters/rb/anims_m.glb').catch(() => undefined),
+    game.assets.glb('characters/rb/anims_f.glb').catch(() => undefined),
+    game.loadAvatar(outfitById(game.save.settings.outfit).avatar),
+    ...[...NPC_AVATARS.m, ...NPC_AVATARS.f].map((id) => game.loadAvatar(id)),
   ]);
-  game.people = { m: pm, f: pf, hair: hair?.scene };
+  game.people = { m: pm, f: pf };
   game.data = data;
   const tod = (params.get('time') as TimeOfDay | null) ?? game.save.settings.timeOfDay;
   await game.sky.set(tod);
@@ -72,6 +75,8 @@ export async function boot(container: HTMLElement): Promise<void> {
   const minimap = new Minimap(game, ui.minimapCanvas);
   game.systems.push({ update: (dt) => minimap.update(dt) });
   const phone = new Phone(game);
+  phone.pose = new PhonePose(game);
+  game.systems.push({ update: (dt) => phone.pose!.update(dt) });
   phone.progress = progress;
   ui.phone = phone;
   const photo = new PhotoMode(game);
@@ -171,6 +176,23 @@ export async function boot(container: HTMLElement): Promise<void> {
       if (x !== undefined && z !== undefined) { p.pos.x = x; p.pos.z = z; p.heading = heading; }
     },
     pets: () => pets.list.map((p) => ({ id: p.id, mood: p.mood, pose: p.rig.pose, trust: +p.trust.toFixed(2), pos: p.pos.toArray().map((v) => +v.toFixed(2)) })),
+    /** Wireframe every automatic collider (debug) */
+    showAuto: () => {
+      const mat = new THREE.LineBasicMaterial({ color: 0xff00ff, depthTest: false });
+      const g = new THREE.Group();
+      game.physics.world.forEachCollider((c) => {
+        if (game.physics.tagOf(c).owner !== 'auto') return;
+        const h = (c.shape as unknown as { halfExtents: { x: number; y: number; z: number } }).halfExtents;
+        const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(h.x * 2, h.y * 2, h.z * 2)), mat);
+        const t = c.translation(), r = c.rotation();
+        box.position.set(t.x, t.y, t.z);
+        box.quaternion.set(r.x, r.y, r.z, r.w);
+        box.renderOrder = 999;
+        g.add(box);
+      });
+      game.scene.add(g);
+      return game.autoStats;
+    },
     levelPos: () => ({ level: game.level.id, p: game.player.position.toArray().map((v) => +v.toFixed(2)), state: game.player.state, activity: game.activity?.name ?? null }),
   };
   (window as unknown as { __world: typeof hooks }).__world = hooks;

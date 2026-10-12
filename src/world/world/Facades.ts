@@ -872,10 +872,6 @@ export class CityBuilder {
       g.applyMatrix4(f);
       this.group.add(new THREE.Mesh(g, m));
     });
-    // ticket booth
-    this.box(this.paint(0x7d1f24, 0.5, 0.2), f, 0, 0, 0.6, 1.6, 1.1, 1.0);
-    this.box(gold, f, 0, 1.1, 0.6, 1.7, 0.08, 1.1);
-    this.physics.aabb(lot.x - 0.85, CURB_H, lot.z + lot.d / 2 + 0.05, lot.x + 0.85, CURB_H + 1.2, lot.z + lot.d / 2 + 1.15, { kind: 'static', surface: 'wood' });
   }
 
   /** Climbing gym mural across the upper street face */

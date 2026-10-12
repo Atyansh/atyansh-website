@@ -30,7 +30,7 @@ const JUMP_BUFFER = 0.14;
 export type PlayerState = 'move' | 'air' | 'mantle' | 'locked';
 
 export class Player {
-  readonly character: Character;
+  character: Character;
   readonly body: RAPIER.RigidBody;
   readonly collider: RAPIER.Collider;
   private kcc: RAPIER.KinematicCharacterController;
@@ -200,9 +200,9 @@ export class Player {
     this.moveBy(new THREE.Vector3(horiz.x * dt, this.velocity.y * dt, horiz.z * dt), dt);
     // Step-up assist: curbs and low steps at walking speed (the KCC's own
     // autostep misses a capsule's rounded foot against a sharp 15cm edge)
-    if (wasGrounded && wantH > 0.004) {
-      const got = this.kcc.computedMovement();
-      if (Math.hypot(got.x, got.z) < wantH * 0.5) this.stepUp(new THREE.Vector3(horiz.x, 0, horiz.z).normalize());
+    if (wasGrounded && wantH > 0.002) {
+      // ankle-height probe: a low edge right ahead is a step at any speed
+      this.stepUp(new THREE.Vector3(horiz.x, 0, horiz.z).normalize());
     }
     this.velocity.y = this.grounded && this.velocity.y < 0 ? -2 : this.velocity.y;
     // Bumped head
@@ -247,18 +247,27 @@ export class Player {
     else this.character.stopOverride(0.12);
   }
 
+  /** Climb a step (curb, stair) directly ahead at any speed */
   private stepUp(dir: THREE.Vector3): void {
-    const probe = this.position.clone().addScaledVector(dir, RADIUS + 0.14);
-    probe.y += 0.5;
-    const hit = this.physics.raycast(probe, new THREE.Vector3(0, -1, 0), 0.6, { exclude: this.collider, ignore: ['pet', 'ball', 'player', 'npc'] });
+    const ign = { exclude: this.collider, ignore: ['pet', 'ball', 'player', 'npc'] as Array<'pet' | 'ball' | 'player' | 'npc'> };
+    // ground directly under us (we may be balanced on an edge)
+    const under = this.physics.raycast(this.position.clone().add(new THREE.Vector3(0, 0.45, 0)), new THREE.Vector3(0, -1, 0), 0.9, ign);
+    const baseY = under ? Math.min(under.point.y, this.position.y) : this.position.y;
+    const probe = this.position.clone().addScaledVector(dir, RADIUS + 0.12);
+    probe.y = baseY + 0.5;
+    const hit = this.physics.raycast(probe, new THREE.Vector3(0, -1, 0), 0.6, ign);
     if (!hit || hit.normal.y < 0.75) return;
-    const h = hit.point.y - this.position.y;
-    if (h < 0.02 || h > 0.42) return;
-    // room for the capsule on top?
-    const head = this.physics.raycast(hit.point.clone().add(new THREE.Vector3(0, 0.05, 0)), new THREE.Vector3(0, 1, 0), 1.7, { exclude: this.collider, ignore: ['pet', 'ball', 'player'] });
+    const top = hit.point.y;
+    if (top - this.position.y < 0.01 || top - baseY > 0.42) return;
+    // something solid between us and the step top at ankle height = a real step
+    const ankle = this.position.clone(); ankle.y = baseY + Math.min(0.05, (top - baseY) * 0.5);
+    const wall = this.physics.raycast(ankle, dir, RADIUS + 0.16, ign);
+    if (!wall && top - this.position.y < 0.03) return;
+    const head = this.physics.raycast(hit.point.clone().add(new THREE.Vector3(0, 0.05, 0)), new THREE.Vector3(0, 1, 0), 1.7, ign);
     if (head) return;
-    this.moveBy(new THREE.Vector3(0, h + 0.03, 0), 0);
-    this.moveBy(dir.clone().multiplyScalar(0.1), 0);
+    const target = this.position.clone().addScaledVector(dir, Math.max(0.12, (wall ? wall.distance : RADIUS) - RADIUS + 0.12));
+    target.y = top + 0.005;
+    this.setPosition(target);
     this.grounded = true;
   }
 

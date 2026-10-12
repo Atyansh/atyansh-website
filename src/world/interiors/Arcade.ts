@@ -247,7 +247,7 @@ export function buildArcade(game: Game, index: number): Level {
   const bbMat = crtMaterial(bb.texture);
   bbMat.fragmentShader = bbMat.fragmentShader.replace('vec2 cell = fract(vUv * vec2(8.0, 1.0));', 'vec2 cell = vUv;');
   const pscreen = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.62), bbMat);
-  pscreen.position.set(0, 1.47, 0.565 - 0.42);
+  pscreen.position.set(0, 1.465, 0.565 - 0.42 + 0.018); // proud of the bezel so its top edge never clips the HUD
   pscreen.rotation.x = -screenTilt;
   pscreen.applyMatrix4(PM);
   room.group.add(pscreen);
@@ -298,7 +298,7 @@ export function buildArcade(game: Game, index: number): Level {
       game.beginActivity({
         name: 'arcade',
         hint: 'A/D  Move · Space  Launch · E  Leave',
-        shot: { position: room.v(ppos.x - 0.95, 1.6, ppos.z), target: room.v(ppos.x - 0.1, 1.47, ppos.z), fov: 42, blend: 0.8 },
+        shot: { position: room.v(ppos.x - 0.145 - Math.cos(screenTilt) * 1.08, 1.47 + Math.sin(screenTilt) * 1.08, ppos.z), target: room.v(ppos.x - 0.145, 1.47, ppos.z), fov: 42, blend: 0.8 },
         update: (dt) => {
           const i = game.input;
           const dir = (i.isDown('right') ? 1 : 0) - (i.isDown('left') ? 1 : 0) + game.input.padMove.x;

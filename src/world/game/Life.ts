@@ -7,7 +7,7 @@
 
 import * as THREE from 'three';
 import type { Game } from './Game';
-import type { Look } from './Character';
+import { NPC_AVATARS } from './outfits';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { CURB, CURB_H, PARK } from '../world/layout';
@@ -37,7 +37,7 @@ export class Life {
     const street = game.levels.get('street')!.group;
     const add = (pos: THREE.Vector3, heading: number, opts: Partial<Npc> & { clip?: string; group?: THREE.Group }) => {
       const female = this.npcs.length % 2 === 1;
-      const ch = game.makePerson(female, this.randomLook(female));
+      const ch = game.makePerson(this.nextAvatar(female));
       ch.root.position.copy(pos);
       ch.root.rotation.y = heading;
       const s = 0.94 + this.r() * 0.12;
@@ -101,23 +101,16 @@ export class Life {
     flock(-30, -CURB.z + 2.2, 5);
   }
 
-  /** A plausible city outfit from a few palettes */
-  private randomLook(female: boolean): Look {
-    const r = this.r;
-    const pick = <T,>(a: T[]): T => a[Math.floor(r() * a.length)];
-    const tops = ['#f2efe8', '#1d2129', '#3b5b8a', '#a8323a', '#2f6b4f', '#d9a441', '#6b4f8a', '#8a8f96', '#c97a35', '#e8d9c4', '#2a3d5c'];
-    const bottoms = ['#2b3a55', '#1f2026', '#3c4a63', '#5a4a3a', '#6b6f78', '#2a2a2a', '#4a5a4a', '#c8b89a'];
-    const shoes = ['#f2f2ee', '#1a1a1a', '#6b4a32', '#c9c4ba', '#2a3d5c'];
-    const hairF = ['Hair_Long', 'Hair_Long', 'Hair_Buns', 'Hair_Buns', 'Hair_SimpleParted'];
-    const hairM = ['Hair_SimpleParted', 'Hair_Buzzed', 'Hair_Buzzed', 'Hair_SimpleParted'];
-    const hairCols = ['#1a1410', '#2a1f18', '#4a3020', '#6b4a2a', '#8a6a3a', '#c9a35a', '#3a3a3a', '#a84a2a'];
-    return {
-      skin: r() < 0.5 ? 'light' : 'dark',
-      top: pick(['shirt_short', 'shirt_short', 'shirt_long', 'jacket']),
-      bottom: r() < 0.82 ? 'pants' : 'shorts',
-      topColor: pick(tops), bottomColor: pick(bottoms), shoeColor: pick(shoes),
-      hair: pick(female ? hairF : hairM), hairColor: pick(hairCols), beard: !female && r() < 0.35,
-    };
+  /** Deal townspeople from shuffled decks so neighbours rarely repeat */
+  private decks: Record<'m' | 'f', string[]> = { m: [], f: [] };
+  private nextAvatar(female: boolean): string {
+    const k = female ? 'f' : 'm';
+    if (!this.decks[k].length) {
+      const d = [...NPC_AVATARS[k]];
+      for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(this.r() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+      this.decks[k] = d;
+    }
+    return this.decks[k].pop()!;
   }
 
   private pigeonMesh(): THREE.Group {

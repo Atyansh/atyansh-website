@@ -2,6 +2,7 @@
 // Wardrobe, Settings. Mouse, keyboard (arrows/WASD + Enter, Esc/Tab back)
 // and gamepad navigable.
 
+import type { PhonePose } from '../game/PhonePose';
 import type { Game } from '../game/Game';
 import type { Progress } from '../game/Progress';
 import { OUTFITS, outfitById } from '../game/outfits';
@@ -73,6 +74,7 @@ export class Phone {
   private mapImg = renderCityMap();
   progress!: Progress;
   onCamera: (() => void) | null = null;
+  pose: PhonePose | null = null;
 
   constructor(private game: Game) {
     const st = document.createElement('style');
@@ -94,14 +96,14 @@ export class Phone {
     this.el.classList.add('on');
     this.game.uiOwnsPointer = true;
     this.game.events.emit('sfx', { name: 'phone' });
-    this.game.player.character.play('Phone', { loop: true, fade: 0.3 });
+    this.pose?.show(true);
   }
 
   close(): void {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.el.classList.remove('on');
-    this.game.player.character.stopOverride(0.3);
+    this.pose?.show(false);
     if (this.game.state === 'menu') {
       this.game.state = 'playing';
       this.game.uiOwnsPointer = false;
@@ -166,7 +168,7 @@ export class Phone {
       body = `<h3>Wardrobe</h3><div class="ph-outfits">${OUTFITS.map((o) => {
         const unlocked = !o.unlock || s.data.rewards.includes(o.unlock);
         return `<div class="ph-outfit${o.id === cur ? ' sel' : ''}${unlocked ? '' : ' locked'}" data-outfit="${o.id}">
-          <div class="sw" style="background:linear-gradient(180deg, ${o.look.topColor} 0 55%, ${o.look.bottomColor} 55% 88%, ${o.look.shoeColor} 88%)"></div>${unlocked ? o.name : `🔒 ${o.name}`}</div>`;
+          <div class="sw" style="background:linear-gradient(180deg, ${o.swatch[0]} 0 55%, ${o.swatch[1]} 55% 88%, ${o.swatch[2]} 88%)"></div>${unlocked ? o.name : `🔒 ${o.name}`}</div>`;
       }).join('')}</div>`;
     } else if (this.view === 'map') {
       const doors = LOTS.filter((l) => l.enter);

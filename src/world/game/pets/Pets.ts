@@ -197,7 +197,8 @@ export class Pets {
           arm.solve(target, pole);
         }
         p.rig.content = Math.min(1, p.rig.content + dt * 1.5);
-        p.rig.lookTarget = target;
+        // gaze up at the person petting (never at the hand on its back)
+        p.rig.lookTarget = (b.get('Head') ?? ch.root).getWorldPosition(new THREE.Vector3());
         p.rig.wag = p.rig.spec.kind === 'dog' ? 1 : 0.15;
         if (Math.floor(t * 1.3) !== Math.floor((t - dt) * 1.3)) this.heartsAt(p.pos.clone().add(new THREE.Vector3(0, 0.3, 0)), 1);
         if (t > 4.2 || (t > 0.8 && g.input.pressed('interact'))) {
@@ -264,14 +265,57 @@ export class Pets {
       {
         id: 'ball', position: () => this.ball.mesh.position.clone(), radius: 1.3, verb: 'Pick up', label: 'the tennis ball',
         enabled: () => !this.ball.held && !chance.carrying && this.ball.body !== null,
-        onInteract: () => {
-          this.despawnBall();
-          this.ball.held = true;
-          g.events.emit('sfx', { name: 'pickup' });
-          g.ui.setActivityHint('F / Click  Throw');
-        },
+        onInteract: () => this.pickUpBall(),
       },
     );
+  }
+
+  /** Bend down, close the hand round the ball, straighten up holding it */
+  private pickUpBall(): void {
+    const g = this.game;
+    const ch = g.player.character;
+    const bp = this.ball.mesh.position.clone();
+    // stand so the right hand comes down onto the ball
+    const to = bp.clone().sub(g.player.position).setY(0);
+    const face = Math.atan2(to.x, to.z);
+    const fwd = new THREE.Vector3(Math.sin(face), 0, Math.cos(face));
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const spot = bp.clone().addScaledVector(fwd, -0.42).addScaledVector(right, 0.14);
+    spot.y = g.player.position.y;
+    if (to.length() < 1.2) g.player.setPosition(spot);
+    g.player.facing = face;
+    ch.root.rotation.y = face;
+    ch.play('PickUp', { fade: 0.15, timeScale: 0.85 });
+    let t = 0;
+    g.beginActivity({
+      name: 'pickup',
+      freeCamera: true,
+      update: (dt) => {
+        t += dt;
+        if (!this.ball.held) {
+          const hand = this.palm(ch);
+          if (t > 0.42 || (hand && hand.distanceTo(this.ball.mesh.position) < 0.12)) {
+            this.despawnBall();
+            this.ball.held = true;
+            g.events.emit('sfx', { name: 'pickup' });
+          }
+        }
+        if (t > 0.95) g.endActivity();
+      },
+      end: () => {
+        ch.stopOverride(0.25);
+        if (!this.ball.held) { this.despawnBall(); this.ball.held = true; }
+        g.ui.setActivityHint('F / Click  Throw');
+      },
+    });
+  }
+
+  /** Where a held ball sits: cupped between thumb and fingers */
+  private palm(ch: { bones: Map<string, THREE.Object3D> }): THREE.Vector3 | null {
+    const b = ch.bones;
+    const mid = b.get('middle_02_r'), thumb = b.get('thumb_03_r'), hand = b.get('hand_r');
+    if (mid && thumb) return mid.getWorldPosition(new THREE.Vector3()).lerp(thumb.getWorldPosition(new THREE.Vector3()), 0.45);
+    return hand ? hand.getWorldPosition(new THREE.Vector3()) : null;
   }
 
   /** Throw the held ball along the camera's view */
@@ -290,7 +334,7 @@ export class Pets {
     cam.getWorldDirection(dir);
     dir.y = Math.max(dir.y, 0) + 0.35;
     dir.normalize();
-    const hand = g.player.character.bones.get('hand_r')?.getWorldPosition(new THREE.Vector3()) ?? g.player.position.clone().add(new THREE.Vector3(0, 1.6, 0));
+    const hand = this.palm(g.player.character) ?? g.player.position.clone().add(new THREE.Vector3(0, 1.6, 0));
     this.spawnBall(hand.add(dir.clone().multiplyScalar(0.3)), dir.multiplyScalar(14));
     g.events.emit('sfx', { name: 'throw' });
     const chance = this.get('chance');
@@ -313,8 +357,8 @@ export class Pets {
 
     // ball
     if (this.ball.held) {
-      const hand = player.character.bones.get('hand_r');
-      if (hand) this.ball.mesh.position.copy(hand.getWorldPosition(new THREE.Vector3()));
+      const hand = this.palm(player.character);
+      if (hand) this.ball.mesh.position.copy(hand);
       if (this.throwPending <= 0 && g.state === 'playing' && !g.activity && g.input.pressed('throw')) this.throwBall();
     } else if (this.ball.body) {
       const t = this.ball.body.translation();

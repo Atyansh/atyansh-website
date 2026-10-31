@@ -376,7 +376,7 @@ Get notified via Discord DM when API keys expire during automated builds.
 6. Push both to `SITE_SECRETS`: `./scripts/sync-secrets-to-gcloud.sh DISCORD_BOT_TOKEN DISCORD_USER_ID` (see [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for details)
 
 **What it does:**
-- Runs after every build (daily at 2 AM UTC in production)
+- Runs after every build (daily at 2 AM Pacific in production)
 - Checks if all API integrations succeeded
 - Sends you a Discord DM with an embed if any API keys have expired
 - Includes exact commands to fix issues
@@ -421,7 +421,7 @@ npm test          # Run all tests once
 npm run test:watch  # Run tests in watch mode
 ```
 
-Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS parsing, and utility functions.
+Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fallback, retry logic, Letterboxd RSS and Goodreads shelf parsing, the `SITE_SECRETS` write rules, and utility functions.
 
 ## Project Structure
 
@@ -441,10 +441,13 @@ Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS pars
 │   ├── get-mal-token.cjs       # MyAnimeList OAuth helper
 │   ├── setup-tmdb.cjs          # TMDB TV setup (auth + list)
 │   ├── check-api-health.cjs    # API health monitoring
+│   ├── refresh-tokens.cjs      # Pre-build token/session refresh, saved to SITE_SECRETS
+│   ├── oauth-helpers.cjs       # Shared helpers for the OAuth scripts
 │   ├── site-secrets.cjs        # Read/write the single SITE_SECRETS secret
 │   ├── pull-secrets.cjs        # Sync SITE_SECRETS to .env
 │   ├── push-secrets.cjs        # Sync .env to SITE_SECRETS
 │   ├── sync-secrets-to-gcloud.sh # Wrapper for push-secrets.cjs
+│   └── …                       # Token setup and health-check helpers
 ├── src/
 │   ├── audio/                  # Client-side audio engine
 │   │   ├── AudioEngine.ts    # Step sequencer + theme processing
@@ -504,6 +507,9 @@ Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS pars
 ├── astro.config.mjs           # Astro configuration
 ├── vitest.config.ts           # Test configuration
 ├── tsconfig.json              # TypeScript configuration
+├── cloudbuild.yaml            # Daily/push build: refresh, build, deploy, health check
+├── firebase.json              # Firebase Hosting config (headers, redirects)
+├── deploy.sh                  # Manual Cloud Build submit
 ├── Dockerfile.cloudbuild      # Custom Cloud Build image
 ├── cloudbuild-image.yaml      # Build config for Docker image
 └── package.json               # Dependencies
@@ -684,12 +690,11 @@ If you accidentally commit secrets:
 - Goodreads needs a signed-in `GOODREADS_COOKIE`; a 302 to `/user/sign_in` means it has expired
 - Check the respective utility file in `src/utils/`
 - Update selectors or scraping logic
-- Consider implementing caching to reduce requests
 
 ### Build Errors
 
-**Missing environment variables:**
-- The build will fail if required APIs return errors
+**Missing or invalid credentials:**
+- API failures never fail the build: the source serves the previous build's data, or its page shows a "Couldn't load … right now" message if there is none, and the health check alerts
 - Make sure all API keys in `.env` are valid
 - Or disable the failing integration
 
@@ -735,7 +740,6 @@ This project is open source and available for personal use. Please replace all p
 - [Framer Motion](https://www.framer.com/motion/) - Animations
 - [Satori](https://github.com/vercel/satori) - OG image generation
 - [Shiki](https://shiki.matsu.io/) - Syntax highlighting
-- [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) - XML/RSS parsing
 - [Vitest](https://vitest.dev/) - Unit testing
 - [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) - Client-side audio synthesis
 

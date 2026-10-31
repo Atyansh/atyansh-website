@@ -8,7 +8,7 @@
 4. ✅ Created `cloudbuild.yaml` configuration
 5. ✅ Stored every credential in Google Secret Manager — since October 2026 as one JSON secret, `SITE_SECRETS` (see [Secrets](#secrets-site_secrets))
 6. ✅ Granted IAM permissions to Cloud Build service accounts
-7. ✅ Configured Cloud Storage bucket (`gs://atyansh.com/`)
+7. ✅ Hosting on Firebase Hosting since 2026-07-31 (the old `gs://atyansh.com` bucket and load balancer were removed)
 8. ✅ Updated Cloud Build to use custom Docker image (`gcr.io/personal-website-334502/node-puppeteer:22`) with Chrome dependencies pre-installed
 9. ✅ Granted Secret Manager access to Compute Engine service account
 10. ✅ Successfully deployed site via Cloud Build
@@ -126,69 +126,48 @@ npx firebase-tools deploy --only hosting --project personal-website-334502
 
 Or use `./deploy.sh`, which does both the build and the deploy.
 
-## Setting Up Daily Automated Builds
+## Automated Builds
 
-Once the manual build works, set up Cloud Scheduler:
+Two Cloud Build triggers run `cloudbuild.yaml` from `master` on GitHub:
 
-### Step 1: Create Cloud Build Trigger
+| Trigger | Fires on |
+|---|---|
+| `refresh-website-push` | every push to `master` |
+| `refresh-website-periodic` | the Cloud Scheduler job `refresh-website-periodic-schedule`, daily at 2 AM Pacific (`0 2 * * *`, `America/Los_Angeles`) |
+
+Check them:
 
 ```bash
-# This creates a manual trigger you can invoke via API
+gcloud builds triggers list --project personal-website-334502
+gcloud scheduler jobs list --location us-central1 --project personal-website-334502
+```
+
+To recreate them (connect the GitHub repo first at https://console.cloud.google.com/cloud-build/triggers/connect?project=personal-website-334502):
+
+```bash
+PROJECT_ID="personal-website-334502"
+
+gcloud builds triggers create github \
+  --name="refresh-website-push" \
+  --repo-owner="Atyansh" --repo-name="atyansh-website" \
+  --branch-pattern="^master$" \
+  --build-config="cloudbuild.yaml"
+
 gcloud builds triggers create manual \
-  --name="daily-website-rebuild" \
+  --name="refresh-website-periodic" \
   --repo="https://github.com/Atyansh/atyansh-website" \
   --repo-type=GITHUB \
   --branch="master" \
   --build-config="cloudbuild.yaml"
-```
 
-**Note:** You may need to connect your GitHub repository first at:
-https://console.cloud.google.com/cloud-build/triggers/connect?project=personal-website-334502
-
-### Step 2: Alternative - Direct Cloud Scheduler (Without GitHub)
-
-If you don't want to connect GitHub, use Cloud Scheduler to trigger builds directly:
-
-```bash
-# Get your Cloud Build API URL
-PROJECT_ID="personal-website-334502"
-
-# Create a service account for the scheduler
-gcloud iam service-accounts create cloud-scheduler-build \
-  --display-name="Cloud Scheduler Build Trigger"
-
-# Grant it permission to trigger builds
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:cloud-scheduler-build@$PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/cloudbuild.builds.editor"
-
-# Create the scheduler job (runs daily at 2 AM UTC)
-gcloud scheduler jobs create http daily-website-build \
+# Run the periodic trigger daily at 2 AM Pacific
+TRIGGER_ID=$(gcloud builds triggers describe refresh-website-periodic --format='value(id)')
+gcloud scheduler jobs create http refresh-website-periodic-schedule \
   --location=us-central1 \
   --schedule="0 2 * * *" \
-  --uri="https://cloudbuild.googleapis.com/v1/projects/$PROJECT_ID/builds" \
-  --message-body='{
-    "source": {
-      "storageSource": {
-        "bucket": "'$PROJECT_ID'_cloudbuild",
-        "object": "source.tgz"
-      }
-    },
-    "steps": [...]
-  }' \
-  --oauth-service-account-email="cloud-scheduler-build@$PROJECT_ID.iam.gserviceaccount.com"
-```
-
-### Step 3: Simpler Approach - Cron + Local Machine
-
-If Cloud Scheduler is too complex, use a cron job on a machine that's always on:
-
-```bash
-# Edit crontab
-crontab -e
-
-# Add this line (runs daily at 2 AM)
-0 2 * * * cd /Users/atyansh/Repos/atyansh-website && git pull && gcloud builds submit --config cloudbuild.yaml . >> /tmp/website-build.log 2>&1
+  --time-zone="America/Los_Angeles" \
+  --uri="https://cloudbuild.googleapis.com/v1/projects/$PROJECT_ID/triggers/$TRIGGER_ID:run" \
+  --oauth-service-account-email="418072003908-compute@developer.gserviceaccount.com"
 ```
 
 ## Manual Deployment Script
@@ -334,9 +313,10 @@ gcloud secrets versions access N --secret=SITE_SECRETS | gcloud secrets versions
 - Cloud Build: Free tier includes 120 build-minutes/day (should be enough)
 - Secret Manager: $0 — one secret with ≤3 versions fits in the 6 free active versions; accesses are $0.03 per 10,000 (negligible)
 - Firebase Hosting: $0/month at current traffic (10 GB/month free transfer)
-- Cloud Scheduler: $0.10/month per job
+- Cloud Scheduler: $0 (one job; 3 jobs per billing account are free)
+- Cloud Storage: a few cents a month for the build-cache and snapshot archive in the Cloud Build bucket
 
-**Estimated total: $0.15-0.20/month**
+**Estimated total: a few cents a month**
 
 ## Troubleshooting Common Issues
 
@@ -421,7 +401,7 @@ The site is served by Firebase Hosting (Blaze plan) — its global CDN terminate
 - `scripts/check-api-health.cjs` - API health monitoring and Discord notifications
 - `API_HEALTH_MONITORING.md` - Complete guide for Discord notification setup
 - `DEPLOYMENT_GUIDE.md` - This file
-- `.gcloudignore` - Files to exclude from Cloud Build uploads (auto-created)
+- `.gcloudignore` - Not committed; `gcloud builds submit` generates one from `.gitignore` when it's absent
 
 ## Next Steps
 
@@ -446,11 +426,3 @@ If you continue to have issues:
 4. Test secret access: `gcloud secrets versions access latest --secret=SITE_SECRETS | jq -r .STEAM_API_KEY | head -c 20`
 5. Check the build service account's Secret Manager roles (see Option 2 above)
 6. Review Discord notifications if any APIs are failing
-
-## Alternative: GitHub Actions
-
-If Cloud Build continues to be problematic, consider GitHub Actions instead (see README for GitHub Actions setup).
-
----
-
-Generated by Claude Code

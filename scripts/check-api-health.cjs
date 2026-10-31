@@ -4,7 +4,7 @@
  * API Health Check Script
  *
  * Runs after the build to check which API integrations succeeded/failed.
- * Sends Discord notifications via webhook if any APIs have expired credentials.
+ * Sends a Discord DM (via bot) if any APIs have expired credentials.
  *
  * Usage:
  *   node scripts/check-api-health.cjs
@@ -316,7 +316,7 @@ function generateReport(results) {
 }
 
 /**
- * Send Discord notification via webhook
+ * Send a Discord DM via the bot
  */
 async function sendDiscordNotification(results) {
   const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;

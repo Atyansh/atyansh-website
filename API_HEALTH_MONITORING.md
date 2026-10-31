@@ -4,7 +4,7 @@ This guide explains how to set up Discord notifications for API health monitorin
 
 ## Overview
 
-The API health monitoring system runs 11 integration checks after each build and sends Discord notifications if any fail:
+The API health monitoring system runs 12 integration checks after each build and sends Discord notifications if any fail:
 
 **APIs with credentials (can expire):**
 1. Spotify (OAuth refresh token)
@@ -23,7 +23,7 @@ The API health monitoring system runs 11 integration checks after each build and
 
 ## How It Works
 
-1. **Build runs** (`npm run build`) - All APIs are called and cache files are created
+1. **Build runs** (`npx astro build` in Cloud Build, `npm run build` locally) - All APIs are called and cache files are created
 2. **Health check runs** (`scripts/check-api-health.cjs`) - Validates cache files
 3. **If failures detected** - Discord notification sent with details and @mention
 
@@ -112,7 +112,7 @@ Commit and push your changes:
 
 ```bash
 git add .
-git commit -m "Switch API health notifications from email to Discord"
+git commit -m "Set up Discord health notifications"
 git push
 ```
 
@@ -142,7 +142,7 @@ You'll receive a Discord DM with an embed containing:
 
 - **Always** when any API fails during build
 - **Never** when all APIs are healthy
-- Health check runs after EVERY build (daily at 2 AM UTC)
+- Health check runs after EVERY build (daily at 2 AM Pacific, plus every push to master)
 
 ## Troubleshooting
 
@@ -263,7 +263,7 @@ Edit `cloudbuild.yaml` and comment out the health check step.
 
 ## Cost Estimate
 
-- **Discord Webhooks:** Free
+- **Discord bot DMs:** Free
 - **Cloud Build:** No extra cost (health check adds ~10 seconds)
 - **Secret Manager:** $0 — one secret (`SITE_SECRETS`) with ≤3 versions fits in the free tier; accesses are negligible
 

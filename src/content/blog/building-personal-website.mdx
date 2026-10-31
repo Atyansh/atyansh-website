@@ -2,7 +2,7 @@
 title: 'Building a Personal Website Entirely with Claude Code'
 description: 'A deep dive into building a comprehensive personal website with real-time activity tracking from 11+ platforms, self-healing OAuth infrastructure, and automated deployments - all without writing a single line of code manually.'
 pubDate: 2026-01-19
-updatedDate: 2026-09-26
+updatedDate: 2026-10-31
 tags: ['claude-code', 'web-development', 'infrastructure', 'oauth', 'astro']
 draft: false
 ---
@@ -79,6 +79,8 @@ The heart of the site is the activity tracking system. It pulls data from 11+ ex
 
 **Goodreads** tracks reading progress and book reviews. The integration pulls currently reading books and recent reviews.
 
+*Update (October 2026):* Goodreads removed shelf RSS feeds for every user, and shelf pages now require signing in. The build now reads my shelves as a signed-in browser would, using the session cookie from a normal login. That login expires a year after it's issued and Goodreads never renews it, so before each build the site signs in again silently (Amazon's sign-in re-issues a still-valid session without a password) and saves the fresh cookie. A separate health check alerts on the first failed renewal, months before the old cookie would actually stop working.
+
 ### Fitness Integration
 
 **Kaya** is a climbing app that tracks bouldering sessions. The integration pulls grade pyramids, recent sends, and even video captures of climbs using their public GraphQL API. The main challenge was getting their CDN-hosted video thumbnails to load correctly.
@@ -99,8 +101,10 @@ With a daily build schedule, tokens could expire at any time. A pre-build token 
 
 1. **Health Check Phase** - Before any build steps run, a script tests each OAuth token by making a lightweight API call
 2. **Proactive Refresh** - If a token is expired or will expire within 24 hours, it's automatically refreshed
-3. **Secret Manager Persistence** - Refreshed tokens are immediately written to Google Cloud Secret Manager
+3. **Secret Manager Persistence** - Refreshed tokens are written back to Google Cloud Secret Manager
 4. **Graceful Degradation** - If an API is completely unavailable, the build continues without that data rather than failing entirely
+
+*Update (October 2026):* All credentials now live in a single Secret Manager secret holding one JSON object, since Secret Manager bills per stored version and 27 separate secrets cost more than the rest of the infrastructure. Each build reads it once, refreshes everything in memory, and saves the renewed tokens in one write. Every write re-reads the latest version and applies only its own changes, is validated before saving, and keeps the last three versions so a bad write can be rolled back. And instead of continuing without a failed source's data, every source now falls back to the previous build's data (see below).
 
 ### Retry Logic
 
@@ -137,17 +141,19 @@ Each API response is cached to disk with a TTL appropriate for that data type:
 
 The cache is stored in `.cache/` and persists between local builds, significantly speeding up development iteration. Cloud Build starts fresh each time, so the full API fetch happens on every deployment.
 
+*Update (October 2026):* Each Cloud Build now also restores the previous build's cache as a last-known-good copy. If a source fails outright, the page serves that data instead of an empty section, and a source that only partly loaded counts as a failure rather than overwriting the good copy. This caught Goodreads removing its RSS feeds: the books page kept showing my library while the integration was rebuilt.
+
 ## Build Pipeline
 
 The complete build pipeline runs on Google Cloud Build, triggered in two ways:
 
-1. **Scheduled** - Cloud Scheduler fires at 2 AM UTC daily to refresh activity data
+1. **Scheduled** - Cloud Scheduler fires at 2 AM PT daily to refresh activity data
 2. **On Push** - Any push to the main branch on GitHub automatically triggers a build
 
 This means the site stays fresh with daily activity updates, but I can also push content changes and see them live within minutes. The build process itself:
 
-1. **Secret Injection** - Build secrets are pulled from Secret Manager
-2. **Token Refresh** - Pre-build script tests and refreshes OAuth tokens
+1. **Secret Loading** - Every credential is read from a single JSON secret in Secret Manager
+2. **Token Refresh** - Pre-build script refreshes OAuth tokens and the Goodreads session, then saves them back in one write
 3. **Astro Build** - Static site generation with all API data
 4. **Deploy** - Built files deployed to Firebase Hosting
 5. **CDN Refresh** - Firebase's CDN serves the new version immediately (cache purge is automatic on deploy)
@@ -156,7 +162,7 @@ This means the site stays fresh with daily activity updates, but I can also push
 
 If any critical step fails, a Discord DM is sent with a detailed health report. This includes API status, cache ages, and specific remediation steps for any failures.
 
-![API Health Report email showing status of all integrations](/images/blog/api-health-report.png)
+![API health report showing the status of all integrations](/images/blog/api-health-report.png)
 
 I typically find out about failures in the morning and can fix them quickly.
 

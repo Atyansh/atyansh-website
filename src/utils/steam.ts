@@ -177,6 +177,9 @@ export async function getSteamStats(): Promise<SteamStats | null> {
  */
 export function getGameCapsuleFallbacks(appid: number): string[] {
   return [
+    // Portrait library art (1200x1800) fits the card's 3:4 box; the wide
+    // header.jpg below gets cropped and is only a last resort
+    `https://cdn.cloudflare.steamstatic.com/steam/apps/${appid}/library_600x900_2x.jpg`,
     `https://cdn.cloudflare.steamstatic.com/steam/apps/${appid}/header.jpg`,
     `https://media.steampowered.com/steam/apps/${appid}/header.jpg`,
     `https://cdn.akamai.steamstatic.com/steam/apps/${appid}/header.jpg`,

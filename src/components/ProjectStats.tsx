@@ -11,16 +11,34 @@ interface ProjectStatsProps {
   stats: Stat[];
 }
 
+const parseStat = (value: string) => parseInt(value.replace(/,/g, ''));
+
 export default function ProjectStats({ stats }: ProjectStatsProps) {
   const [isVisible, setIsVisible] = useState(false);
-  const [counts, setCounts] = useState<number[]>(stats.map(() => 0));
+  // Server HTML (and no-JS / reduced-motion visitors) get the real numbers;
+  // the count-up only runs if the stats start off-screen, so nothing that's
+  // already visible ever jumps back to 0.
+  const [counts, setCounts] = useState<number[]>(() => stats.map(s => parseStat(s.value) || 0));
   const statsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let armed = false;
     const observer = new IntersectionObserver(
       ([entry]) => {
+        if (!armed) {
+          armed = true;
+          if (entry.isIntersecting) {
+            observer.disconnect();
+            return;
+          }
+          setCounts(stats.map(() => 0));
+          return;
+        }
         if (entry.isIntersecting) {
           setIsVisible(true);
+          observer.disconnect();
         }
       },
       { threshold: 0.1 }
@@ -31,7 +49,7 @@ export default function ProjectStats({ stats }: ProjectStatsProps) {
     }
 
     return () => observer.disconnect();
-  }, []);
+  }, [stats]);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -41,7 +59,7 @@ export default function ProjectStats({ stats }: ProjectStatsProps) {
     const steps = 60;
 
     stats.forEach((stat, index) => {
-      const numericValue = parseInt(stat.value.replace(/,/g, ''));
+      const numericValue = parseStat(stat.value);
       if (isNaN(numericValue)) return;
 
       const increment = numericValue / steps;
@@ -81,7 +99,7 @@ export default function ProjectStats({ stats }: ProjectStatsProps) {
       className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 my-8"
     >
       {stats.map((stat, index) => {
-        const numericValue = parseInt(stat.value.replace(/,/g, ''));
+        const numericValue = parseStat(stat.value);
         const isNumeric = !isNaN(numericValue);
 
         return (

@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import AnimatedCard from '../../components/AnimatedCard';
+import AnimatedCard from '../../components/AnimatedCard.astro';
 import { getCollection } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -22,7 +22,7 @@ const { Content } = await project.render();
   <article class="max-w-5xl mx-auto">
     <!-- Header -->
     <header class="mb-12">
-      <AnimatedCard client:load delay={0}>
+      <AnimatedCard delay={0}>
         <div class="mb-6">
           <h1 class="text-4xl md:text-5xl font-bold mb-4" style="color: var(--text-primary);">
             {project.data.title}
@@ -113,7 +113,7 @@ const { Content } = await project.render();
     </header>
 
     <!-- Content -->
-    <AnimatedCard client:load delay={0.1}>
+    <AnimatedCard delay={0.1}>
       <div class="project-content">
         <Content />
       </div>

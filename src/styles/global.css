@@ -802,3 +802,166 @@ body {
 html[data-audio-enabled] .audio-gated {
   display: contents;
 }
+
+/* Entrance / hover motion for static cards (AnimatedCard.astro, MediaCard).
+   Content is visible by default — nothing waits for JavaScript — and the
+   motion only runs for visitors who haven't asked for reduced motion.
+   `translate` (not `transform`) + backwards fill so hover transforms still
+   apply once the entrance finishes. */
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    translate: 0 20px;
+  }
+}
+
+@keyframes enter-pop {
+  from {
+    opacity: 0;
+    scale: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-enter {
+    animation: enter-up 0.5s ease-out backwards;
+    animation-delay: var(--enter-delay, 0s);
+  }
+
+  .animate-pop {
+    animation: enter-pop 0.4s ease-out backwards;
+    animation-delay: var(--enter-delay, 0s);
+  }
+
+  .hover-lift {
+    transition: transform 0.2s ease-in-out;
+  }
+
+  @media (hover: hover) {
+    .hover-lift:hover {
+      transform: translateY(-5px) scale(1.02);
+    }
+  }
+}
+
+/* Media cards (MediaCard.tsx, and GameCard.tsx's overlay). The detail overlay shows on hover for real
+   hover pointers, on keyboard focus, when tapped on touch screens
+   ([data-expanded], see TapToReveal.astro) and on the playing track. */
+.media-card-overlay {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.media-card-caption {
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+.media-card:focus-visible .media-card-overlay,
+.media-card[data-expanded] .media-card-overlay,
+.media-card[data-playing] .media-card-overlay,
+.game-card:focus-visible .media-card-overlay,
+.game-card[data-expanded] .media-card-overlay {
+  opacity: 1;
+}
+
+.media-card:focus-visible .media-card-caption,
+.media-card[data-expanded] .media-card-caption,
+.media-card[data-playing] .media-card-caption {
+  opacity: 0;
+}
+
+@media (hover: hover) {
+  .media-card:hover .media-card-overlay,
+  .game-card:hover .media-card-overlay {
+    opacity: 1;
+  }
+
+  .media-card:hover .media-card-caption {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .media-card {
+    transition: translate 0.2s ease-out;
+  }
+
+  .media-card-image {
+    transition: scale 0.3s ease-out;
+  }
+
+  @media (hover: hover) {
+    .media-card:hover {
+      translate: 0 -10px;
+    }
+
+    .media-card:hover .media-card-image {
+      scale: 1.1;
+    }
+  }
+}
+
+/* Now-playing badge for Spotify track tiles */
+.media-card-now-playing {
+  display: none;
+}
+
+.media-card[data-playing] .media-card-now-playing {
+  display: inline-flex;
+}
+
+.media-card-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 0.65rem;
+}
+
+.media-card-eq i {
+  display: block;
+  width: 2px;
+  height: 100%;
+  background: currentColor;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .media-card-eq i {
+    animation: eq-bounce 0.9s ease-in-out infinite alternate;
+  }
+
+  .media-card-eq i:nth-child(2) {
+    animation-delay: -0.3s;
+  }
+
+  .media-card-eq i:nth-child(3) {
+    animation-delay: -0.6s;
+  }
+}
+
+@keyframes eq-bounce {
+  from {
+    height: 30%;
+  }
+  to {
+    height: 100%;
+  }
+}
+
+/* Rating stars (StarRating.tsx) */
+.star-icon {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  background: var(--text-secondary);
+  -webkit-mask: url('/icons/star.svg') center / contain no-repeat;
+  mask: url('/icons/star.svg') center / contain no-repeat;
+}
+
+.star-icon[data-fill='full'] {
+  background: var(--accent);
+}
+
+.star-icon[data-fill='half'] {
+  background: linear-gradient(to right, var(--accent) 50%, var(--text-secondary) 50%);
+}

@@ -1,11 +1,11 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import AnimatedCard from '../components/AnimatedCard';
+import AnimatedCard from '../components/AnimatedCard.astro';
 ---
 
 <BaseLayout title="404 - Page Not Found" description="This page does not exist">
   <div class="max-w-3xl mx-auto text-center py-20">
-    <AnimatedCard client:load delay={0}>
+    <AnimatedCard delay={0}>
       <div class="py-12">
         <h1 class="text-9xl font-bold mb-4" style="color: var(--accent);">404</h1>
         <h2 class="text-3xl font-bold mb-6" style="color: var(--text-primary);">

@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import AnimatedCard from '../../components/AnimatedCard';
+import AnimatedCard from '../../components/AnimatedCard.astro';
 import ProjectStats from '../../components/ProjectStats';
 import VideoShowcase from '../../components/VideoShowcase';
 import WeeklyTimeline from '../../components/WeeklyTimeline';
@@ -205,7 +205,7 @@ const techStack = [
 >
   <article class="max-w-6xl mx-auto">
     <!-- Hero Section -->
-    <AnimatedCard client:load delay={0}>
+    <AnimatedCard delay={0}>
       <div class="text-center mb-12">
         <h1 class="text-5xl md:text-7xl font-bold mb-6" style="color: var(--accent);">
           Deerstalker
@@ -232,12 +232,12 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Project Stats -->
-    <AnimatedCard client:load delay={0.1}>
+    <AnimatedCard delay={0.1}>
       <ProjectStats client:load stats={projectStats} />
     </AnimatedCard>
 
     <!-- About Section -->
-    <AnimatedCard client:load delay={0.2}>
+    <AnimatedCard delay={0.2}>
       <div class="my-16 p-8 rounded-2xl" style="background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.05) 0%, rgba(var(--accent-rgb), 0.02) 100%); border: 1px solid rgba(var(--accent-rgb), 0.1);">
         <h2 class="text-3xl md:text-4xl font-bold mb-6" style="color: var(--text-primary);">
           About the Project
@@ -287,7 +287,7 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Video Showcase -->
-    <AnimatedCard client:load delay={0.3}>
+    <AnimatedCard delay={0.3}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
           Development Progress Videos
@@ -297,7 +297,7 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Development Images -->
-    <AnimatedCard client:load delay={0.4}>
+    <AnimatedCard delay={0.4}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
           Development Gallery
@@ -307,7 +307,7 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Tech Stack -->
-    <AnimatedCard client:load delay={0.5}>
+    <AnimatedCard delay={0.5}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
           Technology Stack
@@ -317,7 +317,7 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Development Journey -->
-    <AnimatedCard client:load delay={0.6}>
+    <AnimatedCard delay={0.6}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
           My Development Journey
@@ -330,7 +330,7 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Technical Challenges -->
-    <AnimatedCard client:load delay={0.7}>
+    <AnimatedCard delay={0.7}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
           Technical Challenges & Solutions
@@ -373,7 +373,7 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Team Lessons -->
-    <AnimatedCard client:load delay={0.8}>
+    <AnimatedCard delay={0.8}>
       <div class="my-16 p-8 rounded-2xl" style="background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.05) 0%, rgba(var(--accent-rgb), 0.02) 100%); border: 1px solid rgba(var(--accent-rgb), 0.1);">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
           Lessons Learned

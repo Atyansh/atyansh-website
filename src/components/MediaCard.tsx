@@ -1,5 +1,6 @@
-import { useId, type CSSProperties, type ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import StarRating from './StarRating';
+import PlayButton from './PlayButton';
 
 export interface MediaCardDetail {
   label: string;
@@ -16,8 +17,8 @@ export interface MediaCardProps {
   rating?: number;
   /** Accessible description of the rating, e.g. "9 out of 10" */
   ratingLabel?: string;
-  /** Extra facts shown when the card is expanded (pre-formatted strings) */
-  details?: MediaCardDetail[];
+  /** Opens this item in the media viewer (MediaFilterGrid passes it) */
+  onOpen?: () => void;
   /** Spotify item to play in place: the card becomes a play/pause button
    *  driving the hidden embed in SpotifyPlayer.astro */
   spotify?: { type: SpotifyEmbedType; id: string };
@@ -35,8 +36,8 @@ export interface MediaCardProps {
  * - spotify: a <button> that plays/pauses the item in place (track/album/
  *   artist/playlist previews, podcast episodes/shows), with a progress ring
  *   around the play icon (driven by SpotifyPlayer.astro)
- * - otherwise: a <button aria-expanded> that expands an info panel with the
- *   full title and details over the card (CardExpand.astro handles toggling)
+ * - onOpen: a <button aria-haspopup="dialog"> that opens the item in the
+ *   shared MediaViewer (grows out of the tile)
  *
  * Nothing links off-site. The hover/focus/tap overlay is pure CSS
  * (.media-card rules in global.css).
@@ -47,13 +48,12 @@ export default function MediaCard({
   image,
   rating,
   ratingLabel,
-  details = [],
+  onOpen,
   spotify,
   tags = [],
   enterDelay,
   eager = false,
 }: MediaCardProps) {
-  const panelId = useId();
   const animated = enterDelay !== undefined;
   const className = 'media-card group relative block w-full overflow-hidden rounded-lg shadow-lg text-left cursor-pointer';
   const enterClass = animated ? ' animate-pop' : '';
@@ -81,22 +81,6 @@ export default function MediaCard({
             background: 'linear-gradient(to bottom, transparent 0%, transparent 20%, color-mix(in srgb, var(--bg-primary) 95%, transparent) 100%)'
           }}
         >
-          {spotify && (
-            <span className="absolute inset-x-0 top-0 bottom-[40%] flex items-center justify-center" aria-hidden="true">
-              <span className="track-control relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: 'var(--bg-primary)' }}>
-                <svg className="track-ring absolute inset-0 w-full h-full" viewBox="0 0 56 56">
-                  <circle className="track-ring-bg" cx="28" cy="28" r="26" fill="none" strokeWidth="3" />
-                  <circle className="track-ring-progress" cx="28" cy="28" r="26" fill="none" strokeWidth="3" pathLength={1} strokeDasharray="1" strokeLinecap="round" />
-                </svg>
-                <svg className="track-icon-play w-5 h-5" style={{ transform: 'translateX(1px)' }} fill="var(--accent)" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                <svg className="track-icon-pause w-5 h-5" fill="var(--accent)" viewBox="0 0 24 24">
-                  <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
-                </svg>
-              </span>
-            </span>
-          )}
           <span className="relative block p-4" style={{ color: 'var(--text-primary)' }}>
             <span className="font-bold text-lg mb-1 line-clamp-2">{title}</span>
             {subtitle && <span className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{subtitle}</span>}
@@ -118,6 +102,14 @@ export default function MediaCard({
             )}
           </span>
         </span>
+
+        {/* Centered on the tile; shown with the overlay (and always on touch
+            screens, which can't hover) */}
+        {spotify && (
+          <span className="media-card-play absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
+            <PlayButton />
+          </span>
+        )}
       </span>
 
       {/* Minimal caption, hidden while the overlay is showing */}
@@ -152,43 +144,26 @@ export default function MediaCard({
     );
   }
 
-  // Expandable info card: the panel overlays the card (and the cards below
-  // it if it's taller), so the grid itself never reflows
-  return (
-    <div className={`media-card-wrap relative${enterClass}`} style={style}>
+  if (onOpen) {
+    return (
       <button
         type="button"
-        className={className}
-        aria-expanded="false"
-        aria-controls={panelId}
-        data-expand-toggle=""
+        className={className + enterClass}
+        style={style}
+        onClick={onOpen}
+        aria-haspopup="dialog"
+        aria-label={subtitle ? `${title}, ${subtitle}: view details` : `${title}: view details`}
+        data-viewer-tile=""
       >
         {body}
       </button>
-      <div
-        id={panelId}
-        className="media-card-panel absolute left-0 right-0 top-0 min-h-full rounded-lg shadow-lg border p-4 text-left"
-        style={{
-          // --bg-card is translucent in some themes; layer it on the page color so the panel is opaque
-          background: 'linear-gradient(var(--bg-card), var(--bg-card)), var(--bg-primary)',
-          borderColor: 'var(--accent)',
-          color: 'var(--text-primary)',
-        }}
-      >
-        <p className="font-bold text-base leading-snug mb-1 break-words hyphens-auto">{title}</p>
-        {subtitle && <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{subtitle}</p>}
-        {hasRating && <StarRating rating={rating} label={ratingLabel} className="mb-2" />}
-        {details.length > 0 && (
-          <dl className="text-xs space-y-1">
-            {details.map((d) => (
-              <div key={d.label} className="flex justify-between gap-2">
-                <dt style={{ color: 'var(--text-secondary)' }}>{d.label}</dt>
-                <dd className="font-semibold text-right">{d.value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </div>
+    );
+  }
+
+  // Nothing to do on click: still focusable so keyboards can reveal the overlay
+  return (
+    <div tabIndex={0} className={className + enterClass} style={style}>
+      {body}
     </div>
   );
 }

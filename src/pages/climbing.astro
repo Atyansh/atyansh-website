@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import LoadError from '../components/LoadError.astro';
+import PlayButton from '../components/PlayButton';
 import { formatPacificDate } from '../components/formatDate';
 import { getKayaData, formatHeight, formatApeIndex, getGradeOrdering } from '../utils/kaya';
 
@@ -199,7 +200,7 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
                       return (
                       <button
                         type="button"
-                        class="relative group cursor-pointer block w-full text-left rounded-lg"
+                        class="media-lift relative group cursor-pointer block w-full text-left rounded-lg"
                         data-video-url={ascent.video?.video_url}
                         aria-label={`Play send video: ${climbName}, ${grade}, ${sentOn}`}
                         aria-haspopup="dialog"
@@ -208,25 +209,13 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
                           <img
                             src={ascent.video?.thumb_url}
                             alt=""
-                            class="w-full h-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
+                            class="w-full h-full object-cover"
                             loading="lazy"
                             decoding="async"
                           />
-                          {/* Small play badge - always visible on mobile */}
-                          <div class="absolute top-2 left-2 md:hidden">
-                            <div class="w-6 h-6 rounded-full flex items-center justify-center border" style="background-color: var(--bg-primary); border-color: var(--accent);">
-                              <svg class="w-3 h-3" style="transform: translateX(0.5px);" fill="var(--accent)" viewBox="0 0 24 24">
-                                <path d="M8 5v14l11-7z"/>
-                              </svg>
-                            </div>
-                          </div>
-                          {/* Full play button overlay - hover only on desktop */}
-                          <div class="absolute inset-0 hidden md:flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-300">
-                            <div class="w-12 h-12 rounded-full flex items-center justify-center border-2" style="background-color: var(--bg-primary); border-color: var(--accent);">
-                              <svg class="w-5 h-5" style="transform: translateX(1px);" fill="var(--accent)" viewBox="0 0 24 24">
-                                <path d="M8 5v14l11-7z"/>
-                              </svg>
-                            </div>
+                          {/* Shared play control (same as /music); .tile-play in global.css */}
+                          <div class="tile-play absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                            <PlayButton size="sm" />
                           </div>
                         </div>
                         {/* Info overlay */}
@@ -296,6 +285,23 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
 
           .video-modal::backdrop {
             background: rgba(0, 0, 0, 0.9);
+          }
+
+          @media (prefers-reduced-motion: no-preference) {
+            .video-modal[open]::backdrop {
+              animation: video-backdrop-in 0.26s ease-out;
+            }
+          }
+
+          .video-modal.is-closing::backdrop {
+            opacity: 0;
+            transition: opacity 0.26s ease-in;
+          }
+
+          @keyframes video-backdrop-in {
+            from {
+              opacity: 0;
+            }
           }
 
           .video-modal-body {
@@ -369,6 +375,30 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
               showError('Video unavailable - may be restricted by Kaya');
             }, { signal });
 
+            // Grow the player out of the tapped tile, and shrink it back on
+            // close (same feel as the site's other viewers, MediaViewer.tsx)
+            let openedFrom: HTMLElement | null = null;
+            const body = modal?.querySelector<HTMLElement>('.video-modal-body') ?? null;
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+            function grow(tile: HTMLElement | null, dir: 'in' | 'out') {
+              if (!body) return null;
+              const to = body.getBoundingClientRect();
+              const from = tile?.getBoundingClientRect();
+              const onScreen = from && from.width > 0 && from.bottom > 0 && from.top < window.innerHeight;
+              let frames: Keyframe[];
+              if (reduceMotion.matches || !onScreen || !to.width) {
+                frames = [{ opacity: 0 }, { opacity: 1 }];
+              } else {
+                const scale = Math.min(from.width / to.width, from.height / to.height);
+                const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+                const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+                frames = [{ transform: `translate(${dx}px, ${dy}px) scale(${scale})`, opacity: 0.4 }, { transform: 'none', opacity: 1 }];
+              }
+              if (dir === 'out') frames.reverse();
+              return body.animate(frames, { duration: reduceMotion.matches ? 120 : dir === 'in' ? 340 : 260, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: dir === 'out' ? 'forwards' : 'none' });
+            }
+
             // Track current blob URL to revoke it later
             let currentBlobUrl: string | null = null;
             // Bumped on every open/close so a slow fetch for a video the
@@ -382,7 +412,15 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
                 if (videoUrl && modal && video) {
                   const token = ++loadToken;
                   hideError();
-                  if (!modal.open) modal.showModal();
+                  // The thumbnail (same URL as the tile) shows while the
+                  // video loads, and gives the player its size right away
+                  const thumb = el.querySelector('img');
+                  if (thumb?.currentSrc) video.poster = thumb.currentSrc;
+                  openedFrom = el as HTMLElement;
+                  if (!modal.open) {
+                    modal.showModal();
+                    grow(el as HTMLElement, 'in');
+                  }
 
                   // Revoke previous blob URL
                   if (currentBlobUrl) {
@@ -422,6 +460,7 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
               if (video) {
                 video.pause();
                 video.removeAttribute('src');
+                video.removeAttribute('poster');
                 video.load(); // Reset video element
                 hideError();
                 // Revoke blob URL to free memory
@@ -432,11 +471,33 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
               }
             }
 
+            let closing = false;
             function closeModal() {
-              if (modal?.open) modal.close();
+              if (!modal?.open || closing) return;
+              closing = true;
+              video?.pause();
+              modal.classList.add('is-closing');
+              const anim = grow(openedFrom, 'out');
+              const done = () => {
+                modal.close();
+                modal.classList.remove('is-closing');
+                anim?.cancel();
+                closing = false;
+              };
+              if (anim) anim.finished.then(done, done);
+              else done();
             }
 
-            modal?.addEventListener('close', resetVideo, { signal });
+            // Esc: animate out instead of the native instant close
+            modal?.addEventListener('cancel', (e) => {
+              e.preventDefault();
+              closeModal();
+            }, { signal });
+            modal?.addEventListener('close', () => {
+              resetVideo();
+              // showModal() restores focus itself in most browsers; make sure
+              openedFrom?.focus({ preventScroll: true });
+            }, { signal });
             closeBtn?.addEventListener('click', closeModal, { signal });
             // Clicks on the dimmed area (outside the video) close it
             modal?.addEventListener('click', (e) => {

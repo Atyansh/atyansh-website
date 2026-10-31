@@ -115,6 +115,7 @@ const config: MediaFilterGridConfig<Anime> = {
   },
   filterColumnClass: 'lg:grid-cols-5',
   itemNounPlural: 'anime',
+  viewerLabel: 'Anime details',
 };
 
 function AnimeFilterInner({ anime }: AnimeFilterProps) {

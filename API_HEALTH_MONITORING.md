@@ -63,32 +63,24 @@ The bot must share at least one server with you to send DMs.
 2. Right-click your own name in any chat
 3. Click **Copy User ID**
 
-### Step 4: Add Secrets to Google Secret Manager
+### Step 4: Add the Credentials to `SITE_SECRETS`
+
+All site credentials live in one JSON secret, `SITE_SECRETS` (see DEPLOYMENT_GUIDE.md). Add both values to `.env`:
 
 ```bash
-# Discord bot token
-echo -n "your_bot_token_here" | \
-  gcloud secrets create DISCORD_BOT_TOKEN --data-file=-
-
-# Your Discord user ID (DM recipient)
-echo -n "123456789012345678" | \
-  gcloud secrets create DISCORD_USER_ID --data-file=-
+DISCORD_BOT_TOKEN=your_bot_token_here
+DISCORD_USER_ID=123456789012345678
 ```
 
-### Step 5: Grant Permissions
-
-Grant the Cloud Build service account access to the new secrets:
+Then push them (naming the keys adds them):
 
 ```bash
-PROJECT_NUMBER=418072003908
-
-for secret in DISCORD_BOT_TOKEN DISCORD_USER_ID; do
-  echo "Granting access to $secret..."
-  gcloud secrets add-iam-policy-binding $secret \
-    --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor"
-done
+./scripts/sync-secrets-to-gcloud.sh DISCORD_BOT_TOKEN DISCORD_USER_ID
 ```
+
+### Step 5: Check Permissions
+
+In Cloud Build, `check-api-health.cjs` reads the Discord credentials from `SITE_SECRETS` itself (so alerts still go out even if the refresh step failed). The build service account needs project-level `roles/secretmanager.secretAccessor`, which it already has for the rest of the build — see "Service Account Permissions" in DEPLOYMENT_GUIDE.md. There are no per-secret bindings to add.
 
 ### Step 6: Test Locally (Optional)
 
@@ -166,8 +158,7 @@ You'll receive a Discord DM with an embed containing:
 
 2. **Verify secrets are set:**
    ```bash
-   gcloud secrets versions access latest --secret=DISCORD_BOT_TOKEN
-   gcloud secrets versions access latest --secret=DISCORD_USER_ID
+   gcloud secrets versions access latest --secret=SITE_SECRETS | jq -r '.DISCORD_BOT_TOKEN, .DISCORD_USER_ID'
    ```
 
 3. **Check the bot is still in a shared server** - The bot must share at least one server with you
@@ -176,15 +167,15 @@ You'll receive a Discord DM with an embed containing:
 
 Error: "401"
 - **Cause:** Bot token is invalid or was reset
-- **Fix:** Regenerate the token in the Discord Developer Portal and update the secret
+- **Fix:** Regenerate the token in the Discord Developer Portal, set `DISCORD_BOT_TOKEN` in `.env`, then `./scripts/sync-secrets-to-gcloud.sh DISCORD_BOT_TOKEN`
 
 Error: "Failed to open DM channel"
 - **Cause:** Bot and user don't share a server
 - **Fix:** Invite the bot to a server you're in (Step 2)
 
 Error: "Discord credentials not configured"
-- **Cause:** Secrets not accessible in Cloud Build
-- **Fix:** Check IAM permissions (Step 5)
+- **Cause:** `SITE_SECRETS` not readable in Cloud Build, or the Discord keys are missing from it
+- **Fix:** Check the keys (above) and IAM permissions (Step 5); the build log shows "Could not read Discord credentials from SITE_SECRETS" with the reason
 
 ### False Positives
 
@@ -196,9 +187,9 @@ If you get notifications for APIs that should work:
    ls -lh .cache/
    ```
 
-2. **Verify API keys in Secret Manager:**
+2. **Verify API keys in `SITE_SECRETS`:**
    ```bash
-   gcloud secrets list
+   gcloud secrets versions access latest --secret=SITE_SECRETS | jq -r 'keys[]'
    ```
 
 3. **Test API locally:**
@@ -207,21 +198,20 @@ If you get notifications for APIs that should work:
 
 ## Updating API Keys
 
-When you receive a notification that an API key expired:
+When you receive a notification that an API key expired: update the value in `.env`, then push just those keys with `./scripts/sync-secrets-to-gcloud.sh KEY ...` (everything lives in the single `SITE_SECRETS` secret).
 
 ### Spotify
 ```bash
 node scripts/get-spotify-token.cjs
-# Follow prompts, then update secret:
-echo -n "new_refresh_token" | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file=-
+# Follow prompts, set SPOTIFY_REFRESH_TOKEN in .env, then:
+./scripts/sync-secrets-to-gcloud.sh SPOTIFY_REFRESH_TOKEN
 ```
 
 ### MyAnimeList
 ```bash
 node scripts/get-mal-token.cjs
-# Follow prompts, then update secrets:
-echo -n "new_access_token" | gcloud secrets versions add MAL_ACCESS_TOKEN --data-file=-
-echo -n "new_refresh_token" | gcloud secrets versions add MAL_REFRESH_TOKEN --data-file=-
+# Follow prompts, set both tokens in .env, then:
+./scripts/sync-secrets-to-gcloud.sh MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN
 ```
 
 ### PSN (Refresh Token / NPSSO)
@@ -233,37 +223,36 @@ the NPSSO when the refresh token expires or is revoked.
    still be returned by the ssocookie URL)
 2. Visit https://ca.account.sony.com/api/v1/ssocookie
 3. Copy the `npsso` value from the JSON response
-4. Update secret:
+4. Set `PSN_NPSSO` in `.env`, then:
    ```bash
-   echo -n "new_npsso_value" | gcloud secrets versions add PSN_NPSSO --data-file=-
+   ./scripts/sync-secrets-to-gcloud.sh PSN_NPSSO
    ```
 5. The next build will exchange the NPSSO for a fresh refresh token and persist it automatically
 
 ### IGDB
 1. Go to https://api.igdb.com/
 2. Regenerate access token
-3. Update secrets:
+3. Set `IGDB_ACCESS_TOKEN` in `.env`, then:
    ```bash
-   echo -n "new_access_token" | gcloud secrets versions add IGDB_ACCESS_TOKEN --data-file=-
+   ./scripts/sync-secrets-to-gcloud.sh IGDB_ACCESS_TOKEN
    ```
 
 ### Steam
 Steam API keys don't expire, but if you need to regenerate:
 1. Go to https://steamcommunity.com/dev/apikey
 2. Regenerate key
-3. Update secret:
+3. Set `STEAM_API_KEY` in `.env`, then:
    ```bash
-   echo -n "new_api_key" | gcloud secrets versions add STEAM_API_KEY --data-file=-
+   ./scripts/sync-secrets-to-gcloud.sh STEAM_API_KEY
    ```
 
 ## Disabling Notifications
 
 If you want to disable Discord notifications but keep the health check:
 
-### Option 1: Remove Discord secrets
+### Option 1: Remove the Discord keys from `SITE_SECRETS`
 ```bash
-gcloud secrets delete DISCORD_BOT_TOKEN
-gcloud secrets delete DISCORD_USER_ID
+./scripts/sync-secrets-to-gcloud.sh --remove DISCORD_BOT_TOKEN --remove DISCORD_USER_ID
 ```
 
 The health check will still run and log results, but won't send DMs.
@@ -276,7 +265,7 @@ Edit `cloudbuild.yaml` and comment out the health check step.
 
 - **Discord Webhooks:** Free
 - **Cloud Build:** No extra cost (health check adds ~10 seconds)
-- **Secret Manager:** $0.06 per 10,000 accesses (negligible for daily builds)
+- **Secret Manager:** $0 — one secret (`SITE_SECRETS`) with ≤3 versions fits in the free tier; accesses are negligible
 
 **Total additional cost:** $0/month
 

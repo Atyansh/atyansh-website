@@ -67,14 +67,14 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
    cp .env.example .env
    ```
 
-   If you have secrets in Google Cloud Secret Manager, sync them instead:
+   If you have access to the `SITE_SECRETS` secret in Google Cloud Secret Manager, sync it instead:
    ```bash
    node scripts/pull-secrets.cjs
    ```
 
 4. **Configure your API keys** (see detailed instructions below)
 
-**Note:** `npm run build` automatically syncs secrets from Secret Manager before building (if gcloud is configured). Secret Manager is the single source of truth.
+**Note:** `npm run build` automatically syncs secrets from Secret Manager before building (if gcloud is configured). Every credential lives in one JSON secret, `SITE_SECRETS`, which is the single source of truth; push `.env` changes back with `./scripts/sync-secrets-to-gcloud.sh KEY ...` (see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)).
 
 ## Quick Start (Minimal Setup)
 
@@ -297,14 +297,14 @@ MyAnimeList uses OAuth2. Use the included helper script.
    GOODREADS_USER_ID=12345678
    GOODREADS_COOKIE='...whole cookie header...'
    ```
-6. Push the cookie to Secret Manager (`sync-secrets-to-gcloud.sh` can't handle the spaces in it):
+6. Push both to `SITE_SECRETS` (the cookie must be single-quoted in `.env`; the sync script handles the spaces in it):
    ```bash
-   pbpaste | gcloud secrets versions add GOODREADS_COOKIE --data-file=- --project personal-website-334502
+   ./scripts/sync-secrets-to-gcloud.sh GOODREADS_USER_ID GOODREADS_COOKIE
    ```
 
 **Note:** Goodreads removed shelf RSS feeds in October 2026 and shelf pages now require sign-in, so the build scrapes your signed-in shelf pages (`/review/list/<id>`).
 
-The session rests on Amazon's login cookies, which expire a year after they're issued and which Goodreads never renews. So before every build `scripts/refresh-tokens.cjs` re-signs in silently (Amazon's sign-in without `max_auth_age=0` re-issues the cookies for a still-valid session, no password needed), checks the renewed cookie loads a shelf, and saves it to Secret Manager. Each daily build pushes the expiry a year out, so the cookie never expires on its own.
+The session rests on Amazon's login cookies, which expire a year after they're issued and which Goodreads never renews. So before every build `scripts/refresh-tokens.cjs` re-signs in silently (Amazon's sign-in without `max_auth_age=0` re-issues the cookies for a still-valid session, no password needed), checks the renewed cookie loads a shelf, and saves it to `SITE_SECRETS`. Each daily build pushes the expiry a year out, so the cookie never expires on its own.
 
 You only need to paste a new cookie if the login is killed: changing your Goodreads/Amazon password, "sign out of all devices", or Amazon deciding to ask for the password again. The "Goodreads (session renewal)" health check alerts on the first failed renewal — while the current cookie still works for up to a year — and the site keeps serving the last good books if it ever does stop working.
 
@@ -373,7 +373,7 @@ Get notified via Discord DM when API keys expire during automated builds.
    DISCORD_BOT_TOKEN=your_discord_bot_token_here
    DISCORD_USER_ID=your_discord_user_id_here
    ```
-6. Add both secrets to Google Secret Manager and sync (see [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for details)
+6. Push both to `SITE_SECRETS`: `./scripts/sync-secrets-to-gcloud.sh DISCORD_BOT_TOKEN DISCORD_USER_ID` (see [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for details)
 
 **What it does:**
 - Runs after every build (daily at 2 AM UTC in production)
@@ -441,8 +441,10 @@ Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS pars
 │   ├── get-mal-token.cjs       # MyAnimeList OAuth helper
 │   ├── setup-tmdb.cjs          # TMDB TV setup (auth + list)
 │   ├── check-api-health.cjs    # API health monitoring
-│   ├── pull-secrets.cjs        # Sync secrets from GCloud to .env
-│   ├── sync-secrets-to-gcloud.sh # Sync .env to Secret Manager
+│   ├── site-secrets.cjs        # Read/write the single SITE_SECRETS secret
+│   ├── pull-secrets.cjs        # Sync SITE_SECRETS to .env
+│   ├── push-secrets.cjs        # Sync .env to SITE_SECRETS
+│   ├── sync-secrets-to-gcloud.sh # Wrapper for push-secrets.cjs
 ├── src/
 │   ├── audio/                  # Client-side audio engine
 │   │   ├── AudioEngine.ts    # Step sequencer + theme processing
@@ -652,12 +654,12 @@ If you accidentally commit secrets:
 - IGDB: Requires `IGDB_CLIENT_SECRET` to auto-refresh
 - MyAnimeList: Uses `MAL_REFRESH_TOKEN` to auto-refresh
 - TMDB: No refresh needed — the v4 user access token is long-lived
-- Refreshed tokens are automatically saved to Secret Manager for future builds
+- Refreshed tokens are automatically saved to `SITE_SECRETS` for future builds
 
 **Spotify tokens expire periodically:**
 - Re-run `node scripts/get-spotify-token.cjs` to get new tokens
 - Update `.env` with new values
-- For production: Sync to Google Cloud with `./scripts/sync-secrets-to-gcloud.sh`
+- For production: Sync to Google Cloud with `./scripts/sync-secrets-to-gcloud.sh SPOTIFY_REFRESH_TOKEN`
 
 **PSN uses a refresh token flow** to avoid frequent manual renewal:
 - The NPSSO bootstraps the refresh token on first use
@@ -666,7 +668,7 @@ If you accidentally commit secrets:
 - When the refresh token also expires, get a new NPSSO:
   - Log out of https://store.playstation.com, then log back in
   - Visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh token
-  - Update `PSN_NPSSO` in `.env` and sync to Secret Manager
+  - Update `PSN_NPSSO` in `.env`, then `./scripts/sync-secrets-to-gcloud.sh PSN_NPSSO`
 
 **Automated monitoring:**
 - If Discord notifications are configured, you'll automatically receive a DM when tokens expire

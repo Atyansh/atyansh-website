@@ -7,8 +7,13 @@
  * the Astro build starts.
  * This avoids race conditions when multiple pages try to refresh concurrently.
  *
- * - Updates Secret Manager (for Cloud Build persistence)
- * - Updates .env file (for local development)
+ * In Cloud Build it also loads every credential from the SITE_SECRETS secret
+ * (see site-secrets.cjs) and writes them all to .env.refresh for the build
+ * step to source. Renewed tokens are collected in memory and saved back to
+ * SITE_SECRETS in ONE write at the end.
+ *
+ * Locally it reads .env (pull-secrets.cjs syncs it first), saves renewed
+ * tokens to SITE_SECRETS the same way, and updates .env.
  *
  * Usage:
  *   node scripts/refresh-tokens.cjs
@@ -16,6 +21,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readSecrets, writeSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs');
 
 // Load .env file for local development
 try {
@@ -25,20 +31,22 @@ try {
 }
 
 const ENV_FILE = path.join(process.cwd(), '.env');
-const PROJECT_ID = 'personal-website-334502';
 
 // Retry configuration
 const MAX_RETRIES = 3;
 const INITIAL_DELAY_MS = 1000;
 
-// Track updates for .env file
+// Every token that changed this run (for .env / .env.refresh)
 const envUpdates = {};
+// The subset to save to SITE_SECRETS, in one write after all refreshes finish
+const secretUpdates = {};
 
 /**
- * Persist a refreshed token to Secret Manager, envUpdates, and process.env
+ * Record a refreshed token that must outlive this build. Saved to
+ * SITE_SECRETS by saveSecretUpdates() at the end of main().
  */
-async function persistTokenUpdate(key, value) {
-  await updateSecretManager(key, value);
+function persistTokenUpdate(key, value) {
+  secretUpdates[key] = value;
   envUpdates[key] = value;
   process.env[key] = value;
 }
@@ -96,64 +104,6 @@ async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
   throw lastError;
 }
 
-// Lazy singleton for SecretManagerServiceClient (avoids creating multiple gRPC clients)
-let _secretManagerClient = null;
-function getSecretManagerClient() {
-  if (!_secretManagerClient) {
-    const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
-    _secretManagerClient = new SecretManagerServiceClient();
-  }
-  return _secretManagerClient;
-}
-
-/**
- * Update a secret in Google Cloud Secret Manager using the SDK
- */
-async function updateSecretManager(secretName, value) {
-  try {
-    const client = getSecretManagerClient();
-
-    const parent = `projects/${PROJECT_ID}/secrets/${secretName}`;
-
-    const [newVersion] = await client.addSecretVersion({
-      parent,
-      payload: {
-        data: Buffer.from(value, 'utf8'),
-      },
-    });
-
-    console.log(`  ✓ Updated ${secretName} in Secret Manager`);
-    await destroyOldVersions(client, parent, newVersion.name);
-    return true;
-  } catch (error) {
-    console.log(`  ⚠ Could not update Secret Manager: ${error.message}`);
-    return false;
-  }
-}
-
-/**
- * Destroy every stale version of a secret except the one just added.
- * Only the latest version is ever read (builds use versions/latest), and
- * Secret Manager bills every ENABLED *and DISABLED* version at
- * ~$0.06/month — only DESTROYED versions are free. Merely disabling old
- * versions kept ~500 rotated-out tokens on the meter (~$31/month). The
- * old versions are dead tokens with no recovery value, so destroy them.
- */
-async function destroyOldVersions(client, parent, keepName) {
-  try {
-    const [versions] = await client.listSecretVersions({ parent });
-    const stale = versions.filter(v =>
-      (v.state === 'ENABLED' || v.state === 'DISABLED') && v.name !== keepName);
-    await Promise.all(stale.map(v => client.destroySecretVersion({ name: v.name })));
-    if (stale.length > 0) {
-      console.log(`  ✓ Destroyed ${stale.length} old version(s) of ${parent.split('/').pop()}`);
-    }
-  } catch (error) {
-    // Non-fatal: the new version is already live
-    console.log(`  ⚠ Could not destroy old secret versions: ${error.message}`);
-  }
-}
-
 /**
  * Single-quote a value for bash / dotenv. Cookies contain spaces, |, ?, &
  * and could contain $ or `, none of which survive double quotes or no quotes.
@@ -163,8 +113,9 @@ function shellQuote(value) {
 }
 
 /**
- * Write refreshed tokens to a file that can be sourced by bash
- * This is used in Cloud Build where we need to pass tokens between steps
+ * Write tokens to a file that can be sourced by bash.
+ * In Cloud Build this carries every credential (not just refreshed ones)
+ * from this script to the build step, since SITE_SECRETS is read here.
  */
 function writeRefreshFile(updates) {
   if (Object.keys(updates).length === 0) {
@@ -192,9 +143,6 @@ function updateEnvFile(updates) {
   if (Object.keys(updates).length === 0) {
     return;
   }
-
-  // Always write the refresh file for Cloud Build
-  writeRefreshFile(updates);
 
   if (!fs.existsSync(ENV_FILE)) {
     console.log('  No .env file found, skipping local .env update');
@@ -264,6 +212,16 @@ function applySetCookies(jar, setCookies) {
 
 const serializeJar = (jar) => [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
 
+/** Status for the "Goodreads (session renewal)" health check */
+function recordGoodreadsSession(fields) {
+  try {
+    fs.mkdirSync(path.dirname(GOODREADS_SESSION_FILE), { recursive: true });
+    fs.writeFileSync(GOODREADS_SESSION_FILE, JSON.stringify({ timestamp: Date.now(), ...fields }, null, 2));
+  } catch (error) {
+    console.log(`  ⚠ Goodreads: could not write session status: ${error.message}`);
+  }
+}
+
 /**
  * Renew the Goodreads session so it never reaches its one-year expiry.
  *
@@ -283,14 +241,7 @@ async function refreshGoodreads() {
     return null;
   }
 
-  const record = (fields) => {
-    try {
-      fs.mkdirSync(path.dirname(GOODREADS_SESSION_FILE), { recursive: true });
-      fs.writeFileSync(GOODREADS_SESSION_FILE, JSON.stringify({ timestamp: Date.now(), ...fields }, null, 2));
-    } catch (error) {
-      console.log(`  ⚠ Goodreads: could not write session status: ${error.message}`);
-    }
-  };
+  const record = recordGoodreadsSession;
 
   try {
     const jar = parseCookieHeader(cookie);
@@ -318,7 +269,7 @@ async function refreshGoodreads() {
       throw new Error(`renewed cookies were rejected by the shelf page (HTTP ${check.status})`);
     }
 
-    await persistTokenUpdate('GOODREADS_COOKIE', serializeJar(jar));
+    persistTokenUpdate('GOODREADS_COOKIE', serializeJar(jar));
     console.log(`  ✓ Goodreads session renewed (now expires ${expiresAt.toISOString().slice(0, 10)})`);
     record({ renewed: true, expiresAt: expiresAt.toISOString() });
     return true;
@@ -549,10 +500,48 @@ async function refreshPSN() {
   }
 }
 
+/**
+ * Save every renewed token to SITE_SECRETS in a single write.
+ */
+async function saveSecretUpdates() {
+  const keys = Object.keys(secretUpdates);
+  if (keys.length === 0) {
+    console.log(`  No renewed tokens to save to ${SECRET_NAME}`);
+    return;
+  }
+  try {
+    await writeSecrets(secretUpdates);
+  } catch (error) {
+    // Rotating refresh tokens (MAL, PSN) may now be invalid upstream, so say
+    // exactly what was lost
+    console.log(`  ✗ Could not save to ${SECRET_NAME}: ${error.message}`);
+    console.log(`    Not saved: ${keys.join(', ')}`);
+    if (keys.includes('GOODREADS_COOKIE')) {
+      recordGoodreadsSession({ renewed: false, error: `renewed, but could not save to ${SECRET_NAME}: ${error.message}` });
+    }
+  }
+}
+
 async function main() {
   console.log('🔄 Pre-build token refresh\n');
 
-  // Refresh all tokens in parallel
+  // In Cloud Build every credential comes from SITE_SECRETS. Locally they come
+  // from .env (synced from SITE_SECRETS by pull-secrets.cjs).
+  let loaded = {};
+  if (isCloudBuild()) {
+    try {
+      loaded = (await readSecrets()).values;
+      Object.assign(process.env, loaded);
+      console.log(`  ✓ Loaded ${Object.keys(loaded).length} credentials from ${SECRET_NAME}\n`);
+    } catch (error) {
+      console.log(`  ✗ Could not load ${SECRET_NAME}: ${error.message}`);
+      console.log('    Every integration will serve last-known-good data this build\n');
+      return;
+    }
+  }
+
+  // Refresh all tokens in parallel. Each only records its new values in
+  // memory, so they can't race each other; one save happens afterwards.
   const results = await Promise.allSettled([
     refreshMAL().then(r => { console.log('  MAL: done'); return r; }),
     refreshIGDB().then(r => { console.log('  IGDB: done'); return r; }),
@@ -568,9 +557,15 @@ async function main() {
     }
   });
 
-  // Update .env file with any changes
   console.log('');
-  updateEnvFile(envUpdates);
+  await saveSecretUpdates();
+
+  if (isCloudBuild()) {
+    // Hand every credential (renewed ones included) to the build step
+    writeRefreshFile({ ...loaded, ...envUpdates });
+  } else {
+    updateEnvFile(envUpdates);
+  }
 
   console.log('\n✅ Token refresh complete\n');
 }

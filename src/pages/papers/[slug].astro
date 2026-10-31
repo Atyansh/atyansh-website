@@ -2,18 +2,18 @@
 import { formatCalendarDate } from '../../components/formatDate';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import AnimatedCard from '../../components/AnimatedCard.astro';
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 
 export async function getStaticPaths() {
   const papers = await getCollection('papers');
   return papers.map((paper) => ({
-    params: { slug: paper.slug },
+    params: { slug: paper.id },
     props: { paper },
   }));
 }
 
 const { paper } = Astro.props;
-const { Content } = await paper.render();
+const { Content } = await render(paper);
 ---
 
 <BaseLayout title={`${paper.data.title} - Research`} description={paper.data.description}>

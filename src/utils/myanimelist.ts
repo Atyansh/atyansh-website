@@ -3,7 +3,7 @@
 
 import { FileCache } from './cache';
 import { createLogger } from './logger';
-import type { AnimeStatus } from '../content/config';
+import type { AnimeStatus } from '../content.config';
 import { fetchWithRetry } from './retry';
 
 const log = createLogger('MAL');

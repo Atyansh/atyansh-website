@@ -1,6 +1,6 @@
 import MediaFilterGrid, { type MediaFilterGridConfig } from './MediaFilterGrid';
 import ErrorBoundary from './ErrorBoundary';
-import type { AnimeStatus } from '../content/config';
+import type { AnimeStatus } from '../content.config';
 
 interface AnimeData {
   title: string;

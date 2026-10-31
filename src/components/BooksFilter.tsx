@@ -1,6 +1,6 @@
 import MediaFilterGrid, { type MediaFilterGridConfig } from './MediaFilterGrid';
 import ErrorBoundary from './ErrorBoundary';
-import type { BookStatus } from '../content/config';
+import type { BookStatus } from '../content.config';
 
 interface BookData {
   title: string;

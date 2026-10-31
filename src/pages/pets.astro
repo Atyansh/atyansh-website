@@ -4,7 +4,8 @@ import { getCollection } from 'astro:content';
 import AnimatedCard from '../components/AnimatedCard.astro';
 import PetPhotoCarousel from '../components/PetPhotoCarousel';
 
-const pets = await getCollection('pets');
+// Alphabetical by file name, as on the live site (collection order isn't guaranteed).
+const pets = (await getCollection('pets')).sort((a, b) => a.id.localeCompare(b.id));
 ---
 
 <BaseLayout

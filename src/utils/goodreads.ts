@@ -10,7 +10,7 @@
 // expiry indefinitely.
 
 import { FileCache } from './cache';
-import type { BookStatus } from '../content/config';
+import type { BookStatus } from '../content.config';
 import { createLogger } from './logger';
 import { fetchWithRetry } from './retry';
 

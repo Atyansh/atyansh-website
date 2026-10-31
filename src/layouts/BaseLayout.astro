@@ -4,7 +4,7 @@ import ThemeSwitcher from '../components/ThemeSwitcher.astro';
 import AudioToggle from '../components/AudioToggle.astro';
 import StructuredData from '../components/StructuredData.astro';
 import ImageWarmup from '../components/ImageWarmup.astro';
-import { ViewTransitions } from 'astro:transitions';
+import { ClientRouter } from 'astro:transitions';
 
 interface Props {
   title: string;
@@ -65,7 +65,7 @@ if (image) {
     <title>{title}</title>
 
     <!-- View Transitions for smooth page navigation -->
-    <ViewTransitions />
+    <ClientRouter />
 
     <script is:inline>
       // Ambient audio is a hidden feature revealed by visiting any page with

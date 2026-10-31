@@ -14,13 +14,13 @@
     "check:astro": "astro check"
   },
   "dependencies": {
-    "@astrojs/mdx": "^4.3.14",
-    "@astrojs/react": "^4.4.2",
+    "@astrojs/mdx": "^6.0.3",
+    "@astrojs/react": "^5.0.7",
     "@astrojs/sitemap": "^3.7.4",
     "@google-cloud/secret-manager": "^6.3.0",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "^5.18.2",
+    "astro": "^6.4.8",
     "dotenv": "^16.6.1",
     "framer-motion": "^12.43.0",
     "psn-api": "^2.18.1",

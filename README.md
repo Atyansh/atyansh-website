@@ -566,7 +566,7 @@ Create markdown files in the appropriate directory:
 - **Projects**: `src/content/projects/project-name.md`
 - **Papers**: `src/content/papers/paper-name.md`
 
-Each content type has a schema defined in `src/content/config.ts`. Follow the existing examples for frontmatter format.
+Each content type has a schema defined in `src/content.config.ts`. Follow the existing examples for frontmatter format.
 
 ### Disabling Features
 

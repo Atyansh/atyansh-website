@@ -31,7 +31,7 @@ const papers = (await getCollection('papers'))
       <div class="grid md:grid-cols-2 gap-6 md:auto-rows-fr">
         {projects.map((project, index) => (
           <AnimatedCard
-            href={`/projects/${project.slug}`}
+            href={`/projects/${project.id}`}
             delay={index * 0.05}
             className="h-full flex flex-col"
           >
@@ -72,7 +72,7 @@ const papers = (await getCollection('papers'))
       <div class="space-y-6">
         {papers.map((paper, index) => (
           <AnimatedCard
-            href={`/papers/${paper.slug}`}
+            href={`/papers/${paper.id}`}
             delay={index * 0.05 + 0.2}
           >
             <div class="flex justify-between items-start mb-3">

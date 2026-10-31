@@ -60,8 +60,8 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
     {/*
       Everything here is server-rendered HTML. Track tiles are <button>s that
       play the track's preview in place (SpotifyPlayer.astro: one hidden
-      embed + one delegated click listener); artist/album/podcast tiles are
-      plain links. The only
+      embed + one delegated click listener); artist, album, playlist and
+      podcast tiles play the same way. Nothing links off-site. The only
       islands are the playlist carousels' scroll arrows, and their tracks are
       passed as static slot HTML, not serialized props.
     */}
@@ -85,16 +85,21 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
               itemNoun="track"
               title={playlist.name}
             >
-              <a
+              <button
                 slot="headerActions"
-                href={playlist.external_urls.spotify}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="text-sm px-3 py-1 rounded-full hover:opacity-80 transition-all border-2"
+                type="button"
+                class="spotify-pill text-sm px-3 py-1 rounded-full hover:opacity-80 transition-all border-2 inline-flex items-center gap-1.5"
                 style="background-color: transparent; color: var(--accent); border-color: var(--accent);"
+                data-spotify-embed={`playlist/${playlist.id}`}
+                data-track-name={playlist.name}
+                data-track-verb="playlist"
+                aria-label={`Play playlist: ${playlist.name}`}
+                aria-pressed="false"
               >
-                Open in Spotify
-              </a>
+                <svg class="spotify-pill-play w-3 h-3" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                <svg class="spotify-pill-pause w-3 h-3" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z" /></svg>
+                Play
+              </button>
               {/* Carousel covers stay eager: measured lazy loading left
                   covers blank when paging the carousel on slower links */}
               {(playlist.allTracks || []).map((track) => (
@@ -103,7 +108,7 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
                     title={track.name}
                     subtitle={artistNames(track.artists)}
                     image={getBestImage(track.album.images) || ''}
-                    spotifyTrackId={track.id}
+                    spotify={{ type: 'track', id: track.id }}
                     eager
                   />
                 </div>
@@ -122,7 +127,7 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
                   title={track.name}
                   subtitle={artistNames(track.artists)}
                   image={getBestImage(track.album.images) || ''}
-                  spotifyTrackId={track.id}
+                  spotify={{ type: 'track', id: track.id }}
                   enterDelay={index * 0.05}
                 />
               ))}
@@ -140,7 +145,7 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
                   title={artist.name}
                   subtitle={artist.genres.slice(0, 2).join(', ') || 'Artist'}
                   image={getBestImage(artist.images) || ''}
-                  href={artist.external_urls.spotify}
+                  spotify={{ type: 'artist', id: artist.id }}
                   tags={artist.genres.slice(0, 2)}
                   enterDelay={index * 0.05}
                 />
@@ -159,7 +164,7 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
                   title={item.track!.name}
                   subtitle={artistNames(item.track!.artists)}
                   image={getBestImage(item.track!.album.images) || ''}
-                  spotifyTrackId={item.track!.id}
+                  spotify={{ type: 'track', id: item.track!.id }}
                   enterDelay={index * 0.05}
                 />
               ))}
@@ -177,7 +182,7 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
                   title={album.name}
                   subtitle={artistNames(album.artists)}
                   image={getBestImage(album.images) || ''}
-                  href={album.external_urls.spotify}
+                  spotify={{ type: 'album', id: album.id }}
                   enterDelay={index * 0.05}
                 />
               ))}
@@ -219,7 +224,7 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
                 title={item.episode!.name}
                 subtitle={item.episode!.show.name}
                 image={getBestImage(item.episode!.images) || ''}
-                href={item.episode!.external_urls.spotify}
+                spotify={{ type: 'episode', id: item.episode!.id }}
                 tags={['Podcast']}
                 enterDelay={index * 0.05}
               />
@@ -237,7 +242,7 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
                   title={show.name}
                   subtitle={show.publisher}
                   image={getBestImage(show.images) || ''}
-                  href={`https://open.spotify.com/show/${encodeURIComponent(show.id)}`}
+                  spotify={{ type: 'show', id: show.id }}
                   enterDelay={index * 0.05}
                 />
               ))}
@@ -248,7 +253,7 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
     )}
     {spotifyData && (
       <p class="text-center mt-8 text-xs" style="color: var(--text-secondary);">
-        Previews via <a href="https://open.spotify.com" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline" style="color: var(--accent);">Spotify</a>
+        Previews via Spotify
       </p>
     )}
   </div>

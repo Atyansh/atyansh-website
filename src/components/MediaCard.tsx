@@ -6,6 +6,8 @@ export interface MediaCardDetail {
   value: string;
 }
 
+export type SpotifyEmbedType = 'track' | 'album' | 'artist' | 'playlist' | 'show' | 'episode';
+
 export interface MediaCardProps {
   title: string;
   subtitle?: string;
@@ -16,12 +18,9 @@ export interface MediaCardProps {
   ratingLabel?: string;
   /** Extra facts shown when the card is expanded (pre-formatted strings) */
   details?: MediaCardDetail[];
-  /** External page for this item; the card becomes a link (new tab).
-   *  Only used on /music (artists, albums, podcasts). */
-  href?: string;
-  /** Spotify track id; the card becomes a play/pause button for the track's
-   *  preview, played by the hidden embed in SpotifyPlayer.astro */
-  spotifyTrackId?: string;
+  /** Spotify item to play in place: the card becomes a play/pause button
+   *  driving the hidden embed in SpotifyPlayer.astro */
+  spotify?: { type: SpotifyEmbedType; id: string };
   tags?: string[];
   /** Entrance animation delay in seconds; omit for no entrance animation */
   enterDelay?: number;
@@ -33,13 +32,14 @@ export interface MediaCardProps {
  * Poster-style media tile. Stateless and framer-free so it can be rendered
  * statically by Astro (no hydration) or inside an island. Three variants:
  *
- * - spotifyTrackId: a <button> that plays/pauses the track preview, with a
- *   progress ring around the play icon (driven by SpotifyPlayer.astro)
- * - href: a link (music artists/albums/podcasts)
+ * - spotify: a <button> that plays/pauses the item in place (track/album/
+ *   artist/playlist previews, podcast episodes/shows), with a progress ring
+ *   around the play icon (driven by SpotifyPlayer.astro)
  * - otherwise: a <button aria-expanded> that expands an info panel with the
  *   full title and details over the card (CardExpand.astro handles toggling)
  *
- * The hover/focus/tap overlay is pure CSS (.media-card rules in global.css).
+ * Nothing links off-site. The hover/focus/tap overlay is pure CSS
+ * (.media-card rules in global.css).
  */
 export default function MediaCard({
   title,
@@ -48,8 +48,7 @@ export default function MediaCard({
   rating,
   ratingLabel,
   details = [],
-  href,
-  spotifyTrackId,
+  spotify,
   tags = [],
   enterDelay,
   eager = false,
@@ -82,7 +81,7 @@ export default function MediaCard({
             background: 'linear-gradient(to bottom, transparent 0%, transparent 20%, color-mix(in srgb, var(--bg-primary) 95%, transparent) 100%)'
           }}
         >
-          {spotifyTrackId && (
+          {spotify && (
             <span className="absolute inset-x-0 top-0 bottom-[40%] flex items-center justify-center" aria-hidden="true">
               <span className="track-control relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: 'var(--bg-primary)' }}>
                 <svg className="track-ring absolute inset-0 w-full h-full" viewBox="0 0 56 56">
@@ -134,28 +133,22 @@ export default function MediaCard({
     </>
   );
 
-  if (spotifyTrackId) {
-    const name = subtitle ? `${title} by ${subtitle}` : title;
+  if (spotify) {
+    const name = subtitle && spotify.type !== 'artist' ? `${title} by ${subtitle}` : title;
+    const verb = spotify.type === 'show' || spotify.type === 'episode' ? 'episode' : 'preview';
     return (
       <button
         type="button"
         className={className + enterClass}
         style={style}
-        data-spotify-track={spotifyTrackId}
+        data-spotify-embed={`${spotify.type}/${spotify.id}`}
         data-track-name={name}
-        aria-label={`Play preview: ${name}`}
+        data-track-verb={verb}
+        aria-label={`Play ${verb}: ${name}`}
         aria-pressed="false"
       >
         {body}
       </button>
-    );
-  }
-
-  if (href) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={className + enterClass} style={style} data-tap-reveal="">
-        {body}
-      </a>
     );
   }
 

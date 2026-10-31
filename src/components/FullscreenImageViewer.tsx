@@ -23,6 +23,18 @@ export default function FullscreenImageViewer({
   onNext,
 }: FullscreenImageViewerProps) {
   const scrollPositionRef = useRef(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Move focus into the viewer on open and give it back to whatever opened
+  // it (the thumbnail button) on close
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+    return () => {
+      if (previouslyFocused?.isConnected) previouslyFocused.focus({ preventScroll: true });
+    };
+  }, []);
 
   // Lock body scroll and preserve scroll position
   useEffect(() => {
@@ -58,6 +70,21 @@ export default function FullscreenImageViewer({
       if (e.key === 'Escape') onClose();
       else if (e.key === 'ArrowLeft') onPrevious();
       else if (e.key === 'ArrowRight') onNext();
+      else if (e.key === 'Tab') {
+        // Keep keyboard focus inside the modal
+        const focusable = dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])');
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !dialogRef.current?.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (active === last || !dialogRef.current?.contains(active))) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -77,10 +104,12 @@ export default function FullscreenImageViewer({
 
   return createPortal(
     <div
+      ref={dialogRef}
       className="z-[9999] flex items-center justify-center"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
+      aria-label={`Image viewer: ${caption || `image ${currentIndex + 1} of ${images.length}`}`}
       style={{
         position: 'fixed',
         top: 0,
@@ -100,13 +129,15 @@ export default function FullscreenImageViewer({
     >
       {/* Close Button */}
       <button
+        ref={closeButtonRef}
+        type="button"
         onClick={(e) => { e.stopPropagation(); onClose(); }}
         onTouchStart={(e) => e.stopPropagation()}
         className="absolute top-3 right-3 sm:top-4 sm:right-4 md:top-6 md:right-6 w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-full transition-all flex items-center justify-center z-10 shadow-lg"
         style={buttonStyle}
         aria-label="Close fullscreen"
       >
-        <svg className="w-6 h-6 sm:w-6 sm:h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+        <svg className="w-6 h-6 sm:w-6 sm:h-6 md:w-7 md:h-7" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
@@ -124,13 +155,14 @@ export default function FullscreenImageViewer({
       {/* Previous Button */}
       {images.length > 1 && (
         <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); onPrevious(); }}
           onTouchStart={(e) => e.stopPropagation()}
           className="absolute left-2 sm:left-4 md:left-6 lg:left-8 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full transition-all flex items-center justify-center z-10 shadow-lg hover:scale-110"
           style={buttonStyle}
           aria-label="Previous image"
         >
-          <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
@@ -155,13 +187,14 @@ export default function FullscreenImageViewer({
       {/* Next Button */}
       {images.length > 1 && (
         <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); onNext(); }}
           onTouchStart={(e) => e.stopPropagation()}
           className="absolute right-2 sm:right-4 md:right-6 lg:right-8 top-1/2 -translate-y-1/2 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full transition-all flex items-center justify-center z-10 shadow-lg hover:scale-110"
           style={buttonStyle}
           aria-label="Next image"
         >
-          <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
         </button>

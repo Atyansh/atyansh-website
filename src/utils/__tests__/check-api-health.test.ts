@@ -48,14 +48,6 @@ describe('checkFn on fixture data', () => {
     expect(api(name).checkFn(good)).toBeTruthy();
     expect(api(name).checkFn(bad)).toBeFalsy();
   });
-
-  it('Letterboxd (full scrape) fails once the last full scrape is over 14 days old', () => {
-    const check = api('Letterboxd (full scrape)');
-    expect(check.checkFn({ lastFullScrape: Date.now() - 3 * DAY })).toBe(true);
-    expect(check.checkFn({ lastFullScrape: Date.now() - 20 * DAY })).toBe(false);
-    expect(check.failReason({ lastFullScrape: Date.now() - 20 * DAY })).toContain('20 days ago');
-    expect(check.checkFn({})).toBe(false);
-  });
 });
 
 describe('checkAPIHealth', () => {
@@ -94,13 +86,6 @@ describe('checkAPIHealth', () => {
     write('igdb-covers.json', { 'steam:x': { url: 'u', timestamp: Date.now() - 3 * DAY } });
     const results = await checkAPIHealth(dir, [api('IGDB (Game Covers)')]);
     expect(results.healthy).toHaveLength(1);
-  });
-
-  it('flags a fresh Letterboxd list whose last full scrape is a month old', async () => {
-    write('letterboxd-data.json', { timestamp: Date.now(), movies: [{}], lastFullScrape: Date.now() - 30 * DAY });
-    const results = await checkAPIHealth(dir, [api('Letterboxd'), api('Letterboxd (full scrape)')]);
-    expect(results.healthy.map((f: any) => f.name)).toEqual(['Letterboxd']);
-    expect(results.failed.map((f: any) => f.name)).toEqual(['Letterboxd (full scrape)']);
   });
 });
 

@@ -20,7 +20,6 @@ const { readSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs')
 
 const CACHE_DIR = path.join(process.cwd(), '.cache');
 const MAX_CACHE_AGE_HOURS = 1; // Only trust cache files created in the last hour (this build)
-const LETTERBOXD_FULL_SCRAPE_MAX_AGE_DAYS = 14;
 
 // Discord rejects (HTTP 400) a message over any of these
 const DISCORD_LIMITS = {
@@ -30,8 +29,6 @@ const DISCORD_LIMITS = {
   embedTotal: 6000, // title + description + field names/values + footer
   content: 2000,
 };
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Names of the Spotify lists that came back empty */
 function emptySpotifyLists(data) {
@@ -106,21 +103,6 @@ const APIs = [
     cacheFile: 'letterboxd-data.json',
     checkFn: (data) => data.movies && data.movies.length > 0,
     renewal: 'Check LETTERBOXD_USERNAME in SITE_SECRETS (web scraping)',
-    requiresApiKey: false,
-  },
-  {
-    // Builds that can't reach listing pages 2+ merge page 1 + RSS onto the
-    // previous list, which never picks up rating changes or removals on older
-    // films. Only meaningful when this build wrote fresh Letterboxd data —
-    // otherwise the "Letterboxd" entry above already alerts.
-    name: 'Letterboxd (full scrape)',
-    cacheFile: 'letterboxd-data.json',
-    onlyWhenFresh: true,
-    checkFn: (data) => Boolean(data.lastFullScrape) && Date.now() - data.lastFullScrape <= LETTERBOXD_FULL_SCRAPE_MAX_AGE_DAYS * DAY_MS,
-    failReason: (data) => data.lastFullScrape
-      ? `Last full scrape was ${Math.floor((Date.now() - data.lastFullScrape) / DAY_MS)} days ago; older films' ratings and removals are out of date`
-      : 'No full scrape on record; older films\' ratings and removals are out of date',
-    renewal: 'Cloudflare blocks listing pages 2+ from Cloud Build. Build locally (residential IP) so every page scrapes, then upload .cache/letterboxd-data.json to gs://personal-website-334502_cloudbuild/build-cache/',
     requiresApiKey: false,
   },
   {

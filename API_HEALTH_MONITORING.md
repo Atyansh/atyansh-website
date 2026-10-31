@@ -17,7 +17,7 @@ The API health monitoring system runs 13 integration checks after each build and
 8. Goodreads (`GOODREADS_COOKIE`, a signed-in session) — shelf RSS is gone, so shelves are scraped signed in. The session is renewed silently before every build, which keeps it a year from expiry. Two checks: "Goodreads" (a shelf failed or the cookie is dead; the site keeps the last good books) and "Goodreads (session renewal)" (renewal failed; the current cookie still works for now, so this is the early warning).
 
 **Web scraping / public APIs (no credentials):**
-9. Letterboxd (username-based; pages 2+ merge from the previous list when Cloudflare blocks them). A second check, "Letterboxd (full scrape)", alerts once the last scrape of every page is over 14 days old, since the merge never picks up rating changes or removals on older films
+9. Letterboxd (username-based; pages 2+ merge from the previous list when Cloudflare blocks them). The merge never picks up rating changes or removals on older films; `lastFullScrape` in the cache records when every page last loaded (a build from a home connection refreshes it)
 10. Nintendo Switch (Exophase scraping)
 11. Kaya climbing stats (grade pyramid + send videos)
 

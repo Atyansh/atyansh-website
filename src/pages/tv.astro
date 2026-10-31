@@ -2,15 +2,14 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import TVFilter from '../components/TVFilter';
 import StatGrid from '../components/StatGrid.astro';
+import LoadError from '../components/LoadError.astro';
 import { getTmdbTVData } from '../utils/tmdb';
 
 // Fetch TV data from TMDB at build time
 const tvData = await getTmdbTVData();
 
 // Map shows to the format expected by the UI
-let shows = [];
-if (tvData && tvData.shows.length > 0) {
-  shows = tvData.shows.map(show => ({
+const shows = (tvData?.shows ?? []).map(show => ({
     data: {
       title: show.title,
       year: show.year,
@@ -20,7 +19,6 @@ if (tvData && tvData.shows.length > 0) {
       link: show.link,
     }
   }));
-}
 ---
 
 <BaseLayout
@@ -56,11 +54,7 @@ if (tvData && tvData.shows.length > 0) {
     )}
 
     {shows.length === 0 && (
-      <div class="text-center py-12">
-        <p class="text-lg" style="color: var(--text-secondary);">
-          Couldn't load TV show data right now — check back soon.
-        </p>
-      </div>
+      <LoadError thing="TV show" />
     )}
 
     {/* Attribution (required by TMDB API terms) */}

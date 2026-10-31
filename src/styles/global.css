@@ -902,50 +902,13 @@ html[data-audio-enabled] .audio-gated {
   }
 }
 
-/* Now-playing badge for Spotify track tiles */
+/* "In player" badge for the Spotify track tile loaded in the player bar */
 .media-card-now-playing {
   display: none;
 }
 
 .media-card[data-playing] .media-card-now-playing {
   display: inline-flex;
-}
-
-.media-card-eq {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 1px;
-  height: 0.65rem;
-}
-
-.media-card-eq i {
-  display: block;
-  width: 2px;
-  height: 100%;
-  background: currentColor;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .media-card-eq i {
-    animation: eq-bounce 0.9s ease-in-out infinite alternate;
-  }
-
-  .media-card-eq i:nth-child(2) {
-    animation-delay: -0.3s;
-  }
-
-  .media-card-eq i:nth-child(3) {
-    animation-delay: -0.6s;
-  }
-}
-
-@keyframes eq-bounce {
-  from {
-    height: 30%;
-  }
-  to {
-    height: 100%;
-  }
 }
 
 /* Rating stars (StarRating.tsx) */

@@ -2,16 +2,14 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AnimeFilter from '../components/AnimeFilter';
 import StatGrid from '../components/StatGrid.astro';
+import LoadError from '../components/LoadError.astro';
 import { getMALData } from '../utils/myanimelist';
 
 // Fetch MyAnimeList data at build time
 const malData = await getMALData();
 
 // Use MAL data if available
-let anime = [];
-if (malData && malData.anime.length > 0) {
-  // Map MAL anime to the format expected by the UI
-  anime = malData.anime
+const anime = (malData?.anime ?? [])
     .map(a => ({
       data: {
         title: a.title,
@@ -19,16 +17,12 @@ if (malData && malData.anime.length > 0) {
         imageUrl: a.imageUrl,
         score: a.score,
         status: a.status,
-        episodes: a.episodes,
-        episodesWatched: a.episodesWatched,
         type: a.type,
         year: a.year,
         startDate: a.startDate,
-        endDate: a.endDate,
         malUrl: a.malUrl,
       }
     }));
-}
 
 // Calculate stats
 const watchingCount = anime.filter(a => a.data.status === 'watching').length;
@@ -71,11 +65,7 @@ const top10Count = anime.filter(a => a.data.score === 10).length;
     )}
 
     {anime.length === 0 && (
-      <div class="text-center py-12">
-        <p class="text-lg" style="color: var(--text-secondary);">
-          Couldn't load anime data right now — check back soon.
-        </p>
-      </div>
+      <LoadError thing="anime" />
     )}
   </div>
 </BaseLayout>

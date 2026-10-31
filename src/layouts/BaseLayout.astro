@@ -3,6 +3,8 @@ import '../styles/global.css';
 import ThemeSwitcher from '../components/ThemeSwitcher.astro';
 import AudioToggle from '../components/AudioToggle.astro';
 import StructuredData from '../components/StructuredData.astro';
+import TapToReveal from '../components/TapToReveal.astro';
+import ImageWarmup from '../components/ImageWarmup.astro';
 import { ViewTransitions } from 'astro:transitions';
 
 interface Props {
@@ -260,8 +262,8 @@ if (image) {
         const dropdowns = document.querySelectorAll('.nav-dropdown');
 
         dropdowns.forEach(dropdown => {
-          const trigger = dropdown.querySelector('.nav-dropdown-trigger');
-          const menu = dropdown.querySelector('.nav-dropdown-menu');
+          const trigger = dropdown.querySelector<HTMLElement>('.nav-dropdown-trigger');
+          const menu = dropdown.querySelector<HTMLElement>('.nav-dropdown-menu');
           const arrow = trigger?.querySelector('svg');
 
           if (!trigger || !menu) return;
@@ -301,7 +303,7 @@ if (image) {
           }, { signal });
 
           // Keyboard navigation
-          trigger.addEventListener('keydown', (e) => {
+          trigger.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               const isVisible = menu.classList.contains('visible');
@@ -328,7 +330,7 @@ if (image) {
             document.querySelectorAll('.nav-dropdown-trigger').forEach(trigger => {
               trigger.setAttribute('aria-expanded', 'false');
               const arrow = trigger.querySelector('svg');
-              if (arrow) (arrow as HTMLElement).style.transform = '';
+              if (arrow) arrow.style.transform = '';
             });
           }
         }, { signal });
@@ -354,5 +356,8 @@ if (image) {
         </div>
       </div>
     </footer>
+
+    <TapToReveal />
+    <ImageWarmup />
   </body>
 </html>

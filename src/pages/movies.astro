@@ -2,16 +2,14 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import MoviesFilter from '../components/MoviesFilter';
 import StatGrid from '../components/StatGrid.astro';
+import LoadError from '../components/LoadError.astro';
 import { getLetterboxdData } from '../utils/letterboxd';
 
 // Fetch Letterboxd data at build time
 const letterboxdData = await getLetterboxdData();
 
 // Use Letterboxd data if available
-let movies = [];
-if (letterboxdData && letterboxdData.movies.length > 0) {
-  // Map Letterboxd movies to the format expected by the UI
-  movies = letterboxdData.movies.map(movie => ({
+const movies = (letterboxdData?.movies ?? []).map(movie => ({
     data: {
       title: movie.title,
       year: movie.year,
@@ -19,13 +17,10 @@ if (letterboxdData && letterboxdData.movies.length > 0) {
       director: movie.director,
       posterImage: movie.posterImage,
       rating: movie.rating,
-      watchedDate: movie.watchedDate,
-      reviewText: movie.reviewText,
       link: movie.link,
       rewatch: movie.rewatch,
     }
   }));
-}
 ---
 
 <BaseLayout
@@ -50,7 +45,8 @@ if (letterboxdData && letterboxdData.movies.length > 0) {
           </span>
         </div>
 
-        <MoviesFilter client:load movies={movies} />
+        {/* Only the fields the filter grid uses go into the island's props */}
+        <MoviesFilter client:load movies={movies.map(({ data: { rewatch, ...data } }) => ({ data }))} />
 
         <StatGrid title="Viewing Stats" stats={[
           { value: movies.length, label: 'Total Films' },
@@ -62,11 +58,7 @@ if (letterboxdData && letterboxdData.movies.length > 0) {
     )}
 
     {movies.length === 0 && (
-      <div class="text-center py-12">
-        <p class="text-lg" style="color: var(--text-secondary);">
-          Couldn't load movie data right now — check back soon.
-        </p>
-      </div>
+      <LoadError thing="movie" />
     )}
   </div>
 </BaseLayout>

@@ -18,6 +18,8 @@ export interface SteamGame {
   rtime_last_played?: number; // Unix timestamp of last played
 }
 
+// Only what the games page shows. The full summary (real name, location,
+// avatar, profile URLs...) is deliberately not kept.
 interface PlayerSummary {
   gameextrainfo?: string; // Currently playing game name
 }
@@ -64,8 +66,9 @@ async function getPlayerSummary(): Promise<PlayerSummary | null> {
     );
     const data = await response.json();
 
-    if (data.response?.players?.length > 0) {
-      return data.response.players[0];
+    const player = data.response?.players?.[0];
+    if (player) {
+      return { gameextrainfo: player.gameextrainfo };
     }
     return null;
   } catch (error) {
@@ -152,13 +155,13 @@ export async function getSteamStats(): Promise<SteamStats | null> {
       gamesPlayedCount: playedGames.length,
     };
 
-    // Save to cache
+    // Save to cache, unless the library sharply shrank
     const data: SteamData = {
       games: ownedGames,
       stats,
       timestamp: Date.now(),
     };
-    await cache.set(data);
+    await cache.setIfPlausible('Steam', data, d => d.games.length);
 
     log.info(`Fetched Steam data: ${stats.totalGames} games, ${stats.totalHoursPlayed} hours played`);
 

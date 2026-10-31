@@ -25,10 +25,10 @@ export interface NintendoStats {
  * Note: Images are now fetched via IGDB in unified-games.ts
  */
 export async function getNintendoStats(): Promise<NintendoStats | null> {
+  const { getCachedNintendoStats, getStaleNintendoStats, cacheNintendoStats, scrapeExophaseNintendoStats } = await import('./exophase-scraper');
+
   try {
     // Check cache first
-    const { getCachedNintendoStats, getStaleNintendoStats, cacheNintendoStats, scrapeExophaseNintendoStats } = await import('./exophase-scraper');
-
     const cachedStats = await getCachedNintendoStats();
     if (cachedStats) {
       return cachedStats;
@@ -45,7 +45,7 @@ export async function getNintendoStats(): Promise<NintendoStats | null> {
     return stats;
   } catch (error) {
     log.error('Error fetching Nintendo stats:', error);
-    return null;
+    return getStaleNintendoStats();
   }
 }
 

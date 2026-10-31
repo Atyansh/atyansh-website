@@ -98,55 +98,71 @@ async function getPSNAuth(): Promise<AuthTokensResponse | null> {
   }
 }
 
-/**
- * Get user's played titles
- * Includes retry logic for transient failures
- */
-export async function getPSNTitles(): Promise<PSNGame[]> {
-  try {
-    const auth = await getPSNAuth();
-    if (!auth) {
-      return [];
-    }
+// getUserTitles returns at most 800 per call; page so the totals cover the
+// whole trophy list rather than the 50 most recent titles
+const TITLES_PAGE_SIZE = 200;
+const TITLES_MAX_PAGES = 20; // runaway guard: 4000 titles
 
-    // Get titles for the authenticated user with retry logic
+/**
+ * Get every title on the user's trophy list
+ * Includes retry logic for transient failures. Throws on failure so an
+ * unreachable list isn't mistaken for an empty one.
+ */
+async function getPSNTitles(): Promise<PSNGame[]> {
+  const auth = await getPSNAuth();
+  if (!auth) {
+    throw new Error('No PSN authorization');
+  }
+
+  const titles: any[] = [];
+  let offset = 0;
+  for (let page = 0; page < TITLES_MAX_PAGES; page++) {
     const response = await withRetry(
       () => getUserTitles(
         { accessToken: auth.accessToken },
         'me',
-        {
-          limit: 50, // Get last 50 games
-        }
+        { limit: TITLES_PAGE_SIZE, offset }
       ),
       {
         maxRetries: 2,
         initialDelayMs: 1000,
         onRetry: (error, attempt) => {
-          log.info(`PSN titles retry ${attempt}: ${error.message}`);
+          log.info(`PSN titles retry ${attempt} (offset ${offset}): ${error.message}`);
         },
       }
     );
 
-    // Transform the response to our format
-    const games: PSNGame[] = response.trophyTitles.map((title: any) => ({
-      titleId: title.npCommunicationId,
-      name: title.trophyTitleName,
-      category: title.trophyTitlePlatform || 'Unknown',
-      lastPlayedDateTime: title.lastUpdatedDateTime,
-      earnedTrophies: title.earnedTrophies ? {
-        bronze: title.earnedTrophies.bronze || 0,
-        silver: title.earnedTrophies.silver || 0,
-        gold: title.earnedTrophies.gold || 0,
-        platinum: title.earnedTrophies.platinum || 0,
-      } : undefined,
-      playDuration: undefined,
-    }));
+    // psn-api resolves (rather than throws) with { error } on an API error
+    if (!Array.isArray(response?.trophyTitles)) {
+      const detail = (response as any)?.error?.message;
+      throw new Error(`PSN titles at offset ${offset} returned no trophyTitles${detail ? `: ${detail}` : ''}`);
+    }
 
-    return games;
-  } catch (error) {
-    log.error('Error fetching PSN titles:', error);
-    return [];
+    titles.push(...response.trophyTitles);
+    const next = response.nextOffset;
+    if (!next || next <= offset || titles.length >= response.totalItemCount || response.trophyTitles.length === 0) {
+      break;
+    }
+    if (page === TITLES_MAX_PAGES - 1) {
+      log.error(`PSN trophy list still had more titles after ${TITLES_MAX_PAGES} pages; using the first ${titles.length}`);
+    }
+    offset = next;
   }
+
+  // Transform the response to our format
+  return titles.map((title: any) => ({
+    titleId: title.npCommunicationId,
+    name: title.trophyTitleName,
+    category: title.trophyTitlePlatform || 'Unknown',
+    lastPlayedDateTime: title.lastUpdatedDateTime,
+    earnedTrophies: title.earnedTrophies ? {
+      bronze: title.earnedTrophies.bronze || 0,
+      silver: title.earnedTrophies.silver || 0,
+      gold: title.earnedTrophies.gold || 0,
+      platinum: title.earnedTrophies.platinum || 0,
+    } : undefined,
+    playDuration: undefined,
+  }));
 }
 
 async function psnFallback(): Promise<{ games: PSNGame[]; stats: PSNStats } | null> {
@@ -194,13 +210,13 @@ export async function getPSNData(): Promise<{ games: PSNGame[]; stats: PSNStats 
       totalTrophies,
     };
 
-    // Save to cache
+    // Save to cache, unless the list sharply shrank
     const data: PSNData = {
       games: titles,
       stats,
       timestamp: Date.now(),
     };
-    await cache.set(data);
+    await cache.setIfPlausible('PSN', data, d => d.games.length);
 
     log.info(`Fetched PSN data: ${stats.totalGames} games, ${totalTrophies.total} trophies`);
 
@@ -211,10 +227,3 @@ export async function getPSNData(): Promise<{ games: PSNGame[]; stats: PSNStats 
   }
 }
 
-/**
- * Get PSN gaming stats only
- */
-export async function getPSNStats(): Promise<PSNStats | null> {
-  const data = await getPSNData();
-  return data?.stats ?? null;
-}

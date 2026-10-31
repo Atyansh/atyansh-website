@@ -75,6 +75,9 @@ export function isTransientError(error: unknown): boolean {
     'bad gateway',
     'service unavailable',
     'gateway timeout',
+    // An HTML error page where JSON was expected (CDN/gateway hiccup).
+    // psn-api parses the body itself, so this is all we get to see.
+    'is not valid json',
   ];
 
   // Check if error matches any transient pattern

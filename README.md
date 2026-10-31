@@ -285,17 +285,28 @@ MyAnimeList uses OAuth2. Use the included helper script.
 
 **What you need:**
 - Your Goodreads user ID
+- A signed-in Goodreads session cookie
 
 **Steps:**
 1. Log in to https://www.goodreads.com
 2. Go to your profile
 3. Copy the number from the URL: `goodreads.com/user/show/12345678-your-name`
-4. Add to `.env`:
+4. Open DevTools → Network, reload, click the first `goodreads.com` request, and copy the whole `Cookie` request header
+5. Add to `.env`:
    ```bash
    GOODREADS_USER_ID=12345678
+   GOODREADS_COOKIE='...whole cookie header...'
+   ```
+6. Push the cookie to Secret Manager (`sync-secrets-to-gcloud.sh` can't handle the spaces in it):
+   ```bash
+   pbpaste | gcloud secrets versions add GOODREADS_COOKIE --data-file=- --project personal-website-334502
    ```
 
-**Note:** Uses web scraping. Your reading list must be public.
+**Note:** Goodreads removed shelf RSS feeds in October 2026 and shelf pages now require sign-in, so the build scrapes your signed-in shelf pages (`/review/list/<id>`).
+
+The session rests on Amazon's login cookies, which expire a year after they're issued and which Goodreads never renews. So before every build `scripts/refresh-tokens.cjs` re-signs in silently (Amazon's sign-in without `max_auth_age=0` re-issues the cookies for a still-valid session, no password needed), checks the renewed cookie loads a shelf, and saves it to Secret Manager. Each daily build pushes the expiry a year out, so the cookie never expires on its own.
+
+You only need to paste a new cookie if the login is killed: changing your Goodreads/Amazon password, "sign out of all devices", or Amazon deciding to ask for the password again. The "Goodreads (session renewal)" health check alerts on the first failed renewal — while the current cookie still works for up to a year — and the site keeps serving the last good books if it ever does stop working.
 
 ### 9. TMDB (TV Show Tracking)
 
@@ -668,6 +679,7 @@ If you accidentally commit secrets:
 - If these fail, the site structure may have changed
 - Letterboxd pages 2+ are Cloudflare-blocked from Cloud Build IPs (they load fine from a home connection, so local builds won't reproduce it); builds merge page 1 + RSS onto the previous list instead
 - Kaya's public queries are capped at 200 results; the full list needs a working `KAYA_REFRESH_TOKEN`
+- Goodreads needs a signed-in `GOODREADS_COOKIE`; a 302 to `/user/sign_in` means it has expired
 - Check the respective utility file in `src/utils/`
 - Update selectors or scraping logic
 - Consider implementing caching to reduce requests

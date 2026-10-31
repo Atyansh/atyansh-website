@@ -57,20 +57,6 @@ const papers = defineCollection({
   }),
 });
 
-const books = defineCollection({
-  type: 'content',
-  schema: z.object({
-    title: z.string(),
-    author: z.string(),
-    coverImage: z.string(),
-    rating: z.number().min(1).max(5).optional(),
-    status: z.enum(['reading', 'finished', 'want-to-read']).default('finished'),
-    dateRead: z.coerce.date().optional(),
-    thoughts: z.string().optional(),
-    featured: z.boolean().optional().default(false),
-  }),
-});
-
 const pets = defineCollection({
   type: 'content',
   schema: z.object({
@@ -100,7 +86,6 @@ export const collections = {
   blog,
   projects,
   papers,
-  books,
   pets,
   eulerProblems,
 };

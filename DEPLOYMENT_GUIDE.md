@@ -117,7 +117,7 @@ cd /Users/atyansh/Repos/atyansh-website
 for secret in STEAM_API_KEY STEAM_ID PSN_NPSSO IGDB_CLIENT_ID IGDB_CLIENT_SECRET \
               IGDB_ACCESS_TOKEN SPOTIFY_CLIENT_ID SPOTIFY_CLIENT_SECRET SPOTIFY_REFRESH_TOKEN \
               LETTERBOXD_USERNAME MAL_CLIENT_ID MAL_CLIENT_SECRET \
-              MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN GOODREADS_USER_ID; do
+              MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN GOODREADS_USER_ID GOODREADS_COOKIE; do
   gcloud secrets add-iam-policy-binding $secret \
     --member="serviceAccount:service-418072003908@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
@@ -216,12 +216,12 @@ chmod +x deploy.sh
 
 ### API Health Monitoring
 
-The build automatically monitors all 10 API integrations and sends Discord notifications if any fail:
+The build automatically monitors every API integration and sends Discord notifications if any fail:
 
 **Monitored APIs:**
-- With API keys (self-healing): Spotify, MyAnimeList, IGDB
+- With API keys (self-healing): Spotify, MyAnimeList, IGDB, Goodreads (`GOODREADS_COOKIE`, re-signed in silently every build)
 - With API keys (manual renewal): Steam, PSN, TMDB, Kaya login (`KAYA_REFRESH_TOKEN`)
-- Web scraping/public APIs: Letterboxd, Goodreads, Nintendo (Exophase), Kaya (climbing)
+- Web scraping/public APIs: Letterboxd, Nintendo (Exophase), Kaya (climbing)
 
 **How it works:**
 - Runs after every build (`scripts/check-api-health.cjs`)
@@ -229,7 +229,7 @@ The build automatically monitors all 10 API integrations and sends Discord notif
 - Checks that data was successfully fetched
 - Sends a Discord DM via bot if any API fails
 - Never fails the build (just notifies)
-- If a scrape/API fails outright, the build serves the previous build's data (`.cache-fallback/`, restored from the Cloud Build staging bucket) so the page still renders — the alert still fires because no fresh cache file is written
+- If a scrape/API fails outright, the build serves the previous build's data (`.cache-fallback/`, restored from the Cloud Build staging bucket) so the page still renders — the alert still fires because no fresh cache file is written. Every source does this (`FileCache.fallback()`), and a source that only partly loaded (a failed Goodreads shelf, a failed MyAnimeList page, an empty Steam library) counts as failed rather than caching the partial result over the good copy
 - Partial sources merge onto that previous data instead of failing: Letterboxd pages 2+ are Cloudflare-blocked from Cloud Build IPs, so blocked builds merge page 1 + the RSS feed onto the last full list (`lastFullScrape` records when all pages last loaded). A partial result with no previous data to merge onto is served but never cached, so it can't overwrite the good copy in the bucket
 - Kaya ascents come from the logged-in `ascentsForUser` query (the public queries are capped at 200 results). If the login fails for any reason, the build falls back to the public queries fetched per grade, and the "Kaya (Logged-in)" check alerts with the reason
 
@@ -287,6 +287,7 @@ This script will:
 - TV Shows: `TMDB_READ_TOKEN`, `TMDB_ACCESS_TOKEN`, `TMDB_ACCOUNT_OBJECT_ID`, `TMDB_TV_LIST_ID`
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`, `KAYA_USERNAME`
 - Kaya login: `KAYA_REFRESH_TOKEN` (from Firefox on a Mac; long-lived, not rotated by builds)
+- Goodreads login: `GOODREADS_COOKIE` (whole Cookie header from a signed-in goodreads.com request; renewed and re-saved by every build, so it only needs re-pasting if the login is killed)
 - Discord Notifications: `DISCORD_BOT_TOKEN`, `DISCORD_USER_ID`
 
 ### Pulling Secrets to Local .env

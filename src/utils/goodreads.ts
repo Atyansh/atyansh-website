@@ -1,7 +1,14 @@
-// Goodreads RSS feed integration
-// Fetches book data from Goodreads RSS feeds
+// Goodreads shelf integration
+// Goodreads removed shelf RSS feeds (404 for every user since 2026-10-28) and
+// shelf pages now require sign-in, so this scrapes the signed-in shelf list
+// pages (/review/list/<id>) using the browser session in GOODREADS_COOKIE.
+//
+// What keeps the session signed in is Amazon's login cookies (at-main,
+// sess-at-main, ...), which expire a year after they were issued. Goodreads
+// never re-issues them, so scripts/refresh-tokens.cjs re-signs in silently
+// before every build and saves the renewed cookie, keeping it a year from
+// expiry indefinitely.
 
-import { XMLParser } from 'fast-xml-parser';
 import { FileCache } from './cache';
 import type { BookStatus } from '../content/config';
 import { createLogger } from './logger';
@@ -10,6 +17,12 @@ import { fetchWithRetry } from './retry';
 const log = createLogger('Goodreads');
 
 const GOODREADS_USER_ID = import.meta.env.GOODREADS_USER_ID;
+const GOODREADS_COOKIE = import.meta.env.GOODREADS_COOKIE;
+
+// The cookie isn't tied to a browser, but send the UA it was issued to anyway
+const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:157.0) Gecko/20100101 Firefox/157.0';
+const PER_PAGE = 100;
+const MAX_PAGES = 50;
 
 export interface GoodreadsBook {
   title: string;
@@ -41,71 +54,105 @@ const cache = new FileCache<GoodreadsData>('goodreads-data', {
   }),
 });
 
-const xmlParser = new XMLParser({
-  ignoreAttributes: true,
-  isArray: (name) => name === 'item',
-  processEntities: false,
-});
+export class GoodreadsSignedOutError extends Error {
+  constructor() {
+    super('Goodreads redirected to sign-in: GOODREADS_COOKIE has expired or was signed out');
+    this.name = 'GoodreadsSignedOutError';
+  }
+}
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+}
+
+/** Inner HTML of a shelf-table cell, e.g. <td class="field title"> */
+function cell(row: string, field: string): string {
+  const match = row.match(new RegExp(`<td class="field ${field}"[^>]*>([\\s\\S]*?)</td>`));
+  return match ? match[1] : '';
+}
+
+/** A cell's visible value: tags, its <label> and "[edit]" links removed */
+function cellText(row: string, field: string): string {
+  return decodeEntities(
+    cell(row, field)
+      .replace(/<label>[\s\S]*?<\/label>/, '')
+      .replace(/<a[^>]*>\[edit\]<\/a>/g, '')
+      .replace(/<[^>]+>/g, ' ')
+  ).replace(/\s+/g, ' ').trim();
+}
+
+function parseDate(text: string): Date | undefined {
+  if (!text || text === 'not set' || text === 'unknown') return undefined;
+  // "Dec 28, 2021", "Sep 2015" and "2006" all parse; anchor bare years to Jan 1
+  const d = /^\d{4}$/.test(text) ? new Date(parseInt(text, 10), 0, 1) : new Date(text);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+const letters = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
 
 /**
- * Parse Goodreads RSS feed XML
+ * Goodreads lists authors "Last, First" but the site shows the display name.
+ * Flipping is wrong for family-name-first names ("Liu, Cixin" is "Liu Cixin"),
+ * so prefer whichever order the author URL slug (/author/show/5780686.Liu_Cixin) uses.
  */
-export function parseRSSFeed(xml: string, status: BookStatus): GoodreadsBook[] {
-  const parsed = xmlParser.parse(xml);
-  const items = parsed?.rss?.channel?.item;
-  if (!items || !Array.isArray(items)) return [];
+function displayAuthor(listed: string, href: string): string {
+  const parts = listed.split(',').map(p => p.trim());
+  if (parts.length !== 2 || !parts[1]) return listed;
 
+  const flipped = `${parts[1]} ${parts[0]}`;
+  const asListed = `${parts[0]} ${parts[1]}`;
+  const slug = letters(href.replace(/^.*\/author\/show\/\d+\.?/, ''));
+  return slug && slug === letters(asListed) && slug !== letters(flipped) ? asListed : flipped;
+}
+
+/**
+ * Parse the book rows out of a signed-in shelf list page
+ */
+export function parseShelfPage(html: string, status: BookStatus): GoodreadsBook[] {
+  const rows = html.match(/<tr id="review_\d+"[\s\S]*?<\/tr>/g) || [];
   const books: GoodreadsBook[] = [];
 
-  for (const item of items) {
-    const title = item.title;
-    if (!title) continue;
+  for (const row of rows) {
+    const titleCell = cell(row, 'title');
+    const titleMatch = titleCell.match(/<a title="([^"]*)" href="([^"]*)"/);
+    if (!titleMatch) continue;
 
-    const author = item.author_name || 'Unknown Author';
-    const link = item.link;
+    const authorMatch = cell(row, 'author').match(/<a href="([^"]*)">([^<]*)<\/a>/);
+    const author = authorMatch ? displayAuthor(decodeEntities(authorMatch[2]).trim(), authorMatch[1]) : 'Unknown Author';
 
-    // Use large image if available, fall back to medium, then regular
-    const coverImage = item.book_large_image_url || item.book_medium_image_url || item.book_image_url || '';
+    // Thumbnails come as ._SX50_., ._SY75_. or ._SX50_SY75_.; dropping the size suffix gives the
+    // full-size cover, as the RSS feed's book_large_image_url did
+    const coverMatch = cell(row, 'cover').match(/<img [^>]*src="([^"]*)"/);
+    const coverImage = coverMatch ? coverMatch[1].replace(/\._(?:S[XY]\d+_)+\./, '.') : '';
 
-    // Extract rating
-    let rating: number | undefined;
-    const ratingValue = typeof item.user_rating === 'number' ? item.user_rating : parseInt(item.user_rating, 10);
-    if (ratingValue > 0) {
-      rating = ratingValue;
-    }
+    const ratingMatch = cell(row, 'rating').match(/data-rating="([\d.]+)"/);
+    const ratingValue = ratingMatch ? Math.round(parseFloat(ratingMatch[1])) : 0;
 
-    // Extract date read
-    let dateRead: Date | undefined;
-    const dateStr = item.user_read_at || item.user_date_added;
-    if (dateStr) {
-      const d = new Date(dateStr);
-      if (!isNaN(d.getTime())) dateRead = d;
-    }
+    // Same as the RSS feed: date read, else date added
+    const added = cell(row, 'date_added').match(/<span title="([^"]*)"/);
+    const dateRead = parseDate(cellText(row, 'date_read')) ?? parseDate(added ? added[1] : '');
 
-    const isbn = item.isbn ? String(item.isbn) : undefined;
-    const description = item.book_description ? String(item.book_description) : undefined;
-
-    // Extract published date
-    let publishedDate: Date | undefined;
-    const year = item.book_published || item.book_publication_year;
-    if (year) {
-      const month = item.book_publication_month || 1;
-      const day = item.book_publication_day || 1;
-      const d = new Date(parseInt(String(year)), parseInt(String(month)) - 1, parseInt(String(day)));
-      if (!isNaN(d.getTime())) publishedDate = d;
-    }
+    const isbn = cellText(row, 'isbn') || cellText(row, 'isbn13') || undefined;
+    const reviewMatch = row.match(/href="(\/review\/show\/\d+)"/);
 
     books.push({
-      title: String(title),
-      author: String(author),
-      coverImage: String(coverImage),
-      rating,
+      title: decodeEntities(titleMatch[1]),
+      author,
+      coverImage,
+      rating: ratingValue > 0 ? ratingValue : undefined,
       status,
       dateRead,
-      publishedDate,
-      link: link ? String(link) : undefined,
+      publishedDate: parseDate(cellText(row, 'date_pub')),
+      link: `https://www.goodreads.com${reviewMatch ? reviewMatch[1] : titleMatch[2]}`,
       isbn,
-      description: description?.replace(/<[^>]+>/g, '').substring(0, 500),
     });
   }
 
@@ -113,35 +160,45 @@ export function parseRSSFeed(xml: string, status: BookStatus): GoodreadsBook[] {
 }
 
 /**
- * Fetch books from a specific Goodreads shelf
- * Includes retry logic for transient failures. Throws on failure so an
+ * Fetch every page of a Goodreads shelf. Throws on failure so an
  * unreachable shelf isn't mistaken for an empty one.
  */
 async function fetchShelf(userId: string, shelf: string, status: BookStatus): Promise<GoodreadsBook[]> {
-  const url = `https://www.goodreads.com/review/list_rss/${userId}?shelf=${shelf}`;
   log.info(`Fetching Goodreads ${shelf} shelf...`);
+  const books: GoodreadsBook[] = [];
 
-  const response = await fetchWithRetry(url, undefined, {
-    maxRetries: 2,
-    initialDelayMs: 1000,
-    onRetry: (error, attempt) => {
-      log.info(`Goodreads ${shelf} shelf retry ${attempt}: ${error.message}`);
-    },
-  });
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const url = `https://www.goodreads.com/review/list/${userId}?shelf=${shelf}&per_page=${PER_PAGE}&page=${page}`;
+    const response = await fetchWithRetry(url, {
+      headers: { 'Cookie': GOODREADS_COOKIE, 'User-Agent': USER_AGENT },
+      // A signed-out request 302s to /user/sign_in; see it rather than follow it
+      redirect: 'manual',
+    }, {
+      maxRetries: 2,
+      initialDelayMs: 1000,
+      onRetry: (error, attempt) => {
+        log.info(`Goodreads ${shelf} shelf retry ${attempt}: ${error.message}`);
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Goodreads ${shelf} shelf: ${response.status}`);
+    if (response.status >= 300 && response.status < 400 && /sign_?in/.test(response.headers.get('location') || '')) {
+      throw new GoodreadsSignedOutError();
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Goodreads ${shelf} shelf page ${page}: ${response.status}`);
+    }
+
+    const pageBooks = parseShelfPage(await response.text(), status);
+    books.push(...pageBooks);
+    if (pageBooks.length < PER_PAGE) break;
   }
-
-  const xml = await response.text();
-  const books = parseRSSFeed(xml, status);
 
   log.info(`Fetched ${books.length} books from ${shelf} shelf`);
   return books;
 }
 
 /**
- * Get all Goodreads data from RSS feeds
+ * Get all Goodreads data from the signed-in shelf pages
  */
 export async function getGoodreadsData(): Promise<GoodreadsData | null> {
   // Check cache first
@@ -150,9 +207,9 @@ export async function getGoodreadsData(): Promise<GoodreadsData | null> {
     return cached;
   }
 
-  if (!GOODREADS_USER_ID) {
-    log.info('Goodreads user ID not configured, skipping...');
-    return null;
+  if (!GOODREADS_USER_ID || !GOODREADS_COOKIE) {
+    log.info('GOODREADS_USER_ID or GOODREADS_COOKIE not configured, skipping...');
+    return cache.fallback('Goodreads');
   }
 
   log.info('Fetching Goodreads data...');

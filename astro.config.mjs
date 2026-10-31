@@ -9,9 +9,9 @@ import mdx from '@astrojs/mdx';
 export default defineConfig({
   site: 'https://atyansh.com',
   integrations: [react(), mdx(), sitemap()],
-  server: {
-    host: true, // Allow access from local network
-  },
+  // The dev server listens on localhost only. Network exposure is opt-in:
+  // `npm run dev -- --host` binds 0.0.0.0 (phones on the LAN, or a tunnel
+  // that can't reach the dev server via localhost).
   markdown: {
     shikiConfig: {
       theme: 'css-variables',
@@ -22,9 +22,12 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     server: {
-      host: '0.0.0.0',
       strictPort: false,
+      // Host headers accepted besides localhost/IPs, so an ngrok tunnel
+      // (`ngrok http 4321`) can reach the dev server.
       allowedHosts: ['.ngrok-free.app', '.ngrok.io', 'localhost'],
+      // HMR through the tunnel's TLS port; when that socket can't connect
+      // (plain localhost), Vite's client falls back to the dev server port.
       hmr: {
         protocol: 'wss',
         clientPort: 443

@@ -957,9 +957,18 @@ html[data-audio-enabled] .audio-gated {
   transition: stroke 0.2s;
 }
 
+/* Dash lengths in user units of the ring's own circumference (2π × r=25).
+   Not pathLength=1 with a unitless calc(1 - p): Firefox treats a unitless
+   calc() in stroke-dashoffset as invalid (computed 0px), so the ring sat
+   full instead of showing progress. */
+.play-btn {
+  --ring-length: 157.08px;
+}
+
 .play-btn-progress {
   stroke: var(--accent);
-  stroke-dashoffset: calc(1 - var(--track-progress, 0));
+  stroke-dasharray: var(--ring-length);
+  stroke-dashoffset: calc(var(--ring-length) * (1 - var(--track-progress, 0)));
   opacity: 0;
 }
 
@@ -990,7 +999,7 @@ html[data-audio-enabled] .audio-gated {
 
 /* Loading: a spinning arc until the preview is actually playing */
 [data-track-state='loading'] .play-btn-progress {
-  stroke-dashoffset: 0.72;
+  stroke-dashoffset: calc(var(--ring-length) * 0.72);
 }
 
 @media (prefers-reduced-motion: no-preference) {

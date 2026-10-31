@@ -336,20 +336,20 @@ function pickBestMatch(games: IGDBGame[], cleanedName: string): string | null {
  * Includes retry logic for transient failures
  */
 export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'psn' | 'nintendo'): Promise<string | null> {
-  // If no API credentials, return null
-  if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
-    log.info('IGDB API credentials not configured');
-    return null;
-  }
-
   // Create cache key
   const gameKey = `${platform || 'all'}:${gameName.toLowerCase()}`;
 
-  // Check cache first
+  // Check cache first, even without credentials: a broken or missing IGDB
+  // token shouldn't blank every PSN/Nintendo cover that's already cached
   const cached = await getCachedCover(gameKey);
   if (cached !== undefined) {
     if (cached) log.info(`Using cached IGDB cover for: ${gameName}`);
     return cached;
+  }
+
+  if (!IGDB_CLIENT_ID || !IGDB_ACCESS_TOKEN) {
+    log.info('IGDB API credentials not configured');
+    return null;
   }
 
   try {

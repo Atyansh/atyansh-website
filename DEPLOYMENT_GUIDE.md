@@ -55,19 +55,18 @@ gcloud projects add-iam-policy-binding personal-website-334502 \
 
 ### Custom Docker Image
 
-Cloud Build uses a custom Docker image (`gcr.io/personal-website-334502/node-puppeteer:22`) based on Node.js 22 with Chrome/Puppeteer dependencies pre-installed. This eliminates the need to `apt-get install` ~25 packages on every build.
+Cloud Build uses a custom Docker image (`gcr.io/personal-website-334502/node-puppeteer`) based on an exact Node.js 22 release (Debian bookworm) with Chrome/Puppeteer dependencies pre-installed. This eliminates the need to `apt-get install` ~25 packages on every build.
 
 **When to rebuild the image:**
-- Node.js major version bumps (e.g., 22 → 24)
+- Node.js security releases (newest v22: https://nodejs.org/dist/index.json) and major bumps
 - Puppeteer upgrades that require new system dependencies
 - Chrome dependency changes
 
-**How to rebuild:**
+**How to rebuild:** bump the Node version in `Dockerfile.cloudbuild` and `_DATE` in `cloudbuild-image.yaml`, then
 ```bash
 gcloud builds submit --config=cloudbuild-image.yaml .
 ```
-
-The image is defined in `Dockerfile.cloudbuild` and built via `cloudbuild-image.yaml`.
+This pushes `:22` (moving) and `:22-YYYY-MM-DD` (immutable). `cloudbuild.yaml` pins the dated tag; update it only after the new image is pushed (see [Build image](#build-image)).
 
 ### Node.js Version Requirement
 
@@ -77,7 +76,7 @@ The `psn-api` package (v2.15.0) requires Node.js >=20 and provides backwards-com
 - `exchangeNpssoForCode` (older, still supported)
 - `exchangeCodeForAccessToken` (older, still supported)
 
-These function names work correctly on Node.js 22. The `cloudbuild.yaml` is configured to use the custom `node-puppeteer:22` image.
+These function names work correctly on Node.js 22. The `cloudbuild.yaml` is configured to use the custom `node-puppeteer` image (dated `:22-YYYY-MM-DD` tag).
 
 ## Troubleshooting Steps
 
@@ -114,17 +113,19 @@ If either role is missing, re-run the two `add-iam-policy-binding` commands unde
 
 ### Option 4: Test Build Locally First
 
-Build and deploy manually to verify everything works:
+Build locally to verify everything works, then deploy through Cloud Build
+(see [Deploying](#deploying)):
 
 ```bash
-# Build locally
+# Pull SITE_SECRETS into .env, refresh tokens, then build
+npm run build:fresh
+
+# Or build with the .env you already have (no secret sync, no token refresh)
 npm run build
 
-# Deploy to Firebase Hosting (cache headers come from firebase.json)
-npx firebase-tools deploy --only hosting --project personal-website-334502
+# Serve dist/ with firebase.json's headers (CSP etc.) applied
+npx firebase serve --only hosting --port 5055
 ```
-
-Or use `./deploy.sh`, which does both the build and the deploy.
 
 ## Automated Builds
 
@@ -170,14 +171,69 @@ gcloud scheduler jobs create http refresh-website-periodic-schedule \
   --oauth-service-account-email="418072003908-compute@developer.gserviceaccount.com"
 ```
 
-## Manual Deployment Script
+## Deploying
 
-I've created a simple deployment script for you:
+Cloud Build is the only deploy path: push to `master`, or re-run the push
+trigger without a new commit:
 
 ```bash
-chmod +x deploy.sh
-./deploy.sh
+gcloud builds triggers run refresh-website-push --branch=master --project personal-website-334502
 ```
+
+Each build runs, in order (`cloudbuild.yaml`):
+
+1. `install-dependencies` (`npm ci`) and `restore-build-cache` (last build's data, the scrape fallback)
+2. `build-site`: `scripts/refresh-tokens.cjs` (the build's only token refresh), then `npm run build`, in parallel with `test`: `vitest run` + `npm run typecheck` on a copy of the sources
+3. `check-api-health` (Discord alerts), then `save-build-cache` / `save-daily-snapshot`
+4. `deploy-to-firebase`, only if both `build-site` and `test` passed
+
+Don't deploy from a laptop with `firebase deploy`: it ships whatever is in
+your local `dist/` (including untracked files) and skips the tests and the
+health check.
+
+### Build image
+
+Steps run in `gcr.io/personal-website-334502/node-puppeteer`, built from
+`Dockerfile.cloudbuild` (Node pinned to an exact v22 release + Chrome's
+shared libraries). `cloudbuild-image.yaml` tags each build twice: `:22`
+(moving) and `:22-YYYY-MM-DD` (immutable). `cloudbuild.yaml` pins the dated
+tag, so to roll the image forward: bump the Node version / `_DATE`, run
+`gcloud builds submit --config=cloudbuild-image.yaml .`, and only then
+update the tag in `cloudbuild.yaml`.
+
+## Security Headers
+
+Every response's headers come from `firebase.json` (the site is static, so
+Astro middleware never runs in production):
+
+- `Content-Security-Policy` (enforced). Two non-overlapping rules: one for
+  the whole site except `/world`, one for `/world` and `/world/**`, which
+  additionally allows `'wasm-unsafe-eval' 'unsafe-eval'` (WebAssembly physics
+  with a wasm-bindgen `new Function` shim) and `blob:` workers/fetches. The
+  site rule's regex spells out "not `/world`" because Firebase's RE2 regexes
+  have no lookahead, and when two rules set the same header the winner isn't
+  documented, so they must never overlap. `'unsafe-inline'` scripts are
+  allowed (Astro inline/hoisted scripts and the theme init script; static
+  headers can't carry per-build hashes).
+- Allowed third parties: Spotify embeds (`open.spotify.com` frames and the
+  iFrame API script, which loads from `embed-cdn.spotifycdn.com`), YouTube
+  embeds, GoatCounter (`atyansh.goatcounter.com` hits; `gc.zgo.at` until
+  count.js is self-hosted), Kaya climbing videos (`assets.plastick.rocks`),
+  and images from any `https:` origin.
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` (no
+  preload), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` +
+  `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  and a `Permissions-Policy` that denies camera/mic/geolocation/etc. and
+  allows autoplay/fullscreen/encrypted-media/picture-in-picture only for the
+  Spotify and YouTube embeds.
+
+When adding a new embed, script host or fetch target, update the CSP in
+`firebase.json` and check every page with the local server
+(`npx firebase serve --only hosting`), watching the browser console for
+`Refused to ...` errors.
+
+Cache: `/_astro/**` (hashed bundles) is immutable for a year; HTML (clean
+URLs like `/music/`, and `*.html`) gets `max-age=3600`.
 
 ## Monitoring and Logs
 
@@ -238,7 +294,7 @@ Every credential lives in **one** Secret Manager secret, `SITE_SECRETS`: a flat 
 
 **How builds use it:**
 - `scripts/refresh-tokens.cjs` reads `SITE_SECRETS` (Node SDK), refreshes MAL/IGDB/PSN/Goodreads, saves every renewed token in **one** write, and writes `.env.refresh` with every credential for the build step to source
-- The build step runs `npx astro build` directly, not `npm run build`, so npm's `prebuild` hook doesn't run the refresh a second time
+- The build step then runs `npm run build`, which has no `prebuild` hook (the local secret pull + refresh is `npm run build:fresh`), so the refresh runs exactly once and any `postbuild` hook still runs
 - `scripts/check-api-health.cjs` reads the Discord credentials from `SITE_SECRETS` itself, so alerts still go out if the refresh step failed
 
 **Write safety (every write, from builds or local scripts):**
@@ -287,9 +343,9 @@ To sync `SITE_SECRETS` to your local `.env` file:
 node scripts/pull-secrets.cjs
 ```
 
-This runs automatically before `npm run build` (via the `prebuild` hook), so your local builds always use the latest secrets. It uses the `gcloud` CLI you're signed in to, and keeps comments and local-only variables in `.env`.
+`npm run build:fresh` runs it (then `scripts/refresh-tokens.cjs`, then the build); plain `npm run build` doesn't touch `.env` or rotate any token, so local `.env` edits aren't overwritten. It uses the `gcloud` CLI you're signed in to, and keeps comments and local-only variables in `.env`.
 
-**`SITE_SECRETS` is the single source of truth.** When tokens are auto-refreshed during a build (IGDB, MAL, PSN, Goodreads), they're saved back to `SITE_SECRETS`. The next local build will pull the fresh tokens automatically.
+**`SITE_SECRETS` is the single source of truth.** When tokens are auto-refreshed during a build (IGDB, MAL, PSN, Goodreads), they're saved back to `SITE_SECRETS`. Run `npm run build:fresh` (or `node scripts/pull-secrets.cjs`) to pick them up locally.
 
 ### Option 2: Read a Single Value
 
@@ -379,11 +435,12 @@ The site is served by Firebase Hosting (Blaze plan) — its global CDN terminate
 
 **Cache configuration** (in `firebase.json`):
 - Static assets (`/_astro/**`): 1 year (immutable — filenames are content-hashed)
-- HTML pages: 1 hour
+- HTML pages (clean URLs like `/music/`, plus `*.html`): 1 hour
+- Security headers: see [Security Headers](#security-headers)
 
 **Deploys:**
 - Cloud Build runs `npx firebase-tools deploy --only hosting` (authenticated via the build service account's ADC)
-- Manual: `./deploy.sh` or `npx firebase-tools deploy --only hosting`
+- No manual deploys: re-run the build with `gcloud builds triggers run refresh-website-push --branch=master` instead (see [Deploying](#deploying))
 - Preview URL: https://personal-website-334502.web.app (always serves the latest deploy)
 
 **Cost:** hosting transfer has a 10 GB/month free allowance, then $0.15/GB. The site's real (domain-addressed) traffic is ~3.5 GB/month, so the expected bill is $0. Note that bare-IP scanner noise — which was ~60% of egress on the old load balancer — never reaches Firebase billing at all.
@@ -397,7 +454,7 @@ The site is served by Firebase Hosting (Blaze plan) — its global CDN terminate
 - `Dockerfile.cloudbuild` - Custom Docker image with Chrome dependencies
 - `scripts/site-secrets.cjs` - Read/write the single `SITE_SECRETS` secret (merge, validation, version pruning)
 - `scripts/push-secrets.cjs` - Push values from .env into `SITE_SECRETS`
-- `scripts/pull-secrets.cjs` - Sync `SITE_SECRETS` to .env (runs automatically before builds)
+- `scripts/pull-secrets.cjs` - Sync `SITE_SECRETS` to .env (run by `npm run build:fresh`)
 - `scripts/check-api-health.cjs` - API health monitoring and Discord notifications
 - `API_HEALTH_MONITORING.md` - Complete guide for Discord notification setup
 - `DEPLOYMENT_GUIDE.md` - This file

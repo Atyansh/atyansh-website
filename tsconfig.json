@@ -1,5 +1,9 @@
 {
   "extends": "astro/tsconfigs/strict",
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "exclude": ["dist"],
+  "compilerOptions": {
+    // vitest.config.ts sets globals: true — declare describe/it/expect/vi
+    "types": ["vitest/globals"]
+  }
 }

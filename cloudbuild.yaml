@@ -1,7 +1,9 @@
 steps:
   # Install dependencies
-  # Uses custom image with Chrome deps pre-installed (see Dockerfile.cloudbuild)
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
+  # Uses custom image with Chrome deps pre-installed (see Dockerfile.cloudbuild).
+  # Pinned to an immutable dated tag (cloudbuild-image.yaml builds it); bump
+  # the date here only after the new image has been pushed.
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
     entrypoint: npm
     args: ['ci']
     id: 'install-dependencies'
@@ -22,7 +24,7 @@ steps:
     waitFor: ['-']
 
   # Build the site with environment variables from Secret Manager
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
     entrypoint: bash
     args:
       - '-c'
@@ -42,9 +44,11 @@ steps:
           rm -f .env.refresh
         fi
 
-        # astro build directly, not npm run build: npm's prebuild hook would
-        # run refresh-tokens.cjs a second time
-        npx astro build
+        # npm run build (not npx astro build) so any pre/postbuild hooks run.
+        # It has no prebuild: the secret pull + token refresh live in
+        # `npm run build:fresh` for local use, so the refresh above is the
+        # only one.
+        npm run build
     id: 'build-site'
     env:
       - 'NODE_ENV=production'
@@ -60,7 +64,9 @@ steps:
       - '-c'
       - 'gsutil -m rsync -r .cache gs://personal-website-334502_cloudbuild/build-cache || echo "No cache to save"'
     id: 'save-build-cache'
-    waitFor: ['build-site']
+    # check-api-health writes .cache/api-health-report.json; don't upload a
+    # half-written copy
+    waitFor: ['build-site', 'check-api-health']
 
   # Append this build's data to the historical snapshot archive (read by
   # future stats pages; the build-cache above stays the fallback mechanism).
@@ -84,10 +90,10 @@ steps:
         gsutil -m cp /tmp/snap/*.gz "gs://personal-website-334502_cloudbuild/snapshots/$$STAMP/" \
           || echo "WARNING: snapshot upload failed"
     id: 'save-daily-snapshot'
-    waitFor: ['build-site']
+    waitFor: ['build-site', 'check-api-health']
 
   # Check API health and send notifications if any failed
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
     entrypoint: node
     args: ['scripts/check-api-health.cjs']
     id: 'check-api-health'
@@ -96,13 +102,39 @@ steps:
       - 'CLOUD_BUILD=true'  # reads Discord credentials from SITE_SECRETS
     waitFor: ['build-site']
 
-  # Deploy to Firebase Hosting (cache headers and CDN invalidation are
-  # handled by firebase.json + the deploy itself)
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
+  # Unit tests + type-check, in parallel with the build; a failure blocks the
+  # deploy below. Runs on a copy of just the sources: the concurrent build
+  # writes .cache/, dist/ and a credentials file in the workspace, and
+  # `astro sync` writes .astro/ and node_modules/.astro/, which the build is
+  # using. The copy's node_modules is a directory of symlinks into the real
+  # one, so the copy's .astro/.vite caches stay private.
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        CI_DIR=/tmp/ci-check
+        mkdir -p $$CI_DIR/node_modules
+        cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts $$CI_DIR/
+        for entry in node_modules/* node_modules/.bin; do
+          ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry"
+        done
+        cd $$CI_DIR
+        npx vitest run
+        npm run typecheck
+    id: 'test'
+    env:
+      - 'CI=true'
+    waitFor: ['install-dependencies']
+
+  # Deploy to Firebase Hosting (security/cache headers and CDN invalidation
+  # are handled by firebase.json + the deploy itself). Gated on the tests.
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
     entrypoint: npx
     args: ['firebase-tools', 'deploy', '--only', 'hosting', '--project', 'personal-website-334502', '--non-interactive']
     id: 'deploy-to-firebase'
-    waitFor: ['build-site']
+    waitFor: ['build-site', 'test']
 
 # No availableSecrets: every credential lives in the single SITE_SECRETS
 # secret, read with the Secret Manager SDK by refresh-tokens.cjs and

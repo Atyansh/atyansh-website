@@ -74,7 +74,7 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
 
 4. **Configure your API keys** (see detailed instructions below)
 
-**Note:** `npm run build` automatically syncs secrets from Secret Manager before building (if gcloud is configured). Every credential lives in one JSON secret, `SITE_SECRETS`, which is the single source of truth; push `.env` changes back with `node scripts/push-secrets.cjs KEY ...` (see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)).
+**Note:** `npm run build:fresh` syncs secrets from Secret Manager (if gcloud is configured) and refreshes tokens before building; plain `npm run build` uses your `.env` as is. Every credential lives in one JSON secret, `SITE_SECRETS`, which is the single source of truth; push `.env` changes back with `node scripts/push-secrets.cjs KEY ...` (see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)).
 
 ## Quick Start (Minimal Setup)
 
@@ -391,7 +391,10 @@ See [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for detailed setup in
 npm run dev
 ```
 
-Site will be available at `http://localhost:4321`
+Site will be available at `http://localhost:4321` (localhost only). To reach it
+from other devices on your network, opt in with `npm run dev -- --host`. An
+ngrok tunnel (`ngrok http 4321`) works either way: `*.ngrok-free.app` and
+`*.ngrok.io` are in Vite's `allowedHosts`.
 
 The dev server includes:
 - Hot module reloading
@@ -401,10 +404,24 @@ The dev server includes:
 ### Build for Production
 
 ```bash
-npm run build
+npm run build         # build with your current .env
+npm run build:fresh   # pull SITE_SECRETS into .env + refresh tokens, then build
 ```
 
-This generates optimized static files in the `dist/` directory.
+This generates optimized static files in the `dist/` directory. `npm run build`
+never touches `.env` or rotates tokens; `build:fresh` does both (it rotates
+real OAuth tokens, so don't run it in a loop).
+
+### Tests and Type-checking
+
+```bash
+npm test              # Vitest unit tests
+npm run typecheck     # astro sync + tsc --noEmit
+npm run check:astro   # astro check (also type-checks .astro files)
+```
+
+Cloud Build runs `npm test` and `npm run typecheck` on every build; a failure
+blocks the deploy.
 
 ### Preview Production Build
 
@@ -499,7 +516,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   │   ├── letterboxd.ts      # Letterboxd scraper
 │   │   ├── __tests__/         # Unit tests (Vitest)
 │   │   └── ...
-│   └── middleware.ts          # Security headers
 ├── .env                        # Your secrets (not committed)
 ├── .env.example               # Template for secrets
 ├── .gitignore                 # Git ignore rules
@@ -507,8 +523,7 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 ├── vitest.config.ts           # Test configuration
 ├── tsconfig.json              # TypeScript configuration
 ├── cloudbuild.yaml            # Daily/push build: refresh, build, deploy, health check
-├── firebase.json              # Firebase Hosting config (headers, redirects)
-├── deploy.sh                  # Manual Cloud Build submit
+├── firebase.json              # Firebase Hosting config (security + cache headers)
 ├── Dockerfile.cloudbuild      # Custom Cloud Build image
 ├── cloudbuild-image.yaml      # Build config for Docker image
 └── package.json               # Dependencies
@@ -571,26 +586,30 @@ This site can be deployed to any static hosting platform:
 
 This site is deployed to Firebase Hosting (Blaze plan) with automated daily builds via Cloud Build. Firebase's global CDN serves the site, purges its cache automatically on every deploy, and manages the TLS certificate for atyansh.com.
 
-**Manual Deployment:**
+**Deploying:** Cloud Build is the only deploy path. Push to `master`, or
+re-run it without a new commit:
 ```bash
-./deploy.sh
+gcloud builds triggers run refresh-website-push --branch=master --project personal-website-334502
 ```
+Don't `firebase deploy` from a laptop: it ships your local `dist/` (untracked
+files included) and skips the tests and health checks.
 
 **Automated Daily Builds:**
-- Cloud Build runs daily at 2 AM PT using a [custom Docker image](#cloud-build-docker-image) with Chrome dependencies pre-installed
-- Fetches latest code and API data
-- Deploys automatically to Firebase Hosting (`firebase deploy --only hosting`)
+- Cloud Build runs on every push to `master` and daily at 2 AM PT using a [custom Docker image](#cloud-build-docker-image) with Chrome dependencies pre-installed
+- Fetches latest code and API data, runs the unit tests + type-check in parallel with the build
+- Deploys to Firebase Hosting (`firebase deploy --only hosting`) only if the build and tests passed
 
 See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for full setup instructions.
 
 #### Cloud Build Docker Image
 
-Cloud Build uses a custom Docker image (`gcr.io/personal-website-334502/node-puppeteer:22`) with Chrome dependencies pre-installed. This avoids reinstalling ~25 packages on every build.
+Cloud Build uses a custom Docker image (`gcr.io/personal-website-334502/node-puppeteer`, from `Dockerfile.cloudbuild`: Node pinned to an exact v22 release plus Chrome's shared libraries). `cloudbuild-image.yaml` tags it `:22` (moving) and `:22-YYYY-MM-DD` (immutable); `cloudbuild.yaml` pins the dated tag.
 
-To rebuild the image (only needed for Node.js major version bumps or Puppeteer upgrades):
+To roll the image forward (Node security releases, Puppeteer/Chrome dependency changes): bump the Node version in `Dockerfile.cloudbuild` and `_DATE` in `cloudbuild-image.yaml`, then
 ```bash
 gcloud builds submit --config=cloudbuild-image.yaml .
 ```
+and only after it's pushed, update the dated tag in `cloudbuild.yaml`.
 
 ### Vercel (Alternative)
 
@@ -619,7 +638,7 @@ gcloud builds submit --config=cloudbuild-image.yaml .
 
 ### Important for Production
 
-1. **Security headers**: HSTS is enabled in `src/middleware.ts` for non-dev environments. For static hosting, configure security/caching headers in `firebase.json`.
+1. **Security headers**: CSP, HSTS, X-Frame-Options, Permissions-Policy etc. are set in `firebase.json` (the site is static, so there's no server middleware). See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md#security-headers); on another host, port those headers to its config.
 2. **Environment variables**: Add all your API keys to your hosting platform's environment variable settings
 3. **Caching**: All API integrations use file-based caching (24-hour TTL) to minimize external requests during builds
 
@@ -699,7 +718,8 @@ If you accidentally commit secrets:
 
 **TypeScript errors:**
 ```bash
-npm run build
+npm run typecheck
+npm run check:astro
 ```
 Check the console output for specific type errors.
 

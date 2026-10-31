@@ -12,30 +12,30 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^6.3.8",
-    "@astrojs/mdx": "^4.3.13",
-    "@astrojs/react": "^4.4.0",
-    "@astrojs/sitemap": "^3.6.0",
-    "@google-cloud/secret-manager": "^6.1.1",
+    "@astrojs/mdx": "^4.3.14",
+    "@astrojs/react": "^4.4.2",
+    "@astrojs/sitemap": "^3.7.4",
+    "@google-cloud/secret-manager": "^6.3.0",
     "@resvg/resvg-js": "^2.6.2",
-    "@tailwindcss/vite": "^4.1.14",
-    "astro": "^5.14.4",
-    "dotenv": "^16.4.5",
-    "framer-motion": "^12.23.24",
-    "psn-api": "^2.15.0",
-    "puppeteer": "^24.24.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^5.18.2",
+    "dotenv": "^16.6.1",
+    "framer-motion": "^12.43.0",
+    "psn-api": "^2.18.1",
+    "puppeteer": "^24.43.1",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "satori": "^0.18.3",
-    "shiki": "^3.13.0",
-    "tailwindcss": "^4.1.14"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "satori": "^0.18.4",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.1",
-    "firebase-tools": "^15.25.1",
-    "vitest": "^3.0.0"
+    "@astrojs/check": "^0.9.12",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "firebase-tools": "^15.34.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }

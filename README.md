@@ -34,16 +34,16 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
 - 🛡️ Security-first approach with CSP, HSTS, and other security headers
 - 🎨 Responsive design with Tailwind CSS 4
 - 🌙 5 built-in themes (Minimal Technical, Modern Glass, Brutalist, Dark Terminal, Academic Minimal) with fully CSS custom property-driven styling
-- ⚡ Fast static site generation with Astro 5
+- ⚡ Fast static site generation with Astro 7
 - 🖼️ Dynamic OG image generation
 - 🔍 SEO optimized with sitemap generation
 - ♿ Accessible design
 
 ## Prerequisites
 
-- **Node.js** 22.x (recommended for full compatibility with psn-api)
-  - Minimum: 20.x or later (required by psn-api@2.15.0)
-  - Cloud Build uses Node.js 22 to match local environment
+- **Node.js** 22.23.4 or later 22.x (Astro 7's minimum; see `engines` in package.json)
+  - With nvm: `nvm install 22.23.4 && nvm alias default 22.23.4`
+  - Cloud Build uses the same Node release (`Dockerfile.cloudbuild`)
 - **npm** 9.x or later
 - **Git** for version control
 

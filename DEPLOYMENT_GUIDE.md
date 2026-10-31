@@ -70,7 +70,7 @@ This pushes `:22` (moving) and `:22-YYYY-MM-DD` (immutable). `cloudbuild.yaml` p
 
 ### Node.js Version Requirement
 
-**IMPORTANT:** Cloud Build must use **Node.js 22** to match the local development environment.
+**IMPORTANT:** Cloud Build must use **Node.js 22.23.4 or later** (Astro 7's minimum, also `engines` in package.json) to match the local development environment.
 
 The `psn-api` package (v2.15.0) requires Node.js >=20 and provides backwards-compatible function names on Node 22:
 - `exchangeNpssoForCode` (older, still supported)

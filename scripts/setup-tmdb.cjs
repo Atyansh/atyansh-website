@@ -133,7 +133,7 @@ async function main() {
     `TMDB_TV_LIST_ID=${listId}`,
   ]);
   console.log('Then sync to Secret Manager:');
-  console.log('  ./scripts/sync-secrets-to-gcloud.sh TMDB_ACCESS_TOKEN TMDB_ACCOUNT_OBJECT_ID TMDB_TV_LIST_ID\n');
+  console.log('  node scripts/push-secrets.cjs TMDB_ACCESS_TOKEN TMDB_ACCOUNT_OBJECT_ID TMDB_TV_LIST_ID\n');
 }
 
 main().catch(error => {

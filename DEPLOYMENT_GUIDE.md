@@ -6,9 +6,9 @@
 2. ✅ Set project to `personal-website-334502`
 3. ✅ Enabled required APIs (Cloud Build, Secret Manager, Cloud Scheduler, Cloud Storage)
 4. ✅ Created `cloudbuild.yaml` configuration
-5. ✅ Created 24 secrets in Google Secret Manager (20 API keys + 1 token metadata + 2 Discord notification settings)
+5. ✅ Stored every credential in Google Secret Manager — since October 2026 as one JSON secret, `SITE_SECRETS` (see [Secrets](#secrets-site_secrets))
 6. ✅ Granted IAM permissions to Cloud Build service accounts
-7. ✅ Configured Cloud Storage bucket (`gs://atyansh.com/`)
+7. ✅ Hosting on Firebase Hosting since 2026-07-31 (the old `gs://atyansh.com` bucket and load balancer were removed)
 8. ✅ Updated Cloud Build to use custom Docker image (`gcr.io/personal-website-334502/node-puppeteer:22`) with Chrome dependencies pre-installed
 9. ✅ Granted Secret Manager access to Compute Engine service account
 10. ✅ Successfully deployed site via Cloud Build
@@ -37,8 +37,8 @@ This service account requires two Secret Manager permissions:
 
 | Role | Purpose |
 |------|---------|
-| `roles/secretmanager.secretAccessor` | Read secrets during build |
-| `roles/secretmanager.secretVersionManager` | Auto-refresh OAuth tokens (MAL, IGDB, PSN) |
+| `roles/secretmanager.secretAccessor` | Read `SITE_SECRETS` during build |
+| `roles/secretmanager.secretVersionManager` | Save auto-refreshed tokens (MAL, IGDB, PSN, Goodreads) and destroy old versions |
 
 **If you encounter permission errors**, grant both permissions:
 ```bash
@@ -95,34 +95,22 @@ https://console.cloud.google.com/cloud-build/builds?project=personal-website-334
 
 ### Option 2: Verify Permissions Manually
 
-Check if the service accounts have access:
+Check that the build service account has both Secret Manager roles at the project level:
 
 ```bash
-# Check one secret's permissions
-gcloud secrets get-iam-policy STEAM_API_KEY
+gcloud projects get-iam-policy personal-website-334502 \
+  --flatten=bindings \
+  --filter="bindings.members:418072003908-compute@developer.gserviceaccount.com" \
+  --format="value(bindings.role)"
 
-# Should show both:
-# - serviceAccount:418072003908@cloudbuild.gserviceaccount.com
-# - serviceAccount:service-418072003908@gcp-sa-cloudbuild.iam.gserviceaccount.com
+# Should include:
+# - roles/secretmanager.secretAccessor
+# - roles/secretmanager.secretVersionManager
 ```
 
 ### Option 3: Re-grant Permissions
 
-If needed, re-run the permission grant script:
-
-```bash
-cd /Users/atyansh/Repos/atyansh-website
-
-# Re-grant to both service accounts
-for secret in STEAM_API_KEY STEAM_ID PSN_NPSSO IGDB_CLIENT_ID IGDB_CLIENT_SECRET \
-              IGDB_ACCESS_TOKEN SPOTIFY_CLIENT_ID SPOTIFY_CLIENT_SECRET SPOTIFY_REFRESH_TOKEN \
-              LETTERBOXD_USERNAME MAL_CLIENT_ID MAL_CLIENT_SECRET \
-              MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN GOODREADS_USER_ID GOODREADS_COOKIE; do
-  gcloud secrets add-iam-policy-binding $secret \
-    --member="serviceAccount:service-418072003908@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor"
-done
-```
+If either role is missing, re-run the two `add-iam-policy-binding` commands under [Service Account Permissions](#service-account-permissions). There are no per-secret bindings: everything lives in the single `SITE_SECRETS` secret, covered by the project-level roles.
 
 ### Option 4: Test Build Locally First
 
@@ -138,69 +126,48 @@ npx firebase-tools deploy --only hosting --project personal-website-334502
 
 Or use `./deploy.sh`, which does both the build and the deploy.
 
-## Setting Up Daily Automated Builds
+## Automated Builds
 
-Once the manual build works, set up Cloud Scheduler:
+Two Cloud Build triggers run `cloudbuild.yaml` from `master` on GitHub:
 
-### Step 1: Create Cloud Build Trigger
+| Trigger | Fires on |
+|---|---|
+| `refresh-website-push` | every push to `master` |
+| `refresh-website-periodic` | the Cloud Scheduler job `refresh-website-periodic-schedule`, daily at 2 AM Pacific (`0 2 * * *`, `America/Los_Angeles`) |
+
+Check them:
 
 ```bash
-# This creates a manual trigger you can invoke via API
+gcloud builds triggers list --project personal-website-334502
+gcloud scheduler jobs list --location us-central1 --project personal-website-334502
+```
+
+To recreate them (connect the GitHub repo first at https://console.cloud.google.com/cloud-build/triggers/connect?project=personal-website-334502):
+
+```bash
+PROJECT_ID="personal-website-334502"
+
+gcloud builds triggers create github \
+  --name="refresh-website-push" \
+  --repo-owner="Atyansh" --repo-name="atyansh-website" \
+  --branch-pattern="^master$" \
+  --build-config="cloudbuild.yaml"
+
 gcloud builds triggers create manual \
-  --name="daily-website-rebuild" \
+  --name="refresh-website-periodic" \
   --repo="https://github.com/Atyansh/atyansh-website" \
   --repo-type=GITHUB \
   --branch="master" \
   --build-config="cloudbuild.yaml"
-```
 
-**Note:** You may need to connect your GitHub repository first at:
-https://console.cloud.google.com/cloud-build/triggers/connect?project=personal-website-334502
-
-### Step 2: Alternative - Direct Cloud Scheduler (Without GitHub)
-
-If you don't want to connect GitHub, use Cloud Scheduler to trigger builds directly:
-
-```bash
-# Get your Cloud Build API URL
-PROJECT_ID="personal-website-334502"
-
-# Create a service account for the scheduler
-gcloud iam service-accounts create cloud-scheduler-build \
-  --display-name="Cloud Scheduler Build Trigger"
-
-# Grant it permission to trigger builds
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:cloud-scheduler-build@$PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/cloudbuild.builds.editor"
-
-# Create the scheduler job (runs daily at 2 AM UTC)
-gcloud scheduler jobs create http daily-website-build \
+# Run the periodic trigger daily at 2 AM Pacific
+TRIGGER_ID=$(gcloud builds triggers describe refresh-website-periodic --format='value(id)')
+gcloud scheduler jobs create http refresh-website-periodic-schedule \
   --location=us-central1 \
   --schedule="0 2 * * *" \
-  --uri="https://cloudbuild.googleapis.com/v1/projects/$PROJECT_ID/builds" \
-  --message-body='{
-    "source": {
-      "storageSource": {
-        "bucket": "'$PROJECT_ID'_cloudbuild",
-        "object": "source.tgz"
-      }
-    },
-    "steps": [...]
-  }' \
-  --oauth-service-account-email="cloud-scheduler-build@$PROJECT_ID.iam.gserviceaccount.com"
-```
-
-### Step 3: Simpler Approach - Cron + Local Machine
-
-If Cloud Scheduler is too complex, use a cron job on a machine that's always on:
-
-```bash
-# Edit crontab
-crontab -e
-
-# Add this line (runs daily at 2 AM)
-0 2 * * * cd /Users/atyansh/Repos/atyansh-website && git pull && gcloud builds submit --config cloudbuild.yaml . >> /tmp/website-build.log 2>&1
+  --time-zone="America/Los_Angeles" \
+  --uri="https://cloudbuild.googleapis.com/v1/projects/$PROJECT_ID/triggers/$TRIGGER_ID:run" \
+  --oauth-service-account-email="418072003908-compute@developer.gserviceaccount.com"
 ```
 
 ## Manual Deployment Script
@@ -265,22 +232,44 @@ https://console.cloud.google.com/cloud-build/builds?project=personal-website-334
 
 If you need to update any API keys:
 
-### Option 1: Sync All Secrets from .env (Recommended)
+### Secrets (`SITE_SECRETS`)
 
-The easiest way to update secrets after modifying your `.env` file:
+Every credential lives in **one** Secret Manager secret, `SITE_SECRETS`: a flat JSON object of `KEY` → value. There are no per-key secrets, and `cloudbuild.yaml` has no `availableSecrets`/`secretEnv`. The shared logic is in `scripts/site-secrets.cjs`.
+
+**How builds use it:**
+- `scripts/refresh-tokens.cjs` reads `SITE_SECRETS` (Node SDK), refreshes MAL/IGDB/PSN/Goodreads, saves every renewed token in **one** write, and writes `.env.refresh` with every credential for the build step to source
+- The build step runs `npx astro build` directly, not `npm run build`, so npm's `prebuild` hook doesn't run the refresh a second time
+- `scripts/check-api-health.cjs` reads the Discord credentials from `SITE_SECRETS` itself, so alerts still go out if the refresh step failed
+
+**Write safety (every write, from builds or local scripts):**
+- Re-reads the latest version and applies only the keys that changed, so a concurrent writer (another build, a local sync) isn't reverted
+- Validates before writing: every value a non-empty string, no existing key dropped unless removed explicitly, under 60 KB (Secret Manager's limit is 64 KiB)
+- Keeps the newest 3 versions for rollback and **destroys** older ones (disabled versions still bill)
+
+**Cost:** one secret with at most 3 versions fits in Secret Manager's 6 free active versions, so it's $0.
+
+### Option 1: Sync from .env (Recommended)
+
+After editing your `.env` file:
 
 ```bash
-# Update all 19 secrets from .env to Google Cloud
-./scripts/sync-secrets-to-gcloud.sh
+# Update every key SITE_SECRETS already has from .env
+node scripts/push-secrets.cjs
+
+# Update (or add) specific keys
+node scripts/push-secrets.cjs SPOTIFY_REFRESH_TOKEN
+
+# Remove a key
+node scripts/push-secrets.cjs --remove TMDB_READ_TOKEN
 ```
 
-This script will:
-- Read all values from your `.env` file
-- Update or create each secret in Google Cloud Secret Manager
-- Skip any secrets that aren't set in `.env`
-- Show a summary of updated/skipped/failed secrets
+This script:
+- Reads values from `.env` with dotenv, so quoted values with spaces (like `GOODREADS_COOKIE`) work
+- With no key names, only updates keys `SITE_SECRETS` already has — `.env` also holds local-only values (e.g. the 1-hour `PSN_ACCESS_TOKEN`) that must not be stored. Name a key to add it
+- Writes only keys whose value changed, as a single new version
+- Skips keys that aren't set in `.env`
 
-**All secrets managed:**
+**All keys in `SITE_SECRETS`:**
 - Gaming: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `PSN_REFRESH_TOKEN`, `PSN_REFRESH_TOKEN_EXPIRES_AT`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`, `EXOPHASE_USERNAME`
 - Spotify: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
@@ -292,41 +281,42 @@ This script will:
 
 ### Pulling Secrets to Local .env
 
-To sync secrets from Secret Manager to your local `.env` file:
+To sync `SITE_SECRETS` to your local `.env` file:
 
 ```bash
 node scripts/pull-secrets.cjs
 ```
 
-This runs automatically before `npm run build` (via the `prebuild` hook), so your local builds always use the latest secrets from Secret Manager.
+This runs automatically before `npm run build` (via the `prebuild` hook), so your local builds always use the latest secrets. It uses the `gcloud` CLI you're signed in to, and keeps comments and local-only variables in `.env`.
 
-**Secret Manager is the single source of truth.** When tokens are auto-refreshed during a build (IGDB, MAL, PSN), they're updated in Secret Manager. The next local build will pull the fresh tokens automatically.
+**`SITE_SECRETS` is the single source of truth.** When tokens are auto-refreshed during a build (IGDB, MAL, PSN, Goodreads), they're saved back to `SITE_SECRETS`. The next local build will pull the fresh tokens automatically.
 
-### Option 2: Update Individual Secrets
+### Option 2: Read a Single Value
 
 ```bash
-# Update a single secret manually
-echo -n "new_value" | gcloud secrets versions add SECRET_NAME --data-file=-
-
-# Example: Update Spotify refresh token
-echo -n "AQC..." | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file=-
+gcloud secrets versions access latest --secret=SITE_SECRETS | jq -r .STEAM_API_KEY
 ```
 
-### Option 3: Use Original Script
+To change a value, edit `.env` and use Option 1 — don't hand-edit the JSON.
+
+### Option 3: Roll Back a Bad Write
+
+The newest 3 versions are kept. To restore an older one, re-add its payload as the latest version:
 
 ```bash
-# Create or update secrets interactively
-./create-secrets.sh
+gcloud secrets versions list SITE_SECRETS
+gcloud secrets versions access N --secret=SITE_SECRETS | gcloud secrets versions add SITE_SECRETS --data-file=-
 ```
 
 ## Cost Estimates
 
 - Cloud Build: Free tier includes 120 build-minutes/day (should be enough)
-- Secret Manager: $0.06 per 10,000 accesses (negligible for daily builds)
+- Secret Manager: $0 — one secret with ≤3 versions fits in the 6 free active versions; accesses are $0.03 per 10,000 (negligible)
 - Firebase Hosting: $0/month at current traffic (10 GB/month free transfer)
-- Cloud Scheduler: $0.10/month per job
+- Cloud Scheduler: $0 (one job; 3 jobs per billing account are free)
+- Cloud Storage: a few cents a month for the build-cache and snapshot archive in the Cloud Build bucket
 
-**Estimated total: $0.15-0.20/month**
+**Estimated total: a few cents a month**
 
 ## Troubleshooting Common Issues
 
@@ -346,13 +336,13 @@ echo -n "AQC..." | gcloud secrets versions add SPOTIFY_REFRESH_TOKEN --data-file
 
 **Auto-refresh (try this first):**
 ```bash
-# Refreshes MAL, IGDB, and PSN tokens automatically and persists to Secret Manager
+# Refreshes MAL, IGDB, PSN and Goodreads and saves them to SITE_SECRETS
 node scripts/refresh-tokens.cjs
 ```
 
 **Quick workflow:**
 ```bash
-# 1. Run auto-refresh (updates Secret Manager and .env automatically)
+# 1. Run auto-refresh (updates SITE_SECRETS and .env automatically)
 node scripts/refresh-tokens.cjs
 
 # 2. Trigger a new build to verify
@@ -360,11 +350,11 @@ gcloud builds submit --config cloudbuild.yaml .
 ```
 
 **Manual renewal (fallback if auto-refresh fails):**
-- **Spotify**: Re-run `scripts/get-spotify-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
-- **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
-- **TMDB**: The v4 access token is long-lived and shouldn't expire. If revoked, re-run `node scripts/setup-tmdb.cjs`, then `./scripts/sync-secrets-to-gcloud.sh`
-- **PSN**: Uses a refresh token (~10d) bootstrapped from the NPSSO. Only bootstrap when the refresh token expires or is revoked. To bootstrap: log out + log back in at playstation.com, visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh NPSSO, update `.env`, then sync — the next build will exchange it for a refresh token
-- **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then sync
+- **Spotify**: Re-run `scripts/get-spotify-token.cjs`, update `.env`, then `node scripts/push-secrets.cjs SPOTIFY_REFRESH_TOKEN`
+- **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, update `.env`, then `node scripts/push-secrets.cjs MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN`
+- **TMDB**: The v4 access token is long-lived and shouldn't expire. If revoked, re-run `node scripts/setup-tmdb.cjs`, then `node scripts/push-secrets.cjs TMDB_ACCESS_TOKEN TMDB_ACCOUNT_OBJECT_ID TMDB_TV_LIST_ID`
+- **PSN**: Uses a refresh token (~10d) bootstrapped from the NPSSO. Only bootstrap when the refresh token expires or is revoked. To bootstrap: log out + log back in at playstation.com, visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh NPSSO, update `.env`, then `node scripts/push-secrets.cjs PSN_NPSSO` — the next build will exchange it for a refresh token
+- **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then `node scripts/push-secrets.cjs IGDB_ACCESS_TOKEN`
 
 ### Build Succeeds but Site Not Updated
 - Check the release landed: https://console.firebase.google.com/project/personal-website-334502/hosting (release history shows every deploy)
@@ -405,13 +395,13 @@ The site is served by Firebase Hosting (Blaze plan) — its global CDN terminate
 - `cloudbuild.yaml` - Cloud Build configuration with health monitoring
 - `cloudbuild-image.yaml` - Build config for the custom Docker image
 - `Dockerfile.cloudbuild` - Custom Docker image with Chrome dependencies
-- `create-secrets.sh` - Script to create/update secrets interactively
-- `scripts/sync-secrets-to-gcloud.sh` - Sync all secrets from .env to Google Cloud
-- `scripts/pull-secrets.cjs` - Sync secrets from Google Cloud to .env (runs automatically before builds)
+- `scripts/site-secrets.cjs` - Read/write the single `SITE_SECRETS` secret (merge, validation, version pruning)
+- `scripts/push-secrets.cjs` - Push values from .env into `SITE_SECRETS`
+- `scripts/pull-secrets.cjs` - Sync `SITE_SECRETS` to .env (runs automatically before builds)
 - `scripts/check-api-health.cjs` - API health monitoring and Discord notifications
 - `API_HEALTH_MONITORING.md` - Complete guide for Discord notification setup
 - `DEPLOYMENT_GUIDE.md` - This file
-- `.gcloudignore` - Files to exclude from Cloud Build uploads (auto-created)
+- `.gcloudignore` - Not committed; `gcloud builds submit` generates one from `.gitignore` when it's absent
 
 ## Next Steps
 
@@ -422,7 +412,7 @@ The site is served by Firebase Hosting (Blaze plan) — its global CDN terminate
 5. Test the health monitoring by checking `.cache/api-health-report.json` after a build
 6. Commit the new files to git:
    ```bash
-   git add cloudbuild.yaml create-secrets.sh scripts/ API_HEALTH_MONITORING.md DEPLOYMENT_GUIDE.md
+   git add cloudbuild.yaml scripts/ API_HEALTH_MONITORING.md DEPLOYMENT_GUIDE.md
    git commit -m "Add automated deployment with API health monitoring"
    git push
    ```
@@ -432,15 +422,7 @@ The site is served by Firebase Hosting (Blaze plan) — its global CDN terminate
 If you continue to have issues:
 1. Check Cloud Build logs in the GCP Console
 2. Check API health report: `cat .cache/api-health-report.json` (after a build)
-3. Verify all secrets are populated: `gcloud secrets list`
-4. Test secret access: `gcloud secrets versions access latest --secret=STEAM_API_KEY | head -c 20`
-5. Check IAM permissions for both service accounts
+3. Verify `SITE_SECRETS` has every key: `gcloud secrets versions access latest --secret=SITE_SECRETS | jq -r 'keys[]'`
+4. Test secret access: `gcloud secrets versions access latest --secret=SITE_SECRETS | jq -r .STEAM_API_KEY | head -c 20`
+5. Check the build service account's Secret Manager roles (see Option 2 above)
 6. Review Discord notifications if any APIs are failing
-
-## Alternative: GitHub Actions
-
-If Cloud Build continues to be problematic, consider GitHub Actions instead (see README for GitHub Actions setup).
-
----
-
-Generated by Claude Code

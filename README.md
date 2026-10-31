@@ -67,14 +67,14 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
    cp .env.example .env
    ```
 
-   If you have secrets in Google Cloud Secret Manager, sync them instead:
+   If you have access to the `SITE_SECRETS` secret in Google Cloud Secret Manager, sync it instead:
    ```bash
    node scripts/pull-secrets.cjs
    ```
 
 4. **Configure your API keys** (see detailed instructions below)
 
-**Note:** `npm run build` automatically syncs secrets from Secret Manager before building (if gcloud is configured). Secret Manager is the single source of truth.
+**Note:** `npm run build` automatically syncs secrets from Secret Manager before building (if gcloud is configured). Every credential lives in one JSON secret, `SITE_SECRETS`, which is the single source of truth; push `.env` changes back with `node scripts/push-secrets.cjs KEY ...` (see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)).
 
 ## Quick Start (Minimal Setup)
 
@@ -297,14 +297,14 @@ MyAnimeList uses OAuth2. Use the included helper script.
    GOODREADS_USER_ID=12345678
    GOODREADS_COOKIE='...whole cookie header...'
    ```
-6. Push the cookie to Secret Manager (`sync-secrets-to-gcloud.sh` can't handle the spaces in it):
+6. Push both to `SITE_SECRETS` (the cookie must be single-quoted in `.env`; the sync script handles the spaces in it):
    ```bash
-   pbpaste | gcloud secrets versions add GOODREADS_COOKIE --data-file=- --project personal-website-334502
+   node scripts/push-secrets.cjs GOODREADS_USER_ID GOODREADS_COOKIE
    ```
 
 **Note:** Goodreads removed shelf RSS feeds in October 2026 and shelf pages now require sign-in, so the build scrapes your signed-in shelf pages (`/review/list/<id>`).
 
-The session rests on Amazon's login cookies, which expire a year after they're issued and which Goodreads never renews. So before every build `scripts/refresh-tokens.cjs` re-signs in silently (Amazon's sign-in without `max_auth_age=0` re-issues the cookies for a still-valid session, no password needed), checks the renewed cookie loads a shelf, and saves it to Secret Manager. Each daily build pushes the expiry a year out, so the cookie never expires on its own.
+The session rests on Amazon's login cookies, which expire a year after they're issued and which Goodreads never renews. So before every build `scripts/refresh-tokens.cjs` re-signs in silently (Amazon's sign-in without `max_auth_age=0` re-issues the cookies for a still-valid session, no password needed), checks the renewed cookie loads a shelf, and saves it to `SITE_SECRETS`. Each daily build pushes the expiry a year out, so the cookie never expires on its own.
 
 You only need to paste a new cookie if the login is killed: changing your Goodreads/Amazon password, "sign out of all devices", or Amazon deciding to ask for the password again. The "Goodreads (session renewal)" health check alerts on the first failed renewal — while the current cookie still works for up to a year — and the site keeps serving the last good books if it ever does stop working.
 
@@ -373,10 +373,10 @@ Get notified via Discord DM when API keys expire during automated builds.
    DISCORD_BOT_TOKEN=your_discord_bot_token_here
    DISCORD_USER_ID=your_discord_user_id_here
    ```
-6. Add both secrets to Google Secret Manager and sync (see [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for details)
+6. Push both to `SITE_SECRETS`: `node scripts/push-secrets.cjs DISCORD_BOT_TOKEN DISCORD_USER_ID` (see [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for details)
 
 **What it does:**
-- Runs after every build (daily at 2 AM UTC in production)
+- Runs after every build (daily at 2 AM Pacific in production)
 - Checks if all API integrations succeeded
 - Sends you a Discord DM with an embed if any API keys have expired
 - Includes exact commands to fix issues
@@ -421,7 +421,7 @@ npm test          # Run all tests once
 npm run test:watch  # Run tests in watch mode
 ```
 
-Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS parsing, and utility functions.
+Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fallback, retry logic, Letterboxd RSS and Goodreads shelf parsing, the `SITE_SECRETS` write rules, and utility functions.
 
 ## Project Structure
 
@@ -441,8 +441,12 @@ Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS pars
 │   ├── get-mal-token.cjs       # MyAnimeList OAuth helper
 │   ├── setup-tmdb.cjs          # TMDB TV setup (auth + list)
 │   ├── check-api-health.cjs    # API health monitoring
-│   ├── pull-secrets.cjs        # Sync secrets from GCloud to .env
-│   ├── sync-secrets-to-gcloud.sh # Sync .env to Secret Manager
+│   ├── refresh-tokens.cjs      # Pre-build token/session refresh, saved to SITE_SECRETS
+│   ├── oauth-helpers.cjs       # Shared helpers for the OAuth scripts
+│   ├── site-secrets.cjs        # Read/write the single SITE_SECRETS secret
+│   ├── pull-secrets.cjs        # Sync SITE_SECRETS to .env
+│   ├── push-secrets.cjs        # Push .env values to SITE_SECRETS
+│   └── …                       # Token setup and health-check helpers
 ├── src/
 │   ├── audio/                  # Client-side audio engine
 │   │   ├── AudioEngine.ts    # Step sequencer + theme processing
@@ -502,6 +506,9 @@ Tests use [Vitest](https://vitest.dev/) and cover caching, retry logic, RSS pars
 ├── astro.config.mjs           # Astro configuration
 ├── vitest.config.ts           # Test configuration
 ├── tsconfig.json              # TypeScript configuration
+├── cloudbuild.yaml            # Daily/push build: refresh, build, deploy, health check
+├── firebase.json              # Firebase Hosting config (headers, redirects)
+├── deploy.sh                  # Manual Cloud Build submit
 ├── Dockerfile.cloudbuild      # Custom Cloud Build image
 ├── cloudbuild-image.yaml      # Build config for Docker image
 └── package.json               # Dependencies
@@ -652,12 +659,12 @@ If you accidentally commit secrets:
 - IGDB: Requires `IGDB_CLIENT_SECRET` to auto-refresh
 - MyAnimeList: Uses `MAL_REFRESH_TOKEN` to auto-refresh
 - TMDB: No refresh needed — the v4 user access token is long-lived
-- Refreshed tokens are automatically saved to Secret Manager for future builds
+- Refreshed tokens are automatically saved to `SITE_SECRETS` for future builds
 
 **Spotify tokens expire periodically:**
 - Re-run `node scripts/get-spotify-token.cjs` to get new tokens
 - Update `.env` with new values
-- For production: Sync to Google Cloud with `./scripts/sync-secrets-to-gcloud.sh`
+- For production: Sync to Google Cloud with `node scripts/push-secrets.cjs SPOTIFY_REFRESH_TOKEN`
 
 **PSN uses a refresh token flow** to avoid frequent manual renewal:
 - The NPSSO bootstraps the refresh token on first use
@@ -666,7 +673,7 @@ If you accidentally commit secrets:
 - When the refresh token also expires, get a new NPSSO:
   - Log out of https://store.playstation.com, then log back in
   - Visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh token
-  - Update `PSN_NPSSO` in `.env` and sync to Secret Manager
+  - Update `PSN_NPSSO` in `.env`, then `node scripts/push-secrets.cjs PSN_NPSSO`
 
 **Automated monitoring:**
 - If Discord notifications are configured, you'll automatically receive a DM when tokens expire
@@ -682,12 +689,11 @@ If you accidentally commit secrets:
 - Goodreads needs a signed-in `GOODREADS_COOKIE`; a 302 to `/user/sign_in` means it has expired
 - Check the respective utility file in `src/utils/`
 - Update selectors or scraping logic
-- Consider implementing caching to reduce requests
 
 ### Build Errors
 
-**Missing environment variables:**
-- The build will fail if required APIs return errors
+**Missing or invalid credentials:**
+- API failures never fail the build: the source serves the previous build's data, or its page shows a "Couldn't load … right now" message if there is none, and the health check alerts
 - Make sure all API keys in `.env` are valid
 - Or disable the failing integration
 
@@ -733,7 +739,6 @@ This project is open source and available for personal use. Please replace all p
 - [Framer Motion](https://www.framer.com/motion/) - Animations
 - [Satori](https://github.com/vercel/satori) - OG image generation
 - [Shiki](https://shiki.matsu.io/) - Syntax highlighting
-- [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) - XML/RSS parsing
 - [Vitest](https://vitest.dev/) - Unit testing
 - [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) - Client-side audio synthesis
 

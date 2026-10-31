@@ -4,7 +4,7 @@
  * API Health Check Script
  *
  * Runs after the build to check which API integrations succeeded/failed.
- * Sends Discord notifications via webhook if any APIs have expired credentials.
+ * Sends a Discord DM (via bot) if any APIs have expired credentials.
  *
  * Usage:
  *   node scripts/check-api-health.cjs
@@ -23,6 +23,7 @@ try {
 
 const fs = require('fs');
 const path = require('path');
+const { readSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs');
 
 const CACHE_DIR = path.join(process.cwd(), '.cache');
 const MAX_CACHE_AGE_HOURS = 1; // Only trust cache files created in the last hour (this build)
@@ -49,7 +50,7 @@ const APIs = [
     name: 'Steam',
     cacheFile: 'steam-data.json',
     checkFn: (data) => data.games && data.games.length > 0,
-    renewal: 'Check STEAM_API_KEY and STEAM_ID in Secret Manager',
+    renewal: 'Check STEAM_API_KEY and STEAM_ID in SITE_SECRETS',
     requiresApiKey: true,
     selfHealing: false, // API key doesn't expire
   },
@@ -57,7 +58,7 @@ const APIs = [
     name: 'PlayStation Network',
     cacheFile: 'psn-data.json',
     checkFn: (data) => data.games && data.games.length > 0,
-    renewal: 'Auto-refreshes via refresh token (~10d window). If that also fails: log out + log back in at playstation.com, get fresh NPSSO from https://ca.account.sony.com/api/v1/ssocookie, update PSN_NPSSO in Secret Manager',
+    renewal: 'Auto-refreshes via refresh token (~10d window). If that also fails: log out + log back in at playstation.com, get fresh NPSSO from https://ca.account.sony.com/api/v1/ssocookie, set PSN_NPSSO in .env, then node scripts/push-secrets.cjs PSN_NPSSO',
     requiresApiKey: true,
     selfHealing: true, // Auto-refreshes via refresh token for ~10d; NPSSO bootstrap only needed when that expires
   },
@@ -84,14 +85,14 @@ const APIs = [
     name: 'Letterboxd',
     cacheFile: 'letterboxd-data.json',
     checkFn: (data) => data.movies && data.movies.length > 0,
-    renewal: 'Check LETTERBOXD_USERNAME in Secret Manager (web scraping)',
+    renewal: 'Check LETTERBOXD_USERNAME in SITE_SECRETS (web scraping)',
     requiresApiKey: false,
   },
   {
     name: 'Goodreads',
     cacheFile: 'goodreads-data.json',
     checkFn: (data) => data.books && data.books.length > 0,
-    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), then pbpaste | gcloud secrets versions add GOODREADS_COOKIE --data-file=- --project personal-website-334502',
+    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then node scripts/push-secrets.cjs GOODREADS_COOKIE',
     requiresApiKey: true,
     selfHealing: true, // Session renewed by refresh-tokens.cjs (see "Goodreads (session renewal)")
   },
@@ -100,7 +101,7 @@ const APIs = [
     cacheFile: 'goodreads-session.json',
     checkFn: (data) => data.renewed,
     failReason: (data) => `Couldn't renew the Goodreads login: ${data.error}. The current cookie still works until it expires (up to a year after the last successful renewal), so the books page is fine for now`,
-    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), then pbpaste | gcloud secrets versions add GOODREADS_COOKIE --data-file=- --project personal-website-334502',
+    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then node scripts/push-secrets.cjs GOODREADS_COOKIE',
     requiresApiKey: true,
     selfHealing: true, // Re-signs in silently every build, pushing expiry a year out
   },
@@ -108,7 +109,7 @@ const APIs = [
     name: 'Nintendo Switch',
     cacheFile: 'nintendo-data.json',
     checkFn: (data) => data.games && data.games.length > 0,
-    renewal: 'Exophase scraping may have failed - check EXOPHASE_USERNAME in Secret Manager',
+    renewal: 'Exophase scraping may have failed - check EXOPHASE_USERNAME in SITE_SECRETS',
     requiresApiKey: false,
   },
   {
@@ -118,7 +119,7 @@ const APIs = [
     // ascents query ships a page with stats but no videos without alerting.
     checkFn: (data) => data.pyramid && data.pyramid.length > 0
       && data.ascentsWithVideos && data.ascentsWithVideos.length > 0,
-    renewal: 'Check the build log for "Kaya GraphQL errors" (public GraphQL API; KAYA_USERNAME in Secret Manager)',
+    renewal: 'Check the build log for "Kaya GraphQL errors" (public GraphQL API; KAYA_USERNAME in SITE_SECRETS)',
     requiresApiKey: false,
   },
   {
@@ -128,7 +129,7 @@ const APIs = [
     cacheFile: 'kaya-data.json',
     checkFn: (data) => !data.authError,
     failReason: (data) => `Logged-in fetch failed, fell back to public queries: ${data.authError}`,
-    renewal: 'In Firefox on a Mac, sign in at kaya-app.kayaclimb.com, run copy(localStorage.getItem("refresh_token")) in the console, set KAYA_REFRESH_TOKEN in .env, then ./scripts/sync-secrets-to-gcloud.sh KAYA_REFRESH_TOKEN',
+    renewal: 'In Firefox on a Mac, sign in at kaya-app.kayaclimb.com, run copy(localStorage.getItem("refresh_token")) in the console, set KAYA_REFRESH_TOKEN in .env, then node scripts/push-secrets.cjs KAYA_REFRESH_TOKEN',
     requiresApiKey: true,
     selfHealing: false,
   },
@@ -315,7 +316,7 @@ function generateReport(results) {
 }
 
 /**
- * Send Discord notification via webhook
+ * Send a Discord DM via the bot
  */
 async function sendDiscordNotification(results) {
   const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -434,8 +435,26 @@ async function sendDiscordNotification(results) {
 /**
  * Main function
  */
+/**
+ * In Cloud Build, read the Discord credentials from SITE_SECRETS directly
+ * rather than relying on the build step's .env.refresh: the alert matters
+ * most when that step failed.
+ */
+async function loadDiscordCredentials() {
+  if (!isCloudBuild() || (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_USER_ID)) return;
+  try {
+    const { values } = await readSecrets();
+    for (const key of ['DISCORD_BOT_TOKEN', 'DISCORD_USER_ID']) {
+      if (values[key]) process.env[key] = values[key];
+    }
+  } catch (error) {
+    console.log(`⚠️  Could not read Discord credentials from ${SECRET_NAME}: ${error.message}`);
+  }
+}
+
 async function main() {
   console.log('Starting API health check...\n');
+  await loadDiscordCredentials();
 
   const results = await checkAPIHealth();
   const report = generateReport(results);

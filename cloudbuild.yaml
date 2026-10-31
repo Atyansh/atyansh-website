@@ -27,47 +27,28 @@ steps:
     args:
       - '-c'
       - |
-        # Pre-build: Refresh OAuth tokens before Astro builds pages in parallel
-        # This avoids race conditions when multiple pages try to refresh concurrently
+        # Pre-build: load every credential from the SITE_SECRETS secret, refresh
+        # OAuth tokens/sessions, and save renewed ones back in ONE write (see
+        # scripts/site-secrets.cjs). Done before Astro builds pages in parallel
+        # so pages never race to refresh the same token.
         node scripts/refresh-tokens.cjs
 
-        # Source any refreshed tokens (exported by refresh-tokens.cjs)
+        # Every credential, renewed ones included (written by refresh-tokens.cjs)
         if [ -f .env.refresh ]; then
-          echo "Loading refreshed tokens..."
+          echo "Loading credentials..."
+          set -a
           source .env.refresh
+          set +a
+          rm -f .env.refresh
         fi
 
-        # Run the build (prebuild script is skipped in Cloud Build)
-        npm run build
+        # astro build directly, not npm run build: npm's prebuild hook would
+        # run refresh-tokens.cjs a second time
+        npx astro build
     id: 'build-site'
     env:
       - 'NODE_ENV=production'
       - 'CLOUD_BUILD=true'
-    secretEnv:
-      - 'STEAM_API_KEY'
-      - 'STEAM_ID'
-      - 'PSN_NPSSO'
-      - 'PSN_REFRESH_TOKEN'
-      - 'PSN_REFRESH_TOKEN_EXPIRES_AT'
-      - 'IGDB_CLIENT_ID'
-      - 'IGDB_CLIENT_SECRET'
-      - 'IGDB_ACCESS_TOKEN'
-      - 'SPOTIFY_CLIENT_ID'
-      - 'SPOTIFY_CLIENT_SECRET'
-      - 'SPOTIFY_REFRESH_TOKEN'
-      - 'LETTERBOXD_USERNAME'
-      - 'MAL_CLIENT_ID'
-      - 'MAL_CLIENT_SECRET'
-      - 'MAL_ACCESS_TOKEN'
-      - 'MAL_REFRESH_TOKEN'
-      - 'GOODREADS_USER_ID'
-      - 'GOODREADS_COOKIE'
-      - 'KAYA_USERNAME'
-      - 'KAYA_REFRESH_TOKEN'
-      - 'EXOPHASE_USERNAME'
-      - 'TMDB_ACCESS_TOKEN'
-      - 'TMDB_ACCOUNT_OBJECT_ID'
-      - 'TMDB_TV_LIST_ID'
     waitFor: ['install-dependencies', 'restore-build-cache']
 
   # Save this build's data cache for the next build's fallback. No -d flag:
@@ -112,9 +93,7 @@ steps:
     id: 'check-api-health'
     env:
       - 'NODE_ENV=production'
-    secretEnv:
-      - 'DISCORD_BOT_TOKEN'
-      - 'DISCORD_USER_ID'
+      - 'CLOUD_BUILD=true'  # reads Discord credentials from SITE_SECRETS
     waitFor: ['build-site']
 
   # Deploy to Firebase Hosting (cache headers and CDN invalidation are
@@ -125,66 +104,10 @@ steps:
     id: 'deploy-to-firebase'
     waitFor: ['build-site']
 
-# Secret Manager configuration
-availableSecrets:
-  secretManager:
-    - versionName: projects/personal-website-334502/secrets/STEAM_API_KEY/versions/latest
-      env: 'STEAM_API_KEY'
-    - versionName: projects/personal-website-334502/secrets/STEAM_ID/versions/latest
-      env: 'STEAM_ID'
-    - versionName: projects/personal-website-334502/secrets/PSN_NPSSO/versions/latest
-      env: 'PSN_NPSSO'
-    - versionName: projects/personal-website-334502/secrets/PSN_REFRESH_TOKEN/versions/latest
-      env: 'PSN_REFRESH_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/PSN_REFRESH_TOKEN_EXPIRES_AT/versions/latest
-      env: 'PSN_REFRESH_TOKEN_EXPIRES_AT'
-    - versionName: projects/personal-website-334502/secrets/IGDB_CLIENT_ID/versions/latest
-      env: 'IGDB_CLIENT_ID'
-    - versionName: projects/personal-website-334502/secrets/IGDB_CLIENT_SECRET/versions/latest
-      env: 'IGDB_CLIENT_SECRET'
-    - versionName: projects/personal-website-334502/secrets/IGDB_ACCESS_TOKEN/versions/latest
-      env: 'IGDB_ACCESS_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/SPOTIFY_CLIENT_ID/versions/latest
-      env: 'SPOTIFY_CLIENT_ID'
-    - versionName: projects/personal-website-334502/secrets/SPOTIFY_CLIENT_SECRET/versions/latest
-      env: 'SPOTIFY_CLIENT_SECRET'
-    - versionName: projects/personal-website-334502/secrets/SPOTIFY_REFRESH_TOKEN/versions/latest
-      env: 'SPOTIFY_REFRESH_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/LETTERBOXD_USERNAME/versions/latest
-      env: 'LETTERBOXD_USERNAME'
-    - versionName: projects/personal-website-334502/secrets/MAL_CLIENT_ID/versions/latest
-      env: 'MAL_CLIENT_ID'
-    - versionName: projects/personal-website-334502/secrets/MAL_CLIENT_SECRET/versions/latest
-      env: 'MAL_CLIENT_SECRET'
-    - versionName: projects/personal-website-334502/secrets/MAL_ACCESS_TOKEN/versions/latest
-      env: 'MAL_ACCESS_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/MAL_REFRESH_TOKEN/versions/latest
-      env: 'MAL_REFRESH_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/GOODREADS_USER_ID/versions/latest
-      env: 'GOODREADS_USER_ID'
-    # Goodreads signed-in session (shelf RSS is gone; shelf pages need sign-in).
-    # Long-lived Amazon login cookie; not rotated by builds
-    - versionName: projects/personal-website-334502/secrets/GOODREADS_COOKIE/versions/latest
-      env: 'GOODREADS_COOKIE'
-    - versionName: projects/personal-website-334502/secrets/KAYA_USERNAME/versions/latest
-      env: 'KAYA_USERNAME'
-    # Kaya login (refresh token from Firefox on a Mac; not rotated by builds)
-    - versionName: projects/personal-website-334502/secrets/KAYA_REFRESH_TOKEN/versions/latest
-      env: 'KAYA_REFRESH_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/EXOPHASE_USERNAME/versions/latest
-      env: 'EXOPHASE_USERNAME'
-    # TMDB API secrets (TV shows tracked via TMDB list + ratings)
-    - versionName: projects/personal-website-334502/secrets/TMDB_ACCESS_TOKEN/versions/latest
-      env: 'TMDB_ACCESS_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/TMDB_ACCOUNT_OBJECT_ID/versions/latest
-      env: 'TMDB_ACCOUNT_OBJECT_ID'
-    - versionName: projects/personal-website-334502/secrets/TMDB_TV_LIST_ID/versions/latest
-      env: 'TMDB_TV_LIST_ID'
-    # Discord notification secrets
-    - versionName: projects/personal-website-334502/secrets/DISCORD_BOT_TOKEN/versions/latest
-      env: 'DISCORD_BOT_TOKEN'
-    - versionName: projects/personal-website-334502/secrets/DISCORD_USER_ID/versions/latest
-      env: 'DISCORD_USER_ID'
+# No availableSecrets: every credential lives in the single SITE_SECRETS
+# secret, read with the Secret Manager SDK by refresh-tokens.cjs and
+# check-api-health.cjs (the build service account has secretAccessor and
+# secretVersionManager on the project).
 
 # Build configuration
 options:

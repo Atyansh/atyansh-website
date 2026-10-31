@@ -16,6 +16,12 @@ describe('isTransientError', () => {
     });
   });
 
+  describe('HTML error page instead of JSON', () => {
+    it('returns true for the SyntaxError PSN threw on 2026-10-31', () => {
+      expect(isTransientError(new SyntaxError(`Unexpected token '<', "<HTML><HEA"... is not valid JSON`))).toBe(true);
+    });
+  });
+
   describe('timeout errors', () => {
     it('returns true for timeout', () => {
       expect(isTransientError(new Error('timeout'))).toBe(true);

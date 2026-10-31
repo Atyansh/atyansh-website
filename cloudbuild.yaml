@@ -61,6 +61,7 @@ steps:
       - 'MAL_ACCESS_TOKEN'
       - 'MAL_REFRESH_TOKEN'
       - 'GOODREADS_USER_ID'
+      - 'GOODREADS_COOKIE'
       - 'KAYA_USERNAME'
       - 'KAYA_REFRESH_TOKEN'
       - 'EXOPHASE_USERNAME'
@@ -161,6 +162,10 @@ availableSecrets:
       env: 'MAL_REFRESH_TOKEN'
     - versionName: projects/personal-website-334502/secrets/GOODREADS_USER_ID/versions/latest
       env: 'GOODREADS_USER_ID'
+    # Goodreads signed-in session (shelf RSS is gone; shelf pages need sign-in).
+    # Long-lived Amazon login cookie; not rotated by builds
+    - versionName: projects/personal-website-334502/secrets/GOODREADS_COOKIE/versions/latest
+      env: 'GOODREADS_COOKIE'
     - versionName: projects/personal-website-334502/secrets/KAYA_USERNAME/versions/latest
       env: 'KAYA_USERNAME'
     # Kaya login (refresh token from Firefox on a Mac; not rotated by builds)

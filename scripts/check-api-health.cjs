@@ -91,8 +91,9 @@ const APIs = [
     name: 'Goodreads',
     cacheFile: 'goodreads-data.json',
     checkFn: (data) => data.books && data.books.length > 0,
-    renewal: 'Check GOODREADS_USER_ID in Secret Manager (web scraping)',
-    requiresApiKey: false,
+    renewal: 'Sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), then pbpaste | gcloud secrets versions add GOODREADS_COOKIE --data-file=- --project personal-website-334502 (and destroy the previous version). Lasts ~1 year unless you sign out everywhere or change your password',
+    requiresApiKey: true,
+    selfHealing: false,
   },
   {
     name: 'Nintendo Switch',

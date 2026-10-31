@@ -1,183 +1,104 @@
-import { parseRSSFeed } from '../goodreads';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { parseShelfPage } from '../goodreads';
 
-function wrapInFeed(...items: string[]): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
-  <channel>
-    ${items.map(item => `<item>${item}</item>`).join('\n    ')}
-  </channel>
-</rss>`;
+// Three rows cut from a real signed-in /review/list page (2026-10-31)
+const fixture = readFileSync(join(__dirname, 'fixtures/goodreads-shelf.html'), 'utf-8');
+
+/** A minimal shelf row with only the cells the parser reads */
+function row(cells: Record<string, string>, id = 1): string {
+  const td = (name: string) =>
+    `<td class="field ${name}"><label>${name}</label><div class="value">${cells[name] ?? ''}</div></td>`;
+  return `<tr id="review_${id}" class="bookalike review">${
+    ['cover', 'title', 'author', 'isbn', 'isbn13', 'date_pub', 'rating', 'date_read', 'date_added'].map(td).join('')
+  }</tr>`;
 }
 
-describe('parseRSSFeed', () => {
-  describe('title parsing', () => {
-    it('parses a CDATA-wrapped title', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[The Great Gatsby]]></title>
-        <author_name>F. Scott Fitzgerald</author_name>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books).toHaveLength(1);
-      expect(books[0].title).toBe('The Great Gatsby');
+const title = (t: string) => `<a title="${t}" href="/book/show/1-x">${t}</a>`;
+
+describe('parseShelfPage', () => {
+  describe('real shelf page', () => {
+    const books = parseShelfPage(fixture, 'finished');
+
+    it('parses every row', () => {
+      expect(books.map(b => b.title)).toEqual([
+        'Evershore (Skyward, #2.3)',
+        'Death\'s End (Remembrance of Earth’s Past, #3)',
+        'Sapiens: A Brief History of Humankind',
+      ]);
     });
 
-    it('parses a non-CDATA title', () => {
-      const xml = wrapInFeed(`
-        <title>Simple Title</title>
-        <author_name>Author Name</author_name>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books).toHaveLength(1);
-      expect(books[0].title).toBe('Simple Title');
-    });
-  });
-
-  describe('author extraction', () => {
-    it('extracts author name', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[The Great Gatsby]]></title>
-        <author_name>F. Scott Fitzgerald</author_name>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].author).toBe('F. Scott Fitzgerald');
+    it('builds the record the books page uses', () => {
+      expect(books[0]).toMatchObject({
+        author: 'Brandon Sanderson',
+        coverImage: 'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1636833412l/58465495.jpg',
+        rating: undefined,
+        status: 'finished',
+        link: 'https://www.goodreads.com/review/show/7985970580',
+        isbn: '9780593566633',
+      });
+      expect(books[0].publishedDate!.getFullYear()).toBe(2021);
+      // Date read is "not set", so it falls back to date added
+      expect(books[0].dateRead!.getFullYear()).toBe(2025);
     });
 
-    it('defaults to Unknown Author when no author provided', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[No Author Book]]></title>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].author).toBe('Unknown Author');
+    it('reads the star rating and decodes entities in titles', () => {
+      expect(books[1].rating).toBe(5);
+      expect(books[1].title).toContain('Death\'s End');
+    });
+
+    it('keeps family-name-first authors in the order their URL uses', () => {
+      expect(books[1].author).toBe('Liu Cixin');
     });
   });
 
-  describe('image priority', () => {
-    it('prefers large image over medium and regular', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[Image Test]]></title>
-        <book_large_image_url><![CDATA[https://img.com/large.jpg]]></book_large_image_url>
-        <book_medium_image_url><![CDATA[https://img.com/medium.jpg]]></book_medium_image_url>
-        <book_image_url><![CDATA[https://img.com/regular.jpg]]></book_image_url>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].coverImage).toBe('https://img.com/large.jpg');
-    });
-
-    it('falls back to medium when large is not provided', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[Medium Image Test]]></title>
-        <book_medium_image_url><![CDATA[https://img.com/medium.jpg]]></book_medium_image_url>
-        <book_image_url><![CDATA[https://img.com/regular.jpg]]></book_image_url>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].coverImage).toBe('https://img.com/medium.jpg');
-    });
+  it('returns no books for an empty shelf', () => {
+    expect(parseShelfPage('<table id="books"><tbody></tbody></table>', 'want-to-read')).toEqual([]);
   });
 
-  describe('rating extraction', () => {
-    it('extracts a valid rating', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[Rated Book]]></title>
-        <user_rating>4</user_rating>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].rating).toBe(4);
-    });
-
-    it('treats rating of 0 as undefined', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[Unrated Book]]></title>
-        <user_rating>0</user_rating>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].rating).toBeUndefined();
-    });
+  it('skips rows without a title link', () => {
+    expect(parseShelfPage(row({ author: 'x' }), 'finished')).toEqual([]);
   });
 
-  describe('date parsing', () => {
-    it('parses user_read_at date from CDATA', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[Dated Book]]></title>
-        <user_read_at><![CDATA[Mon, 01 Jan 2024 00:00:00 -0800]]></user_read_at>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].dateRead).toBeInstanceOf(Date);
-      expect(books[0].dateRead!.getFullYear()).toBe(2024);
-    });
-
-    it('constructs published date from year/month/day fields', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[Published Book]]></title>
-        <book_published>2020</book_published>
-        <book_publication_month>6</book_publication_month>
-        <book_publication_day>15</book_publication_day>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].publishedDate).toBeInstanceOf(Date);
-      expect(books[0].publishedDate!.getFullYear()).toBe(2020);
-      expect(books[0].publishedDate!.getMonth()).toBe(5); // 0-indexed
-      expect(books[0].publishedDate!.getDate()).toBe(15);
-    });
+  it('defaults to Unknown Author', () => {
+    expect(parseShelfPage(row({ title: title('A') }), 'finished')[0].author).toBe('Unknown Author');
   });
 
-  describe('ISBN extraction', () => {
-    it('extracts ISBN', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[ISBN Book]]></title>
-        <isbn>9780743273565</isbn>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].isbn).toBe('9780743273565');
-    });
+  it('leaves a single-part author name alone', () => {
+    const books = parseShelfPage(row({ title: title('A'), author: '<a href="/author/show/1.Homer">Homer</a>' }), 'finished');
+    expect(books[0].author).toBe('Homer');
   });
 
-  describe('description with HTML stripping', () => {
-    it('strips HTML tags from description', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[Described Book]]></title>
-        <book_description><![CDATA[<p>This is a <b>great</b> book about <i>life</i>.</p>]]></book_description>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].description).toBe('This is a great book about life.');
-    });
+  it('strips combined size suffixes from covers', () => {
+    const books = parseShelfPage(row({
+      title: title('A'),
+      cover: '<a href="/book/show/1"><img src="https://i.gr-assets.com/books/1l/21411388._SX50_SY75_.jpg" /></a>',
+    }), 'finished');
+    expect(books[0].coverImage).toBe('https://i.gr-assets.com/books/1l/21411388.jpg');
   });
 
-  describe('missing title', () => {
-    it('skips items without a title', () => {
-      const xml = wrapInFeed(`
-        <author_name>Some Author</author_name>
-        <user_rating>5</user_rating>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books).toHaveLength(0);
-    });
+  it('prefers date read over date added', () => {
+    const books = parseShelfPage(row({
+      title: title('A'),
+      date_read: '<div class="date_row"><span class="date_read_value">Mar 03, 2024</span></div>',
+      date_added: '<span title="October 11, 2025">Oct 11, 2025</span>',
+    }), 'finished');
+    expect(books[0].dateRead!.getFullYear()).toBe(2024);
+    expect(books[0].dateRead!.getMonth()).toBe(2);
   });
 
-  describe('status parameter', () => {
-    it('passes status through to result', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[Status Book]]></title>
-      `);
-
-      const readingBooks = parseRSSFeed(xml, 'reading');
-      expect(readingBooks[0].status).toBe('reading');
-
-      const finishedBooks = parseRSSFeed(xml, 'finished');
-      expect(finishedBooks[0].status).toBe('finished');
-
-      const wantBooks = parseRSSFeed(xml, 'want-to-read');
-      expect(wantBooks[0].status).toBe('want-to-read');
-    });
+  it('parses a year-only publication date as Jan 1', () => {
+    const books = parseShelfPage(row({ title: title('A'), date_pub: ' 2006 ' }), 'finished');
+    expect(books[0].publishedDate!.getFullYear()).toBe(2006);
+    expect(books[0].publishedDate!.getMonth()).toBe(0);
   });
 
-  describe('link extraction', () => {
-    it('extracts link from CDATA', () => {
-      const xml = wrapInFeed(`
-        <title><![CDATA[Linked Book]]></title>
-        <link><![CDATA[https://www.goodreads.com/book/show/12345]]></link>
-      `);
-      const books = parseRSSFeed(xml, 'finished');
-      expect(books[0].link).toBe('https://www.goodreads.com/book/show/12345');
-    });
+  it('treats a zero rating as unrated', () => {
+    const books = parseShelfPage(row({ title: title('A'), rating: '<div class="stars" data-rating="0.0"></div>' }), 'finished');
+    expect(books[0].rating).toBeUndefined();
+  });
+
+  it('uses the status it is given', () => {
+    expect(parseShelfPage(row({ title: title('A') }), 'reading')[0].status).toBe('reading');
   });
 });

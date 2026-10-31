@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
-import MediaCard from './MediaCard';
+import MediaCard, { type MediaCardDetail } from './MediaCard';
 
 interface FilterOption {
   value: string;
@@ -43,8 +43,8 @@ export interface MediaFilterGridConfig<T> {
     getRating?: (item: T) => number | undefined;
     /** Accessible rating text, e.g. "9 out of 10" (defaults to "x out of 5 stars") */
     getRatingLabel?: (item: T) => string | undefined;
-    /** External page for the item; makes the card a link */
-    getHref?: (item: T) => string | undefined;
+    /** Facts shown in the card's expanded panel (pre-formatted at build time) */
+    getDetails?: (item: T) => MediaCardDetail[] | undefined;
   };
   renderItem?: (item: T, index: number) => React.ReactNode;
   gridClassName?: string;
@@ -205,7 +205,7 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
                   image={config.card.getImage(item)}
                   rating={config.card.getRating?.(item)}
                   ratingLabel={config.card.getRatingLabel?.(item)}
-                  href={config.card.getHref?.(item)}
+                  details={config.card.getDetails?.(item)}
                   eager={index < EAGER_IMAGE_COUNT}
                 />
               )}

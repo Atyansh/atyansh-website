@@ -1,5 +1,10 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useId, type CSSProperties, type ReactNode } from 'react';
 import StarRating from './StarRating';
+
+export interface MediaCardDetail {
+  label: string;
+  value: string;
+}
 
 export interface MediaCardProps {
   title: string;
@@ -9,10 +14,13 @@ export interface MediaCardProps {
   rating?: number;
   /** Accessible description of the rating, e.g. "9 out of 10" */
   ratingLabel?: string;
-  /** External page for this item; the card becomes a link (new tab) */
+  /** Extra facts shown when the card is expanded (pre-formatted strings) */
+  details?: MediaCardDetail[];
+  /** External page for this item; the card becomes a link (new tab).
+   *  Only used on /music (artists, albums, podcasts). */
   href?: string;
-  /** Spotify track id; the card becomes a button that plays it in the site's
-   *  Spotify player (see SpotifyPlayer.astro) instead of linking out */
+  /** Spotify track id; the card becomes a play/pause button for the track's
+   *  preview, played by the hidden embed in SpotifyPlayer.astro */
   spotifyTrackId?: string;
   tags?: string[];
   /** Entrance animation delay in seconds; omit for no entrance animation */
@@ -23,10 +31,15 @@ export interface MediaCardProps {
 
 /**
  * Poster-style media tile. Stateless and framer-free so it can be rendered
- * statically by Astro (no hydration) or inside an island. Overlay reveal is
- * pure CSS (.media-card rules in global.css): hover on hover-capable
- * pointers, :focus-visible for keyboards, and [data-expanded] — toggled by
- * the delegated tap handler in TapToReveal.astro — on touch screens.
+ * statically by Astro (no hydration) or inside an island. Three variants:
+ *
+ * - spotifyTrackId: a <button> that plays/pauses the track preview, with a
+ *   progress ring around the play icon (driven by SpotifyPlayer.astro)
+ * - href: a link (music artists/albums/podcasts)
+ * - otherwise: a <button aria-expanded> that expands an info panel with the
+ *   full title and details over the card (CardExpand.astro handles toggling)
+ *
+ * The hover/focus/tap overlay is pure CSS (.media-card rules in global.css).
  */
 export default function MediaCard({
   title,
@@ -34,15 +47,19 @@ export default function MediaCard({
   image,
   rating,
   ratingLabel,
+  details = [],
   href,
   spotifyTrackId,
   tags = [],
   enterDelay,
   eager = false,
 }: MediaCardProps) {
+  const panelId = useId();
   const animated = enterDelay !== undefined;
-  const className = `media-card group relative block w-full overflow-hidden rounded-lg shadow-lg text-left cursor-pointer${animated ? ' animate-pop' : ''}`;
+  const className = 'media-card group relative block w-full overflow-hidden rounded-lg shadow-lg text-left cursor-pointer';
+  const enterClass = animated ? ' animate-pop' : '';
   const style = animated ? ({ '--enter-delay': `${enterDelay}s` } as CSSProperties) : undefined;
+  const hasRating = rating !== undefined && rating > 0;
 
   const body: ReactNode = (
     <>
@@ -51,23 +68,14 @@ export default function MediaCard({
           <img
             src={image}
             alt=""
-            width={300}
-            height={450}
             loading={eager ? 'eager' : 'lazy'}
             data-warm={eager ? undefined : ''}
             decoding="async"
-            className="media-card-image w-full h-full object-cover"
+            className="w-full h-full object-cover"
           />
         )}
 
-        {spotifyTrackId && (
-          <span className="media-card-now-playing absolute top-2 left-2 z-10 px-2 py-1 rounded-full text-xs font-bold items-center gap-1" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}>
-            <svg className="w-3 h-3" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-            In player
-          </span>
-        )}
-
-        {/* Full overlay: hover (mouse), focus (keyboard), tap (touch) */}
+        {/* Overlay: hover (mouse), focus (keyboard), tap (touch), active track */}
         <span
           className="media-card-overlay absolute inset-0 flex flex-col justify-end"
           style={{
@@ -75,10 +83,17 @@ export default function MediaCard({
           }}
         >
           {spotifyTrackId && (
-            <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-              <span className="w-12 h-12 rounded-full flex items-center justify-center border-2 shadow-lg" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--accent)' }}>
-                <svg className="w-5 h-5" style={{ transform: 'translateX(1px)' }} fill="var(--accent)" viewBox="0 0 24 24">
+            <span className="absolute inset-x-0 top-0 bottom-[40%] flex items-center justify-center" aria-hidden="true">
+              <span className="track-control relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: 'var(--bg-primary)' }}>
+                <svg className="track-ring absolute inset-0 w-full h-full" viewBox="0 0 56 56">
+                  <circle className="track-ring-bg" cx="28" cy="28" r="26" fill="none" strokeWidth="3" />
+                  <circle className="track-ring-progress" cx="28" cy="28" r="26" fill="none" strokeWidth="3" pathLength={1} strokeDasharray="1" strokeLinecap="round" />
+                </svg>
+                <svg className="track-icon-play w-5 h-5" style={{ transform: 'translateX(1px)' }} fill="var(--accent)" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
+                </svg>
+                <svg className="track-icon-pause w-5 h-5" fill="var(--accent)" viewBox="0 0 24 24">
+                  <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
                 </svg>
               </span>
             </span>
@@ -87,9 +102,7 @@ export default function MediaCard({
             <span className="font-bold text-lg mb-1 line-clamp-2">{title}</span>
             {subtitle && <span className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{subtitle}</span>}
 
-            {rating !== undefined && rating > 0 && (
-              <StarRating rating={rating} label={ratingLabel} className="mb-2" />
-            )}
+            {hasRating && <StarRating rating={rating} label={ratingLabel} className="mb-2" />}
 
             {tags.length > 0 && (
               <span className="flex flex-wrap gap-1">
@@ -122,15 +135,16 @@ export default function MediaCard({
   );
 
   if (spotifyTrackId) {
+    const name = subtitle ? `${title} by ${subtitle}` : title;
     return (
       <button
         type="button"
-        className={className}
+        className={className + enterClass}
         style={style}
         data-spotify-track={spotifyTrackId}
-        data-track-title={title}
-        data-track-subtitle={subtitle}
-        aria-label={subtitle ? `Play ${title} by ${subtitle}` : `Play ${title}`}
+        data-track-name={name}
+        aria-label={`Play preview: ${name}`}
+        aria-pressed="false"
       >
         {body}
       </button>
@@ -139,16 +153,49 @@ export default function MediaCard({
 
   if (href) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={className} style={style} data-tap-reveal="">
+      <a href={href} target="_blank" rel="noopener noreferrer" className={className + enterClass} style={style} data-tap-reveal="">
         {body}
       </a>
     );
   }
 
-  // No destination: still focusable so keyboard users can reveal the overlay
+  // Expandable info card: the panel overlays the card (and the cards below
+  // it if it's taller), so the grid itself never reflows
   return (
-    <div tabIndex={0} className={className} style={style} data-tap-reveal="">
-      {body}
+    <div className={`media-card-wrap relative${enterClass}`} style={style}>
+      <button
+        type="button"
+        className={className}
+        aria-expanded="false"
+        aria-controls={panelId}
+        data-expand-toggle=""
+      >
+        {body}
+      </button>
+      <div
+        id={panelId}
+        className="media-card-panel absolute left-0 right-0 top-0 min-h-full rounded-lg shadow-lg border p-4 text-left"
+        style={{
+          // --bg-card is translucent in some themes; layer it on the page color so the panel is opaque
+          background: 'linear-gradient(var(--bg-card), var(--bg-card)), var(--bg-primary)',
+          borderColor: 'var(--accent)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <p className="font-bold text-base leading-snug mb-1 break-words hyphens-auto">{title}</p>
+        {subtitle && <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{subtitle}</p>}
+        {hasRating && <StarRating rating={rating} label={ratingLabel} className="mb-2" />}
+        {details.length > 0 && (
+          <dl className="text-xs space-y-1">
+            {details.map((d) => (
+              <div key={d.label} className="flex justify-between gap-2">
+                <dt style={{ color: 'var(--text-secondary)' }}>{d.label}</dt>
+                <dd className="font-semibold text-right">{d.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
     </div>
   );
 }

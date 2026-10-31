@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import BooksFilter from '../components/BooksFilter';
 import StatGrid from '../components/StatGrid.astro';
 import LoadError from '../components/LoadError.astro';
+import { formatPacificDate, maybeDate } from '../components/formatDate';
 import { getGoodreadsData } from '../utils/goodreads';
 
 // Fetch Goodreads data at build time
@@ -10,6 +11,13 @@ const goodreadsData = await getGoodreadsData();
 
 // No Goodreads data at all (fetch failed and no last-known-good copy) shows
 // an error message below rather than a placeholder library
+type Detail = { label: string; value: string };
+const details = (...rows: Array<[string, string | number | undefined | false]>): Detail[] =>
+  rows.filter(([, v]) => v !== undefined && v !== false && v !== '').map(([label, value]) => ({ label, value: String(value) }));
+const STATUS_LABELS: Record<string, string> = { reading: 'Currently reading', finished: 'Finished', 'want-to-read': 'Want to read' };
+
+// Card details are formatted here at build time. Goodreads publication dates
+// are year-only (Jan 1, Pacific); "read" dates are timestamps (Pacific day).
 const books = (goodreadsData?.books ?? []).map(book => ({
   data: {
     title: book.title,
@@ -18,7 +26,12 @@ const books = (goodreadsData?.books ?? []).map(book => ({
     rating: book.rating,
     status: book.status,
     publishedDate: book.publishedDate,
-    link: book.link,
+    details: details(
+      ['Status', STATUS_LABELS[book.status] ?? book.status],
+      ['Published', maybeDate(book.publishedDate) && formatPacificDate(book.publishedDate!, { year: 'numeric' })],
+      ['Read', book.status === 'finished' && maybeDate(book.dateRead) && formatPacificDate(book.dateRead!)],
+      ['Rating', book.rating ? `${book.rating}/5` : undefined],
+    ),
   }
 }));
 ---

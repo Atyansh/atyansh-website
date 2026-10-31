@@ -54,9 +54,6 @@ export default function GameCard({ game }: GameCardProps) {
             ref={imgRef}
             src={imageSrc}
             alt=""
-            width={264}
-            height={352}
-            decoding="async"
             className="w-full h-full object-cover transition-opacity duration-200"
             onError={handleImageError}
           />

@@ -3,12 +3,20 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import AnimeFilter from '../components/AnimeFilter';
 import StatGrid from '../components/StatGrid.astro';
 import LoadError from '../components/LoadError.astro';
+import { formatCalendarDate, maybeDate } from '../components/formatDate';
 import { getMALData } from '../utils/myanimelist';
 
 // Fetch MyAnimeList data at build time
 const malData = await getMALData();
 
 // Use MAL data if available
+type Detail = { label: string; value: string };
+const details = (...rows: Array<[string, string | number | undefined | false]>): Detail[] =>
+  rows.filter(([, v]) => v !== undefined && v !== false && v !== '').map(([label, value]) => ({ label, value: String(value) }));
+const STATUS_LABELS: Record<string, string> = { watching: 'Watching', completed: 'Completed', on_hold: 'On hold', dropped: 'Dropped', plan_to_watch: 'Plan to watch' };
+const airDate = (d?: Date | string) => (maybeDate(d) ? formatCalendarDate(d!, { year: 'numeric', month: 'short' }) : undefined);
+
+// Card details formatted at build time (MAL air dates are calendar dates)
 const anime = (malData?.anime ?? [])
     .map(a => ({
       data: {
@@ -21,6 +29,13 @@ const anime = (malData?.anime ?? [])
         year: a.year,
         startDate: a.startDate,
         malUrl: a.malUrl,
+        details: details(
+          ['English title', a.englishTitle && a.englishTitle !== a.title ? a.englishTitle : undefined],
+          ['Status', STATUS_LABELS[a.status] ?? a.status],
+          ['Episodes', a.episodes ? (a.episodesWatched ? `${a.episodesWatched} / ${a.episodes}` : `${a.episodes}`) : undefined],
+          ['Aired', airDate(a.startDate) && (airDate(a.endDate) && airDate(a.endDate) !== airDate(a.startDate) ? `${airDate(a.startDate)} – ${airDate(a.endDate)}` : airDate(a.startDate))],
+          ['Score', a.score ? `${a.score}/10` : undefined],
+        ),
       }
     }));
 

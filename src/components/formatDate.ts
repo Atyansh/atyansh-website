@@ -38,3 +38,10 @@ export function formatPacificDateTime(
 ): string {
   return new Date(date).toLocaleString('en-US', { ...options, timeZone: SITE_TIME_ZONE });
 }
+
+/** Like the formatters above, but tolerant of missing/invalid input (returns undefined). */
+export function maybeDate(date: DateInput | null | undefined): Date | undefined {
+  if (date === null || date === undefined || date === '') return undefined;
+  const d = new Date(date);
+  return isNaN(d.getTime()) ? undefined : d;
+}

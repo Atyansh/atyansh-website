@@ -59,8 +59,9 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
 
     {/*
       Everything here is server-rendered HTML. Track tiles are <button>s that
-      play in the in-site Spotify player (SpotifyPlayer.astro, one delegated
-      click listener); artist/album/podcast tiles are plain links. The only
+      play the track's preview in place (SpotifyPlayer.astro: one hidden
+      embed + one delegated click listener); artist/album/podcast tiles are
+      plain links. The only
       islands are the playlist carousels' scroll arrows, and their tracks are
       passed as static slot HTML, not serialized props.
     */}
@@ -244,6 +245,11 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
           </div>
         )}
       </section>
+    )}
+    {spotifyData && (
+      <p class="text-center mt-8 text-xs" style="color: var(--text-secondary);">
+        Previews via <a href="https://open.spotify.com" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline" style="color: var(--accent);">Spotify</a>
+      </p>
     )}
   </div>
 

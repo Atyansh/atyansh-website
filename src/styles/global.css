@@ -844,9 +844,10 @@ html[data-audio-enabled] .audio-gated {
   }
 }
 
-/* Media cards (MediaCard.tsx, and GameCard.tsx's overlay). The detail overlay shows on hover for real
-   hover pointers, on keyboard focus, when tapped on touch screens
-   ([data-expanded], see TapToReveal.astro) and on the playing track. */
+/* Media cards (MediaCard.tsx, and GameCard.tsx's overlay). The detail
+   overlay shows on hover for real hover pointers, on keyboard focus, when
+   tapped on touch screens ([data-expanded] via TapToReveal.astro), and on
+   the active Spotify track. */
 .media-card-overlay {
   opacity: 0;
   transition: opacity 0.3s;
@@ -859,7 +860,7 @@ html[data-audio-enabled] .audio-gated {
 
 .media-card:focus-visible .media-card-overlay,
 .media-card[data-expanded] .media-card-overlay,
-.media-card[data-playing] .media-card-overlay,
+.media-card[data-track-state] .media-card-overlay,
 .game-card:focus-visible .media-card-overlay,
 .game-card[data-expanded] .media-card-overlay {
   opacity: 1;
@@ -867,7 +868,7 @@ html[data-audio-enabled] .audio-gated {
 
 .media-card:focus-visible .media-card-caption,
 .media-card[data-expanded] .media-card-caption,
-.media-card[data-playing] .media-card-caption {
+.media-card[data-track-state] .media-card-caption {
   opacity: 0;
 }
 
@@ -882,33 +883,95 @@ html[data-audio-enabled] .audio-gated {
   }
 }
 
+/* Hover lift, as before (10px up over 0.2s; no image zoom) */
 @media (prefers-reduced-motion: no-preference) {
   .media-card {
     transition: translate 0.2s ease-out;
-  }
-
-  .media-card-image {
-    transition: scale 0.3s ease-out;
   }
 
   @media (hover: hover) {
     .media-card:hover {
       translate: 0 -10px;
     }
-
-    .media-card:hover .media-card-image {
-      scale: 1.1;
-    }
   }
 }
 
-/* "In player" badge for the Spotify track tile loaded in the player bar */
-.media-card-now-playing {
+/* Expandable info panel (MediaCard without a link; CardExpand.astro).
+   It overlays the card — and whatever is below it if it's taller — so the
+   grid never reflows. The expanded card's grid cell is raised above its
+   neighbours. */
+.media-card-panel {
+  display: none;
+  z-index: 30;
+  max-height: 70vh;
+  overflow-y: auto;
+  cursor: pointer;
+}
+
+.media-card-wrap[data-expanded] .media-card-panel {
+  display: block;
+}
+
+.media-card-wrap[data-expanded],
+:has(> .media-card-wrap[data-expanded]) {
+  position: relative;
+  z-index: 30;
+}
+
+/* Spotify track control: play/pause icon inside a progress ring
+   (SpotifyPlayer.astro sets data-track-state and --track-progress) */
+.track-ring {
+  transform: rotate(-90deg);
+}
+
+.track-ring-bg {
+  stroke: var(--accent);
+}
+
+.track-ring-progress {
+  stroke: var(--accent);
+  stroke-dashoffset: calc(1 - var(--track-progress, 0));
+  opacity: 0;
+}
+
+.media-card[data-track-state] .track-ring-bg {
+  stroke: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.media-card[data-track-state] .track-ring-progress {
+  opacity: 1;
+}
+
+.track-icon-pause {
   display: none;
 }
 
-.media-card[data-playing] .media-card-now-playing {
-  display: inline-flex;
+.media-card[data-track-state='playing'] .track-icon-pause {
+  display: block;
+}
+
+.media-card[data-track-state='playing'] .track-icon-play {
+  display: none;
+}
+
+/* Loading: a spinning quarter arc until the preview actually starts */
+.media-card[data-track-state='loading'] .track-ring-progress {
+  stroke-dashoffset: 0.75;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .media-card[data-track-state='loading'] .track-ring {
+    animation: track-spin 0.9s linear infinite;
+  }
+}
+
+@keyframes track-spin {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
 }
 
 /* Rating stars (StarRating.tsx) */

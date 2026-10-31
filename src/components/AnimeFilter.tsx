@@ -13,6 +13,8 @@ interface AnimeData {
   year?: number;
   startDate?: Date | string;
   malUrl: string;
+  /** Extra facts for the expanded card, formatted in anime.astro */
+  details?: Array<{ label: string; value: string }>;
 }
 
 interface Anime {
@@ -109,7 +111,7 @@ const config: MediaFilterGridConfig<Anime> = {
     getImage: (a) => a.data.imageUrl,
     getRating: (a) => a.data.score ? a.data.score / 2 : undefined,
     getRatingLabel: (a) => a.data.score ? `${a.data.score} out of 10` : undefined,
-    getHref: (a) => a.data.malUrl,
+    getDetails: (a) => a.data.details,
   },
   filterColumnClass: 'lg:grid-cols-5',
   itemNounPlural: 'anime',

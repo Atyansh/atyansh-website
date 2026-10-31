@@ -28,8 +28,6 @@ export default function PlayButton({ size = 'md', className = '' }: PlayButtonPr
             r="25"
             fill="none"
             strokeWidth="2.5"
-            pathLength={1}
-            strokeDasharray="1"
             strokeLinecap="round"
           />
         </g>

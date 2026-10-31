@@ -316,7 +316,7 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
   const accessToken = await getAccessToken();
   if (!accessToken) {
     log.error('Failed to get Spotify access token');
-    return null;
+    return cache.fallback('Spotify');
   }
 
   log.info('Fetching Spotify data...');
@@ -387,7 +387,7 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
     return data;
   } catch (error) {
     log.error('Error fetching Spotify data:', error);
-    return null;
+    return cache.fallback('Spotify');
   }
 }
 

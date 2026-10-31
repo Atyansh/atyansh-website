@@ -126,7 +126,13 @@ export async function getSteamStats(): Promise<SteamStats | null> {
 
     if (!playerSummary) {
       log.error('Failed to get Steam player summary');
-      return null;
+      return (await cache.fallback('Steam'))?.stats ?? null;
+    }
+
+    // getOwnedGames returns [] on failure; don't cache that over the real list
+    if (ownedGames.length === 0) {
+      log.error('No Steam games returned');
+      return (await cache.fallback('Steam'))?.stats ?? null;
     }
 
     // Calculate total hours played across all games
@@ -159,7 +165,7 @@ export async function getSteamStats(): Promise<SteamStats | null> {
     return stats;
   } catch (error) {
     log.error('Error fetching Steam stats:', error);
-    return null;
+    return (await cache.fallback('Steam'))?.stats ?? null;
   }
 }
 

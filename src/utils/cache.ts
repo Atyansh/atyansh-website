@@ -98,6 +98,21 @@ export class FileCache<T extends Timestamped> {
     return null;
   }
 
+  /**
+   * getStale() for a fetch that failed outright: logs which source fell back
+   * and how old the data is. Callers return this instead of null so the page
+   * renders last-known-good data rather than an empty section.
+   */
+  async fallback(source: string): Promise<T | null> {
+    const stale = await this.getStale();
+    if (stale) {
+      log.error(`${source}: falling back to stale data from ${new Date(stale.timestamp).toISOString()}`);
+    } else {
+      log.error(`${source}: no stale data to fall back to`);
+    }
+    return stale;
+  }
+
   async set(data: T): Promise<void> {
     if (!this.isNode) {
       return;

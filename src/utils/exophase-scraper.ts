@@ -51,6 +51,13 @@ export async function getCachedNintendoStats(): Promise<NintendoStats | null> {
 }
 
 /**
+ * Last-known-good stats for when the scrape fails
+ */
+export async function getStaleNintendoStats(): Promise<NintendoStats | null> {
+  return (await exophaseCache.fallback('Nintendo'))?.stats ?? null;
+}
+
+/**
  * Save Nintendo stats to cache
  */
 export async function cacheNintendoStats(stats: NintendoStats): Promise<void> {

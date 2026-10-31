@@ -158,8 +158,9 @@ async function fetchAnimeList(): Promise<MALAnime[]> {
         hasMore = false;
       }
     } catch (error) {
-      log.error(`Error fetching anime (offset ${offset}):`, error);
-      hasMore = false;
+      // Rethrow rather than return a truncated list: getMALData would cache
+      // it over the last full copy.
+      throw new Error(`Error fetching anime (offset ${offset}): ${(error as Error).message}`);
     }
   }
 
@@ -200,6 +201,6 @@ export async function getMALData(): Promise<MALData | null> {
     return data;
   } catch (error) {
     log.error('Error fetching MyAnimeList data:', error);
-    return null;
+    return cache.fallback('MyAnimeList');
   }
 }

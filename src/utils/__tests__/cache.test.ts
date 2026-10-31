@@ -148,6 +148,40 @@ describe('FileCache', () => {
     });
   });
 
+  describe('fallback()', () => {
+    it('returns stale data from the live cache ignoring TTL', async () => {
+      const old: TestData = { timestamp: Date.now() - 10 * 86400000, value: 'old' };
+      mockReadFile.mockResolvedValue(JSON.stringify(old));
+
+      const cache = new FileCache<TestData>('test-cache', { ttl: 60000 });
+      expect((await cache.fallback('Test'))!.value).toBe('old');
+    });
+
+    it('reads the restored previous-build cache when the live one is missing', async () => {
+      const old: TestData = { timestamp: Date.now() - 86400000, value: 'restored' };
+      mockReadFile.mockImplementation(async (path: string) => {
+        if (path === '.cache-fallback/test-cache.json') return JSON.stringify(old);
+        throw new Error('ENOENT');
+      });
+
+      const cache = new FileCache<TestData>('test-cache', { ttl: 60000 });
+      expect((await cache.fallback('Test'))!.value).toBe('restored');
+    });
+
+    it('returns null when there is nothing to fall back to', async () => {
+      mockReadFile.mockRejectedValue(new Error('ENOENT'));
+      const cache = new FileCache<TestData>('test-cache', { ttl: 60000 });
+      expect(await cache.fallback('Test')).toBeNull();
+    });
+
+    it('does not write the cache file', async () => {
+      mockReadFile.mockResolvedValue(JSON.stringify({ timestamp: 0, value: 'old' }));
+      const cache = new FileCache<TestData>('test-cache', { ttl: 60000 });
+      await cache.fallback('Test');
+      expect(mockWriteFile).not.toHaveBeenCalled();
+    });
+  });
+
   describe('non-Node environment', () => {
     const originalProcess = globalThis.process;
 

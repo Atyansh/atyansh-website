@@ -27,7 +27,7 @@ export interface NintendoStats {
 export async function getNintendoStats(): Promise<NintendoStats | null> {
   try {
     // Check cache first
-    const { getCachedNintendoStats, cacheNintendoStats, scrapeExophaseNintendoStats } = await import('./exophase-scraper');
+    const { getCachedNintendoStats, getStaleNintendoStats, cacheNintendoStats, scrapeExophaseNintendoStats } = await import('./exophase-scraper');
 
     const cachedStats = await getCachedNintendoStats();
     if (cachedStats) {
@@ -37,10 +37,11 @@ export async function getNintendoStats(): Promise<NintendoStats | null> {
     // No cache, fetch fresh data from Exophase
     const stats = await scrapeExophaseNintendoStats();
 
-    if (stats) {
-      await cacheNintendoStats(stats);
+    if (!stats) {
+      return getStaleNintendoStats();
     }
 
+    await cacheNintendoStats(stats);
     return stats;
   } catch (error) {
     log.error('Error fetching Nintendo stats:', error);

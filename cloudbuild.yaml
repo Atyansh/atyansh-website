@@ -126,16 +126,18 @@ steps:
         # step refuses to deploy.
         set -uo pipefail
         mkdir -p /workspace/.ci-failures
+        # Chained with && on purpose: bash ignores `set -e` inside an `if`
+        # condition, so a failing vitest would otherwise fall through to the
+        # type-check and the step would pass.
+        CI_DIR=/tmp/ci-check
         if ! (
-          set -e
-          CI_DIR=/tmp/ci-check
-          mkdir -p $$CI_DIR/node_modules
-          cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts $$CI_DIR/
+          mkdir -p $$CI_DIR/node_modules &&
+          cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts $$CI_DIR/ &&
           for entry in node_modules/* node_modules/.bin; do
-            ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry"
-          done
-          cd $$CI_DIR
-          npx vitest run
+            ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry" || exit 1
+          done &&
+          cd $$CI_DIR &&
+          npx vitest run &&
           npm run typecheck
         ) 2>&1 | tee /tmp/test.log; then
           tail -n 40 /tmp/test.log | sed 's/\x1b\[[0-9;]*m//g' > /workspace/.ci-failures/test

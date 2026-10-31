@@ -1,0 +1,100 @@
+# Production-equivalent preview: the same image, secrets, token refresh, real
+# API calls and build as cloudbuild.yaml, deployed to a Firebase preview
+# channel instead of the live site. Use it to check a branch before merging.
+#
+# Run from a checkout of the branch to preview:
+#   gcloud builds submit --config=cloudbuild-preview.yaml \
+#     --substitutions=_CHANNEL=my-branch .
+# The URL (https://personal-website-334502--<channel>-<hash>.web.app) is
+# printed at the end of the log and expires after _EXPIRES.
+#
+# Differences from production, on purpose:
+# - Deploys to a preview channel, never the live site.
+# - Doesn't save .cache to the build-cache bucket or the snapshot archive, so
+#   a preview can't overwrite production's last-known-good data.
+# - Runs the health check report-only (no CLOUD_BUILD env, so it doesn't load
+#   the Discord credentials and sends no DM).
+# Like production, renewed tokens ARE saved to SITE_SECRETS: providers that
+# rotate refresh tokens may invalidate the old one once it's used, so not
+# saving could break the next production build. Avoid running a preview while
+# a production build is in progress (both would refresh the same tokens).
+substitutions:
+  _CHANNEL: 'preview'
+  _EXPIRES: '7d'
+
+steps:
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+    entrypoint: npm
+    args: ['ci']
+    id: 'install-dependencies'
+
+  - name: 'gcr.io/cloud-builders/gsutil'
+    entrypoint: bash
+    args:
+      - '-c'
+      - 'mkdir -p .cache-fallback && gsutil -m rsync -r gs://personal-website-334502_cloudbuild/build-cache .cache-fallback || echo "WARNING: could not restore previous build cache"'
+    id: 'restore-build-cache'
+    waitFor: ['-']
+
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        node scripts/refresh-tokens.cjs
+
+        if [ -f .env.refresh ]; then
+          echo "Loading credentials..."
+          set -a
+          source .env.refresh
+          set +a
+          rm -f .env.refresh
+        fi
+
+        npm run build
+    id: 'build-site'
+    env:
+      - 'NODE_ENV=production'
+      - 'CLOUD_BUILD=true'
+    waitFor: ['install-dependencies', 'restore-build-cache']
+
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        CI_DIR=/tmp/ci-check
+        mkdir -p $$CI_DIR/node_modules
+        cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts $$CI_DIR/
+        for entry in node_modules/* node_modules/.bin; do
+          ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry"
+        done
+        cd $$CI_DIR
+        npx vitest run
+        npm run typecheck
+    id: 'test'
+    env:
+      - 'CI=true'
+    waitFor: ['install-dependencies']
+
+  # Report-only: without CLOUD_BUILD it doesn't read the Discord credentials
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+    entrypoint: node
+    args: ['scripts/check-api-health.cjs']
+    id: 'check-api-health'
+    env:
+      - 'NODE_ENV=production'
+    waitFor: ['build-site']
+
+  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+    entrypoint: npx
+    args: ['firebase-tools', 'hosting:channel:deploy', '${_CHANNEL}', '--expires', '${_EXPIRES}', '--project', 'personal-website-334502', '--non-interactive']
+    id: 'deploy-preview'
+    waitFor: ['build-site', 'test']
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: 1800s

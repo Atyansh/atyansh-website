@@ -171,6 +171,24 @@ gcloud scheduler jobs create http refresh-website-periodic-schedule \
   --oauth-service-account-email="418072003908-compute@developer.gserviceaccount.com"
 ```
 
+## Previewing a Branch
+
+`cloudbuild-preview.yaml` is a production build (same image, secrets, token
+refresh and real API data) deployed to a Firebase preview channel instead of
+the live site. Use it to check a branch before merging:
+
+```bash
+# From a checkout of the branch
+gcloud builds submit --config=cloudbuild-preview.yaml \
+  --substitutions=_CHANNEL=my-branch --project personal-website-334502 .
+```
+
+The preview URL is printed at the end of the build log and expires after 7
+days (`_EXPIRES`). A preview doesn't save the fallback cache or a snapshot,
+and its health check only prints a report (no Discord DM). It does save
+renewed tokens to `SITE_SECRETS`, like any build, so don't start one while a
+production build is running.
+
 ## Deploying
 
 Cloud Build is the only deploy path: push to `master`, or re-run the push

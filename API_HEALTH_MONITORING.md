@@ -23,7 +23,7 @@ The API health monitoring system runs 12 integration checks after each build and
 
 ## How It Works
 
-1. **Build runs** (`npx astro build` in Cloud Build, `npm run build` locally) - All APIs are called and cache files are created
+1. **Build runs** (`npm run build` in Cloud Build after `refresh-tokens.cjs`; `npm run build` or `npm run build:fresh` locally) - All APIs are called and cache files are created
 2. **Health check runs** (`scripts/check-api-health.cjs`) - Validates cache files
 3. **If failures detected** - Discord notification sent with details and @mention
 

@@ -51,7 +51,15 @@ steps:
           rm -f .env.refresh
         fi
 
-        npm run build
+        # A failed build records .ci-failures/build-site (end of its log) and
+        # exits 0 so check-api-health still runs and DMs about it; the deploy
+        # step then refuses to deploy.
+        set -o pipefail
+        mkdir -p .ci-failures
+        if ! npm run build 2>&1 | tee /tmp/build.log; then
+          tail -n 40 /tmp/build.log | sed 's/\x1b\[[0-9;]*m//g' > .ci-failures/build-site
+          echo "Build failed: recorded in .ci-failures/build-site; the deploy will be skipped"
+        fi
     id: 'build-site'
     env:
       - 'NODE_ENV=production'
@@ -63,16 +71,26 @@ steps:
     args:
       - '-c'
       - |
-        set -euo pipefail
-        CI_DIR=/tmp/ci-check
-        mkdir -p $$CI_DIR/node_modules
-        cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts $$CI_DIR/
-        for entry in node_modules/* node_modules/.bin; do
-          ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry"
-        done
-        cd $$CI_DIR
-        npx vitest run
-        npm run typecheck
+        # A failure records .ci-failures/test (end of its log) and exits 0, like
+        # build-site, so the health check can DM about it before the deploy
+        # step refuses to deploy.
+        set -uo pipefail
+        mkdir -p /workspace/.ci-failures
+        if ! (
+          set -e
+          CI_DIR=/tmp/ci-check
+          mkdir -p $$CI_DIR/node_modules
+          cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts $$CI_DIR/
+          for entry in node_modules/* node_modules/.bin; do
+            ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry"
+          done
+          cd $$CI_DIR
+          npx vitest run
+          npm run typecheck
+        ) 2>&1 | tee /tmp/test.log; then
+          tail -n 40 /tmp/test.log | sed 's/\x1b\[[0-9;]*m//g' > /workspace/.ci-failures/test
+          echo "Tests/type-check failed: recorded in .ci-failures/test; the deploy will be skipped"
+        fi
     id: 'test'
     env:
       - 'CI=true'
@@ -85,13 +103,20 @@ steps:
     id: 'check-api-health'
     env:
       - 'NODE_ENV=production'
-    waitFor: ['build-site']
+    waitFor: ['build-site', 'test']
 
   - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
-    entrypoint: npx
-    args: ['firebase-tools', 'hosting:channel:deploy', '${_CHANNEL}', '--expires', '${_EXPIRES}', '--project', 'personal-website-334502', '--non-interactive']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        if [ -n "$$(ls -A .ci-failures 2>/dev/null)" ]; then
+          echo "Not deploying the preview: failed step(s): $$(ls .ci-failures | tr '\n' ' ')"
+          exit 1
+        fi
+        npx firebase-tools hosting:channel:deploy ${_CHANNEL} --expires ${_EXPIRES} --project personal-website-334502 --non-interactive
     id: 'deploy-preview'
-    waitFor: ['build-site', 'test']
+    waitFor: ['build-site', 'test', 'check-api-health']
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -205,6 +205,13 @@ Each build runs, in order (`cloudbuild.yaml`):
 3. `check-api-health` (Discord alerts), then `save-build-cache` / `save-daily-snapshot`
 4. `deploy-to-firebase`, only if both `build-site` and `test` passed
 
+When `build-site` or `test` fails, it doesn't stop the build: it writes
+`.ci-failures/<step>` (the last 40 log lines) and exits 0, so the health check
+still runs and the Discord DM leads with "Website build failed (<step>): not
+deployed" and the end of that log. The deploy step then refuses to deploy and
+exits 1, so the build shows as FAILED and the live site keeps the previous
+deploy. (Only an `npm ci` failure stops the build before the DM can be sent.)
+
 Don't deploy from a laptop with `firebase deploy`: it ships whatever is in
 your local `dist/` (including untracked files) and skips the tests and the
 health check.

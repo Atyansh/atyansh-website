@@ -48,7 +48,15 @@ steps:
         # It has no prebuild: the secret pull + token refresh live in
         # `npm run build:fresh` for local use, so the refresh above is the
         # only one.
-        npm run build
+        # A failed build records .ci-failures/build-site (end of its log) and
+        # exits 0 so check-api-health still runs and DMs about it; the deploy
+        # step then refuses to deploy.
+        set -o pipefail
+        mkdir -p .ci-failures
+        if ! npm run build 2>&1 | tee /tmp/build.log; then
+          tail -n 40 /tmp/build.log | sed 's/\x1b\[[0-9;]*m//g' > .ci-failures/build-site
+          echo "Build failed: recorded in .ci-failures/build-site; the deploy will be skipped"
+        fi
     id: 'build-site'
     env:
       - 'NODE_ENV=production'
@@ -100,7 +108,7 @@ steps:
     env:
       - 'NODE_ENV=production'
       - 'CLOUD_BUILD=true'  # reads Discord credentials from SITE_SECRETS
-    waitFor: ['build-site']
+    waitFor: ['build-site', 'test']
 
   # Unit tests + type-check, in parallel with the build; a failure blocks the
   # deploy below. Runs on a copy of just the sources: the concurrent build
@@ -113,16 +121,26 @@ steps:
     args:
       - '-c'
       - |
-        set -euo pipefail
-        CI_DIR=/tmp/ci-check
-        mkdir -p $$CI_DIR/node_modules
-        cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts $$CI_DIR/
-        for entry in node_modules/* node_modules/.bin; do
-          ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry"
-        done
-        cd $$CI_DIR
-        npx vitest run
-        npm run typecheck
+        # A failure records .ci-failures/test (end of its log) and exits 0, like
+        # build-site, so the health check can DM about it before the deploy
+        # step refuses to deploy.
+        set -uo pipefail
+        mkdir -p /workspace/.ci-failures
+        if ! (
+          set -e
+          CI_DIR=/tmp/ci-check
+          mkdir -p $$CI_DIR/node_modules
+          cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts $$CI_DIR/
+          for entry in node_modules/* node_modules/.bin; do
+            ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry"
+          done
+          cd $$CI_DIR
+          npx vitest run
+          npm run typecheck
+        ) 2>&1 | tee /tmp/test.log; then
+          tail -n 40 /tmp/test.log | sed 's/\x1b\[[0-9;]*m//g' > /workspace/.ci-failures/test
+          echo "Tests/type-check failed: recorded in .ci-failures/test; the deploy will be skipped"
+        fi
     id: 'test'
     env:
       - 'CI=true'
@@ -130,11 +148,21 @@ steps:
 
   # Deploy to Firebase Hosting (security/cache headers and CDN invalidation
   # are handled by firebase.json + the deploy itself). Gated on the tests.
+  # Refuses (and so marks the build FAILED) if the build or test step recorded
+  # a failure; waits for the health check and cache uploads so failing here
+  # can't cancel them (a failed step stops every step still running).
   - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
-    entrypoint: npx
-    args: ['firebase-tools', 'deploy', '--only', 'hosting', '--project', 'personal-website-334502', '--non-interactive']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        if [ -n "$$(ls -A .ci-failures 2>/dev/null)" ]; then
+          echo "Not deploying: failed step(s): $$(ls .ci-failures | tr '\n' ' ')(the live site keeps the previous deploy)"
+          exit 1
+        fi
+        npx firebase-tools deploy --only hosting --project personal-website-334502 --non-interactive
     id: 'deploy-to-firebase'
-    waitFor: ['build-site', 'test']
+    waitFor: ['build-site', 'test', 'check-api-health', 'save-build-cache', 'save-daily-snapshot']
 
 # No availableSecrets: every credential lives in the single SITE_SECRETS
 # secret, read with the Secret Manager SDK by refresh-tokens.cjs and

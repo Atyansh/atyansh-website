@@ -11,6 +11,7 @@ const {
   checkAPIHealth,
   buildDiscordPayload,
   buildPlainTextMessage,
+  readBuildFailures,
   sendDiscordNotification,
 } = require('../../../scripts/check-api-health.cjs');
 
@@ -136,6 +137,43 @@ describe('buildDiscordPayload', () => {
       '✅ Healthy APIs',
     ]);
     expect(embed.fields[0].value).toBe('r2\nFix: f2');
+  });
+});
+
+describe('build failures', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(path.join(tmpdir(), 'ci-failures-')); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('reads one entry per failed step, with its log tail', () => {
+    writeFileSync(path.join(dir, 'test'), 'FAIL src/utils/__tests__/x.test.ts\n1 failed\n');
+    writeFileSync(path.join(dir, 'build-site'), 'error TS2345\n');
+    expect(readBuildFailures(dir)).toEqual([
+      { step: 'build-site', logTail: 'error TS2345' },
+      { step: 'test', logTail: 'FAIL src/utils/__tests__/x.test.ts\n1 failed' },
+    ]);
+  });
+
+  it('is empty when no step failed (no directory)', () => {
+    expect(readBuildFailures(path.join(dir, 'missing'))).toEqual([]);
+  });
+
+  it('leads the DM with the failed step and the end of its log, within limits', () => {
+    const results = {
+      ...allFailing(),
+      buildFailures: [{ step: 'test', logTail: 'x'.repeat(5000) + '\nTests 1 failed | 166 passed' }],
+    };
+    const payload = buildDiscordPayload(results);
+    const [embed] = payload.embeds;
+    expect(payload.content).toBe('Website build failed:');
+    expect(embed.title).toContain('Website build failed (test)');
+    expect(embed.fields[0].name).toBe('🛑 Build step failed: test');
+    expect(embed.fields[0].value).toContain('Tests 1 failed | 166 passed');
+    expect(embed.fields[0].value.length).toBeLessThanOrEqual(1024);
+    const total = embed.title.length + embed.description.length + embed.footer.text.length
+      + embed.fields.reduce((n: number, f: any) => n + f.name.length + f.value.length, 0);
+    expect(total).toBeLessThanOrEqual(6000);
+    expect(buildPlainTextMessage(results)).toMatch(/^🛑 Website build failed at test/);
   });
 });
 

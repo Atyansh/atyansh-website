@@ -35,7 +35,17 @@ export interface MALData {
   timestamp: number;
 }
 
-const cache = new FileCache<MALData>('myanimelist-data', { ttl: 24 * 60 * 60 * 1000 });
+const cache = new FileCache<MALData>('myanimelist-data', {
+  ttl: 24 * 60 * 60 * 1000,
+  deserialize: (data) => ({
+    ...data,
+    anime: data.anime.map(a => ({
+      ...a,
+      startDate: a.startDate ? new Date(a.startDate) : undefined,
+      endDate: a.endDate ? new Date(a.endDate) : undefined,
+    })),
+  }),
+});
 
 /**
  * Fetch user's animelist from MAL API with pagination
@@ -180,7 +190,7 @@ export async function getMALData(): Promise<MALData | null> {
   if (!MAL_CLIENT_ID || !MAL_ACCESS_TOKEN) {
     log.info('MyAnimeList API credentials not configured, skipping...');
     log.info('Run: node scripts/get-mal-token.cjs to get credentials');
-    return null;
+    return cache.fallback('MyAnimeList');
   }
 
   log.info('Fetching MyAnimeList data from official API...');
@@ -193,8 +203,8 @@ export async function getMALData(): Promise<MALData | null> {
       timestamp: Date.now(),
     };
 
-    // Save to cache
-    await cache.set(data);
+    // Save to cache, unless it came back empty or sharply shrunken
+    await cache.setIfPlausible('MyAnimeList', data, d => d.anime.length);
 
     log.info(`Fetched ${anime.length} anime from MyAnimeList`);
 

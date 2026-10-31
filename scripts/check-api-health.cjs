@@ -19,6 +19,10 @@ const path = require('path');
 const { readSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs');
 
 const CACHE_DIR = path.join(process.cwd(), '.cache');
+// cloudbuild.yaml's build and test steps don't stop the build when they fail:
+// they leave <step-id> here (holding the end of their log) so this script can
+// DM about it, and the deploy step refuses to deploy.
+const BUILD_FAILURES_DIR = path.join(process.cwd(), '.ci-failures');
 const MAX_CACHE_AGE_HOURS = 1; // Only trust cache files created in the last hour (this build)
 
 // Discord rejects (HTTP 400) a message over any of these
@@ -351,6 +355,28 @@ function truncate(text, max) {
 }
 
 /** Failures most urgent first, each with its category label */
+/**
+ * Build steps that failed this run, from BUILD_FAILURES_DIR.
+ * @returns {{ step: string, logTail: string }[]}
+ */
+function readBuildFailures(dir = BUILD_FAILURES_DIR) {
+  let files;
+  try {
+    files = fs.readdirSync(dir).filter(f => !f.startsWith('.')).sort();
+  } catch {
+    return [];
+  }
+  return files.map(step => {
+    let logTail = '';
+    try {
+      logTail = fs.readFileSync(path.join(dir, step), 'utf8').trim();
+    } catch {
+      // Marker without a readable log is still a failure
+    }
+    return { step, logTail };
+  });
+}
+
 function orderedFailures(results) {
   const manual = results.failed.filter(f => f.requiresApiKey && !f.selfHealing);
   const selfHealing = results.failed.filter(f => f.requiresApiKey && f.selfHealing);
@@ -372,8 +398,11 @@ function buildDiscordPayload(results) {
   const total = results.healthy.length + results.failed.length;
   const healthPercentage = total > 0 ? Math.round((results.healthy.length / total) * 100) : 0;
 
+  const buildFailures = results.buildFailures || [];
   const embed = {
-    title: `⚠️ API Health Alert: ${results.failed.length} API(s) Failed`,
+    title: buildFailures.length > 0
+      ? `🛑 Website build failed (${buildFailures.map(f => f.step).join(', ')}): not deployed`
+      : `⚠️ API Health Alert: ${results.failed.length} API(s) Failed`,
     color: 0xff4444,
     description: `Health Score: **${results.healthy.length}/${total} APIs (${healthPercentage}%)**`,
     fields: [],
@@ -381,10 +410,17 @@ function buildDiscordPayload(results) {
     footer: { text: 'Atyansh Website Monitor' },
   };
 
-  const failureFields = orderedFailures(results).map(({ api, label }) => ({
-    name: truncate(`${label}: ${api.name}`, DISCORD_LIMITS.fieldName),
-    value: truncate(`${api.reason}\nFix: ${api.renewal}`, DISCORD_LIMITS.fieldValue),
-  }));
+  const failureFields = [
+    ...buildFailures.map(({ step, logTail }) => ({
+      name: truncate(`🛑 Build step failed: ${step}`, DISCORD_LIMITS.fieldName),
+      // Keep the END of the log: that's where the error is
+      value: truncate(`The live site keeps the previous deploy. Last log lines:\n${logTail ? logTail.slice(-(DISCORD_LIMITS.fieldValue - 80)) : '(no log captured)'}`, DISCORD_LIMITS.fieldValue),
+    })),
+    ...orderedFailures(results).map(({ api, label }) => ({
+      name: truncate(`${label}: ${api.name}`, DISCORD_LIMITS.fieldName),
+      value: truncate(`${api.reason}\nFix: ${api.renewal}`, DISCORD_LIMITS.fieldValue),
+    })),
+  ];
   const healthyFields = results.healthy.length > 0
     ? [{ name: '✅ Healthy APIs', value: truncate(results.healthy.map(api => api.name).join(', '), DISCORD_LIMITS.fieldValue) }]
     : [];
@@ -408,7 +444,7 @@ function buildDiscordPayload(results) {
   embed.fields = fieldsKeeping(kept);
 
   return {
-    content: 'API health check detected failures:',
+    content: buildFailures.length > 0 ? 'Website build failed:' : 'API health check detected failures:',
     embeds: [embed],
   };
 }
@@ -417,6 +453,7 @@ function buildDiscordPayload(results) {
 function buildPlainTextMessage(results) {
   const total = results.healthy.length + results.failed.length;
   const lines = [
+    ...(results.buildFailures || []).map(({ step }) => `🛑 Website build failed at ${step}: not deployed (the live site keeps the previous deploy)`),
     `⚠️ API Health Alert: ${results.failed.length} of ${total} API(s) failed`,
     ...orderedFailures(results).map(({ api, label }) => truncate(`• ${label}: ${api.name} — ${api.reason}`, 300)),
     'Full report in the build log.',
@@ -521,6 +558,7 @@ async function main() {
   await loadDiscordCredentials();
 
   const results = await checkAPIHealth();
+  results.buildFailures = readBuildFailures();
   const report = generateReport(results);
 
   console.log('\n' + report);
@@ -531,9 +569,13 @@ async function main() {
   fs.writeFileSync(reportPath, JSON.stringify(results, null, 2));
   console.log(`📄 Report saved to: ${reportPath}\n`);
 
-  // Send Discord DM if any APIs failed
-  if (results.failed.length > 0) {
-    console.log('⚠️  Detected API failures, sending notification...\n');
+  for (const { step } of results.buildFailures) {
+    console.log(`🛑 Build step failed: ${step} (site will not be deployed)`);
+  }
+
+  // Send Discord DM if the build or any API failed
+  if (results.failed.length > 0 || results.buildFailures.length > 0) {
+    console.log('⚠️  Detected failures, sending notification...\n');
     await sendDiscordNotification(results);
   } else {
     console.log('✅ All APIs healthy, no notification needed\n');
@@ -563,6 +605,7 @@ module.exports = {
   checkAPIHealth,
   buildDiscordPayload,
   buildPlainTextMessage,
+  readBuildFailures,
   sendDiscordNotification,
   generateReport,
 };

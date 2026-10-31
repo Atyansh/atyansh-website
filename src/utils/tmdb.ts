@@ -11,7 +11,16 @@ const TMDB_ACCOUNT_OBJECT_ID = import.meta.env.TMDB_ACCOUNT_OBJECT_ID;
 const TMDB_TV_LIST_ID = import.meta.env.TMDB_TV_LIST_ID;
 
 const log = createLogger('TMDB');
-const cache = new FileCache<TmdbTVData>('tmdb-tv-data', { ttl: 24 * 60 * 60 * 1000 });
+const cache = new FileCache<TmdbTVData>('tmdb-tv-data', {
+  ttl: 24 * 60 * 60 * 1000,
+  deserialize: (data) => ({
+    ...data,
+    shows: data.shows.map(show => ({
+      ...show,
+      firstAiredAt: show.firstAiredAt ? new Date(show.firstAiredAt) : undefined,
+    })),
+  }),
+});
 
 // TV summary object as returned in v4 list/rated results
 interface TmdbTVResult {
@@ -97,7 +106,7 @@ export async function getTmdbTVData(): Promise<TmdbTVData | null> {
 
   if (!TMDB_ACCESS_TOKEN || !TMDB_ACCOUNT_OBJECT_ID || !TMDB_TV_LIST_ID) {
     log.info('TMDB credentials not configured, skipping...');
-    return null;
+    return cache.fallback('TMDB');
   }
 
   log.info('Fetching TV shows from TMDB...');
@@ -154,8 +163,8 @@ export async function getTmdbTVData(): Promise<TmdbTVData | null> {
       timestamp: Date.now(),
     };
 
-    // Save to cache
-    await cache.set(data);
+    // Save to cache, unless it came back sharply shrunken
+    await cache.setIfPlausible('TMDB', data, d => d.shows.length);
 
     log.info(`Fetched ${shows.length} shows from TMDB (${ratedList.length} rated)`);
 

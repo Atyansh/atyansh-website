@@ -13,6 +13,10 @@ const IGDB_ACCESS_TOKEN = import.meta.env.IGDB_ACCESS_TOKEN;
 // Cache configuration
 const CACHE_DIR = '.cache';
 const IGDB_CACHE_FILE = '.cache/igdb-covers.json';
+// Cloud builds start with an empty .cache and restore the previous build's
+// into .cache-fallback (see cloudbuild.yaml). Seeding from it lets covers be
+// reused across builds; each entry's own TTL still applies.
+const IGDB_FALLBACK_CACHE_FILE = '.cache-fallback/igdb-covers.json';
 const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 // Check if we're in a Node.js environment
@@ -61,16 +65,23 @@ async function loadCache(): Promise<IGDBCache> {
     return memoryCache;
   }
 
-  try {
-    const { promises: fs } = await import('fs');
-    const cacheData = await fs.readFile(IGDB_CACHE_FILE, 'utf-8');
-    memoryCache = JSON.parse(cacheData);
-    return memoryCache!;
-  } catch (error) {
-    // Cache doesn't exist or is invalid
-    memoryCache = {};
-    return memoryCache;
+  const { promises: fs } = await import('fs');
+  for (const file of [IGDB_CACHE_FILE, IGDB_FALLBACK_CACHE_FILE]) {
+    try {
+      const parsed = JSON.parse(await fs.readFile(file, 'utf-8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        memoryCache = parsed as IGDBCache;
+        // Seeded from the previous build: write it to .cache even if every
+        // cover is a hit, so the next build (and the health check) gets it
+        if (file === IGDB_FALLBACK_CACHE_FILE) cacheDirty = true;
+        return memoryCache;
+      }
+    } catch {
+      // Cache doesn't exist or is invalid — try the next one
+    }
   }
+  memoryCache = {};
+  return memoryCache;
 }
 
 /**

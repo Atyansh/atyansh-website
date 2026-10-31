@@ -229,8 +229,8 @@ export async function getGoodreadsData(): Promise<GoodreadsData | null> {
       timestamp: Date.now(),
     };
 
-    // Save to cache
-    await cache.set(data);
+    // Save to cache, unless it came back empty or sharply shrunken
+    await cache.setIfPlausible('Goodreads', data, d => d.books.length);
 
     log.info(`Fetched ${allBooks.length} total books from Goodreads`);
     log.info(`  - ${readBooks.length} finished`);
@@ -244,16 +244,4 @@ export async function getGoodreadsData(): Promise<GoodreadsData | null> {
     log.error('Error fetching Goodreads data:', error);
     return cache.fallback('Goodreads');
   }
-}
-
-/**
- * Get the best cover image URL (attempt to get higher resolution)
- */
-export function getBestCoverImage(url: string): string {
-  if (!url) return '';
-
-  // Try to get higher resolution version
-  return url
-    .replace(/_SX\d+_/, '_SX400_')
-    .replace(/_SY\d+_/, '_SY600_');
 }

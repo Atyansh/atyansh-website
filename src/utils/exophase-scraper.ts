@@ -43,6 +43,23 @@ function parsePlayTime(timeStr: string): number {
 }
 
 /**
+ * Stable id from the game name ("The Legend of Zelda: Tears of the Kingdom"
+ * -> "exophase-the-legend-of-zelda-tears-of-the-kingdom"). The list index
+ * used before changed whenever a new game was played. Repeated names get a
+ * numeric suffix so ids stay unique.
+ */
+export function nintendoTitleIds(names: string[]): string[] {
+  const seen = new Map<string, number>();
+  return names.map(name => {
+    const slug = name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'game';
+    const n = (seen.get(slug) ?? 0) + 1;
+    seen.set(slug, n);
+    return `exophase-${n === 1 ? slug : `${slug}-${n}`}`;
+  });
+}
+
+/**
  * Check if we have valid cached data
  */
 export async function getCachedNintendoStats(): Promise<NintendoStats | null> {
@@ -58,14 +75,14 @@ export async function getStaleNintendoStats(): Promise<NintendoStats | null> {
 }
 
 /**
- * Save Nintendo stats to cache
+ * Save Nintendo stats to cache, unless the list came back sharply shrunken
  */
 export async function cacheNintendoStats(stats: NintendoStats): Promise<void> {
-  await exophaseCache.set({
+  await exophaseCache.setIfPlausible('Nintendo', {
     games: stats.recentGames,
     stats,
     timestamp: Date.now(),
-  });
+  }, d => d.games.length);
 }
 
 /**
@@ -155,11 +172,12 @@ export async function scrapeExophaseNintendoStats(): Promise<NintendoStats | nul
           }
 
           // Transform to our format
+          const titleIds = nintendoTitleIds((nintendoData as ExophaseGameData[]).map(game => game.name));
           const games: NintendoGame[] = (nintendoData as ExophaseGameData[]).map((game, index) => {
             const totalPlayTime = parsePlayTime(game.playTime);
 
             return {
-              titleId: `exophase-${index}`,
+              titleId: titleIds[index],
               name: game.name,
               imageUri: game.imageUri,
               totalPlayTime,

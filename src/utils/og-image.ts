@@ -1,24 +1,28 @@
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
+import { promises as fs } from 'fs';
+import path from 'path';
+
+// The avatar and fonts are committed (src/assets/og) rather than fetched at
+// build time: a failed fetch used to render a broken image, or ship the
+// endpoint's error text as og-image.png. Builds run from the repo root.
+const ASSET_DIR = path.join(process.cwd(), 'src', 'assets', 'og');
 
 let cachedProfileSrc: string | null = null;
-let cachedFonts: ArrayBuffer[] | null = null;
+let cachedFonts: Buffer[] | null = null;
 
 async function getProfileImage(): Promise<string> {
   if (cachedProfileSrc) return cachedProfileSrc;
-  const res = await fetch('https://www.gravatar.com/avatar/7e16fc57778ed552f69eb809ce567b38?s=512');
-  const buf = await res.arrayBuffer();
-  cachedProfileSrc = `data:image/png;base64,${Buffer.from(buf).toString('base64')}`;
+  const buf = await fs.readFile(path.join(ASSET_DIR, 'avatar.png'));
+  cachedProfileSrc = `data:image/png;base64,${buf.toString('base64')}`;
   return cachedProfileSrc;
 }
 
-async function getFonts(): Promise<ArrayBuffer[]> {
+async function getFonts(): Promise<Buffer[]> {
   if (cachedFonts) return cachedFonts;
-  cachedFonts = await Promise.all([
-    fetch('https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-400-normal.woff').then(r => r.arrayBuffer()),
-    fetch('https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-600-normal.woff').then(r => r.arrayBuffer()),
-    fetch('https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-700-normal.woff').then(r => r.arrayBuffer()),
-  ]);
+  cachedFonts = await Promise.all(
+    [400, 600, 700].map(weight => fs.readFile(path.join(ASSET_DIR, `inter-latin-${weight}-normal.woff`)))
+  );
   return cachedFonts;
 }
 

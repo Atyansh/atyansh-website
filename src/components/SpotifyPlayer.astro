@@ -1,6 +1,6 @@
 ---
-// Track previews for /music: clicking a track tile's play button plays the
-// track right there — no visible player — with a progress ring around the
+// Spotify previews for /music: clicking a tile's play button (track, album,
+// artist, playlist, podcast show/episode) plays it right there — no visible player — with a progress ring around the
 // button (MediaCard renders the button; styles in global.css).
 //
 // Playback goes through ONE hidden (off-screen, not display:none, not lazy)
@@ -126,7 +126,7 @@
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   const tilesFor = (id: string | null): HTMLElement[] =>
-    id ? [...document.querySelectorAll<HTMLElement>(`[data-spotify-track="${CSS.escape(id)}"]`)] : [];
+    id ? [...document.querySelectorAll<HTMLElement>(`[data-spotify-embed="${CSS.escape(id)}"]`)] : [];
 
   function post(message: Record<string, unknown>) {
     iframe?.contentWindow?.postMessage(message, ORIGIN);
@@ -163,7 +163,7 @@
       if (next) tile.dataset.trackState = next;
       else delete tile.dataset.trackState;
       tile.setAttribute('aria-pressed', String(next === 'playing'));
-      tile.setAttribute('aria-label', `${next === 'playing' ? 'Pause' : 'Play'} preview: ${tile.dataset.trackName ?? 'track'}`);
+      tile.setAttribute('aria-label', `${next === 'playing' ? 'Pause' : 'Play'} ${tile.dataset.trackVerb ?? 'preview'}: ${tile.dataset.trackName ?? 'track'}`);
     });
     if (rafId) cancelAnimationFrame(rafId);
     rafId = 0;
@@ -208,7 +208,7 @@
   }
 
   function start(tile: HTMLElement) {
-    const id = tile.dataset.spotifyTrack;
+    const id = tile.dataset.spotifyEmbed;
     if (!id) return;
     stop();
     currentId = id;
@@ -221,13 +221,15 @@
     iframe.title = `Spotify: ${trackName()}`;
     iframe.tabIndex = -1;
     iframe.setAttribute('aria-hidden', 'true');
-    iframe.src = `${ORIGIN}/embed/track/${encodeURIComponent(id)}?utm_source=iframe-api`;
+    // id is "<type>/<spotify id>" (track, album, artist, playlist, show, episode)
+    const [type, spotifyId] = id.split('/');
+    iframe.src = `${ORIGIN}/embed/${encodeURIComponent(type)}/${encodeURIComponent(spotifyId ?? '')}?utm_source=iframe-api`;
     document.body.appendChild(iframe);
     fallbackTimer = setTimeout(showFallback, FALLBACK_NO_READY_MS);
   }
 
   function onTileClick(tile: HTMLElement) {
-    if (tile.dataset.spotifyTrack === currentId && iframe) {
+    if (tile.dataset.spotifyEmbed === currentId && iframe) {
       if (state === 'playing') {
         pauseRequested = true;
         post({ command: 'pause' });
@@ -321,7 +323,7 @@
       stop();
       return;
     }
-    const tile = target?.closest<HTMLElement>('[data-spotify-track]');
+    const tile = target?.closest<HTMLElement>('[data-spotify-embed]');
     if (!tile) return;
     e.preventDefault();
     onTileClick(tile);

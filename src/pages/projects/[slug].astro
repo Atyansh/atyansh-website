@@ -1,4 +1,5 @@
 ---
+import { formatCalendarDate } from '../../components/formatDate';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import AnimatedCard from '../../components/AnimatedCard.astro';
 import { getCollection } from 'astro:content';
@@ -98,13 +99,13 @@ const { Content } = await project.render();
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
           <time datetime={project.data.startDate.toISOString()}>
-            {project.data.startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+            {formatCalendarDate(project.data.startDate, { year: 'numeric', month: 'long' })}
           </time>
           {project.data.endDate && (
             <>
               {' - '}
               <time datetime={project.data.endDate.toISOString()}>
-                {project.data.endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                {formatCalendarDate(project.data.endDate, { year: 'numeric', month: 'long' })}
               </time>
             </>
           )}

@@ -1,4 +1,5 @@
 ---
+import { formatCalendarDate } from '../../components/formatDate';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
 import { calculateReadingTime, formatReadingTime } from '../../utils/readingTime';
@@ -34,13 +35,13 @@ const posts = (await getCollection('blog'))
           </a>
           <div class="text-sm mb-3" style="color: var(--text-secondary);">
             <time datetime={post.data.pubDate.toISOString()}>
-              {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              {formatCalendarDate(post.data.pubDate, { year: 'numeric', month: 'long', day: 'numeric' })}
             </time>
             <span class="mx-2">•</span>
             <span>{formatReadingTime(calculateReadingTime(post.body))}</span>
             {post.data.updatedDate && (
               <span class="ml-2">
-                (Updated: {post.data.updatedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })})
+                (Updated: {formatCalendarDate(post.data.updatedDate, { year: 'numeric', month: 'long', day: 'numeric' })})
               </span>
             )}
           </div>

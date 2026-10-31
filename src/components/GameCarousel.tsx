@@ -1,10 +1,9 @@
-import type { UnifiedGame } from '../utils/unified-games';
-import GameCard from './GameCard';
+import GameCard, { type GameCardData } from './GameCard';
 import BaseCarousel from './BaseCarousel';
 import ErrorBoundary from './ErrorBoundary';
 
 interface GameCarouselProps {
-  games: UnifiedGame[];
+  games: GameCardData[];
   title: string;
 }
 

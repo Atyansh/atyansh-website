@@ -1,4 +1,5 @@
 ---
+import { formatCalendarDate } from '../../components/formatDate';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
 
@@ -6,7 +7,7 @@ const papers = (await getCollection('papers'))
   .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
 ---
 
-<BaseLayout title="Research Papers - Your Name" description="My published research on security and privacy">
+<BaseLayout title="Research Papers - Atyansh Jaiswal" description="My published research on security and privacy">
   <div class="max-w-4xl mx-auto">
     <h1 class="text-4xl font-bold mb-8" style="color: var(--text-primary);">Research Papers</h1>
 
@@ -34,7 +35,7 @@ const papers = (await getCollection('papers'))
               </span>
             )}
             <span style="color: var(--text-secondary);">
-              {paper.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+              {formatCalendarDate(paper.data.pubDate, { year: 'numeric', month: 'long' })}
             </span>
           </div>
 

@@ -66,7 +66,7 @@ function EulerFilterInner({ problems }: EulerFilterProps) {
         whileHover={{ scale: 1.02, y: -5 }}
       >
         <div className="flex items-start justify-between mb-3">
-          <span className="text-sm font-bold px-3 py-1 rounded-full" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+          <span className="text-sm font-bold px-3 py-1 rounded-full" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}>
             #{problem.problemNumber}
           </span>
           {problem.difficulty && (

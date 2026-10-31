@@ -1,32 +1,44 @@
 ---
 // Theme switcher component
+const themeNames: Record<string, string> = {
+  'minimal-technical': 'Minimal Technical',
+  'modern-glass': 'Modern Glass',
+  'brutalist': 'Brutalist',
+  'dark-terminal': 'Dark Terminal',
+  'academic-minimal': 'Academic Minimal',
+};
 ---
 
 <div class="theme-switcher">
-  <button id="theme-button" class="theme-button">
-    <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <button id="theme-button" type="button" class="theme-button" aria-haspopup="true" aria-expanded="false" aria-controls="theme-dropdown">
+    <svg class="w-5 h-5 flex-shrink-0" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
     </svg>
-    <span id="current-theme-name" class="hidden lg:inline">Theme</span>
+    <span class="sr-only">Theme: </span>
+    <!-- Every name is rendered; CSS shows the one matching <html data-theme>,
+         which the inline head script sets before paint (no text flash) -->
+    <span class="theme-current-name">
+      {Object.entries(themeNames).map(([id, name]) => <span data-for={id}>{name}</span>)}
+    </span>
   </button>
-  <div id="theme-dropdown" class="theme-dropdown hidden">
-    <button class="theme-option" data-theme="minimal-technical" style="background-color: #f8f9fa; color: #1a1a1a; font-family: 'JetBrains Mono', 'Fira Code', monospace;" data-accent="#2563eb">
+  <div id="theme-dropdown" class="theme-dropdown hidden" role="group" aria-label="Choose a theme">
+    <button type="button" class="theme-option" aria-pressed="false" data-theme="minimal-technical" style="background-color: #f8f9fa; color: #1a1a1a; font-family: 'JetBrains Mono', 'Fira Code', monospace;" data-accent="#2563eb">
       <span class="theme-name">Minimal Technical</span>
       <span class="theme-desc" style="color: #6b7280;">Clean monospace design</span>
     </button>
-    <button class="theme-option" data-theme="modern-glass" style="background-color: #1e293b; color: #f1f5f9; font-family: 'Inter', -apple-system, sans-serif;" data-accent="#6366f1">
+    <button type="button" class="theme-option" aria-pressed="false" data-theme="modern-glass" style="background-color: #1e293b; color: #f1f5f9; font-family: 'Inter', -apple-system, sans-serif;" data-accent="#818cf8">
       <span class="theme-name">Modern Glass</span>
       <span class="theme-desc" style="color: #94a3b8;">Glassmorphism with gradients</span>
     </button>
-    <button class="theme-option" data-theme="brutalist" style="background-color: #f0f0f0; color: #000000; font-family: 'Arial Black', 'Arial Bold', sans-serif;" data-accent="#ff0000">
+    <button type="button" class="theme-option" aria-pressed="false" data-theme="brutalist" style="background-color: #f0f0f0; color: #000000; font-family: 'Arial Black', 'Arial Bold', sans-serif;" data-accent="#cc0000">
       <span class="theme-name">Brutalist</span>
       <span class="theme-desc" style="color: #404040;">Bold and raw design</span>
     </button>
-    <button class="theme-option" data-theme="dark-terminal" style="background-color: #1a1a1a; color: #00ff41; font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;" data-accent="#00ff41">
+    <button type="button" class="theme-option" aria-pressed="false" data-theme="dark-terminal" style="background-color: #1a1a1a; color: #00ff41; font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;" data-accent="#00ff41">
       <span class="theme-name">Dark Terminal</span>
       <span class="theme-desc" style="color: #00cc33;">Hacker aesthetic</span>
     </button>
-    <button class="theme-option" data-theme="academic-minimal" style="background-color: #f5f5f4; color: #1c1917; font-family: 'Georgia', 'Cambria', 'Times New Roman', serif;" data-accent="#0c4a6e">
+    <button type="button" class="theme-option" aria-pressed="false" data-theme="academic-minimal" style="background-color: #f5f5f4; color: #1c1917; font-family: 'Georgia', 'Cambria', 'Times New Roman', serif;" data-accent="#0c4a6e">
       <span class="theme-name">Academic Minimal</span>
       <span class="theme-desc" style="color: #78716c;">Clean scholarly look</span>
     </button>
@@ -54,6 +66,34 @@
 
   .theme-button:hover {
     background: var(--bg-secondary);
+  }
+
+  .theme-current-name > span {
+    display: none;
+  }
+  :global(:root:not([data-theme])) .theme-current-name > [data-for="minimal-technical"],
+  :global([data-theme="minimal-technical"]) .theme-current-name > [data-for="minimal-technical"],
+  :global([data-theme="modern-glass"]) .theme-current-name > [data-for="modern-glass"],
+  :global([data-theme="brutalist"]) .theme-current-name > [data-for="brutalist"],
+  :global([data-theme="dark-terminal"]) .theme-current-name > [data-for="dark-terminal"],
+  :global([data-theme="academic-minimal"]) .theme-current-name > [data-for="academic-minimal"] {
+    display: inline;
+  }
+
+  /* Visible from lg up; below that it stays in the accessibility tree so the
+     icon-only button still has a name ("Theme: <current theme>") */
+  @media (max-width: 1023.98px) {
+    .theme-current-name {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
   }
 
   .theme-dropdown {
@@ -116,55 +156,70 @@
 </style>
 
 <script>
-  const themes = {
-    'minimal-technical': 'Minimal Technical',
-    'modern-glass': 'Modern Glass',
-    'brutalist': 'Brutalist',
-    'dark-terminal': 'Dark Terminal',
-    'academic-minimal': 'Academic Minimal'
-  };
+  let themeAbort: AbortController | null = null;
 
   function initThemeSwitcher() {
+    // Drop listeners from the previous page (document-level ones would
+    // otherwise pile up on every View Transitions navigation)
+    if (themeAbort) themeAbort.abort();
+    themeAbort = new AbortController();
+    const { signal } = themeAbort;
+
     const themeButton = document.getElementById('theme-button');
     const themeDropdown = document.getElementById('theme-dropdown');
-    const themeOptions = document.querySelectorAll('.theme-option');
-    const currentThemeName = document.getElementById('current-theme-name');
+    const themeOptions = document.querySelectorAll<HTMLButtonElement>('.theme-option');
 
-    if (!themeButton || !themeDropdown || !currentThemeName) return;
+    if (!themeButton || !themeDropdown) return;
 
-    // Load saved theme or default
-    const savedTheme = localStorage.getItem('theme') || 'minimal-technical';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    currentThemeName.textContent = themes[savedTheme];
+    // data-theme itself is applied before paint by the inline script in
+    // BaseLayout; here we only sync the switcher UI to it
+    let savedTheme = 'minimal-technical';
+    try { savedTheme = localStorage.getItem('theme') || savedTheme; } catch {}
 
-    // Update active state
-    function updateActiveState(theme) {
+    function updateActiveState(theme: string) {
       themeOptions.forEach(option => {
-        if (option.dataset.theme === theme) {
-          option.classList.add('active');
-          option.style.setProperty('--active-accent', option.dataset.accent || 'transparent');
-        } else {
-          option.classList.remove('active');
-          option.style.setProperty('--active-accent', 'transparent');
-        }
+        const active = option.dataset.theme === theme;
+        option.classList.toggle('active', active);
+        option.setAttribute('aria-pressed', String(active));
+        option.style.setProperty('--active-accent', active ? (option.dataset.accent || 'transparent') : 'transparent');
       });
+    }
+
+    function setOpen(open: boolean) {
+      themeDropdown!.classList.toggle('hidden', !open);
+      themeButton!.setAttribute('aria-expanded', String(open));
     }
 
     updateActiveState(savedTheme);
 
-    // Toggle dropdown
     themeButton.addEventListener('click', (e) => {
       e.stopPropagation();
-      themeDropdown.classList.toggle('hidden');
-    });
-
-    // Close dropdown when clicking outside
-    const closeDropdown = (e) => {
-      if (!themeDropdown.contains(e.target) && !themeButton.contains(e.target)) {
-        themeDropdown.classList.add('hidden');
+      const open = themeDropdown.classList.contains('hidden');
+      setOpen(open);
+      if (open) {
+        (themeDropdown.querySelector<HTMLElement>('.theme-option.active') ?? themeOptions[0])?.focus();
       }
-    };
-    document.addEventListener('click', closeDropdown);
+    }, { signal });
+
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      const target = e.target as Node;
+      if (!themeDropdown.contains(target) && !themeButton.contains(target)) {
+        setOpen(false);
+      }
+    }, { signal });
+
+    // Close on Escape (returning focus to the button) or when focus leaves
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !themeDropdown.classList.contains('hidden')) {
+        setOpen(false);
+        themeButton.focus();
+      }
+    }, { signal });
+    themeDropdown.addEventListener('focusout', (e) => {
+      const next = e.relatedTarget as Node | null;
+      if (next && !themeDropdown.contains(next) && next !== themeButton) setOpen(false);
+    }, { signal });
 
     // Theme selection
     themeOptions.forEach(option => {
@@ -173,12 +228,12 @@
         const theme = option.dataset.theme;
         if (theme) {
           document.documentElement.setAttribute('data-theme', theme);
-          localStorage.setItem('theme', theme);
-          currentThemeName.textContent = themes[theme];
+          try { localStorage.setItem('theme', theme); } catch {}
           updateActiveState(theme);
-          themeDropdown.classList.add('hidden');
+          setOpen(false);
+          themeButton.focus();
         }
-      });
+      }, { signal });
     });
   }
 

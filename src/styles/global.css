@@ -59,10 +59,13 @@
   --bg-card: rgba(30, 41, 59, 0.7);
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
-  --accent: #6366f1;
-  --accent-rgb: 99, 102, 241;
-  --accent-hover: #818cf8;
-  --accent-fg: #ffffff;
+  /* #818cf8 (indigo-400) keeps accent text >= 4.5:1 on the dark surfaces
+     (4.9:1 on --bg-secondary); white text on it would fail, so filled accent
+     surfaces use the dark page color as their foreground (6.0:1) */
+  --accent: #818cf8;
+  --accent-rgb: 129, 140, 248;
+  --accent-hover: #a5b4fc;
+  --accent-fg: #0f172a;
   --accent-surface: var(--accent);
   --accent-surface-fg: var(--accent-fg);
   --border: rgba(148, 163, 184, 0.2);
@@ -78,9 +81,10 @@
   --bg-card: #ffffff;
   --text-primary: #000000;
   --text-secondary: #404040;
-  --accent: #ff0000;
-  --accent-rgb: 255, 0, 0;
-  --accent-hover: #cc0000;
+  /* #cc0000: 5.9:1 on white (pure #ff0000 was 4.0:1, below AA for text) */
+  --accent: #cc0000;
+  --accent-rgb: 204, 0, 0;
+  --accent-hover: #990000;
   --accent-fg: #ffffff;
   --accent-surface: var(--accent);
   --accent-surface-fg: var(--accent-fg);
@@ -310,12 +314,12 @@ body {
   --astro-code-token-constant: #000000;
   --astro-code-token-string: #000000;
   --astro-code-token-comment: #404040;
-  --astro-code-token-keyword: #ff0000;
+  --astro-code-token-keyword: #cc0000;
   --astro-code-token-parameter: #000000;
   --astro-code-token-function: #000000;
   --astro-code-token-string-expression: #000000;
   --astro-code-token-punctuation: #000000;
-  --astro-code-token-link: #ff0000;
+  --astro-code-token-link: #cc0000;
 }
 
 [data-theme="brutalist"] .prose pre {

@@ -149,6 +149,11 @@ export async function getPSNTitles(): Promise<PSNGame[]> {
   }
 }
 
+async function psnFallback(): Promise<{ games: PSNGame[]; stats: PSNStats } | null> {
+  const stale = await cache.fallback('PSN');
+  return stale ? { games: stale.games, stats: stale.stats } : null;
+}
+
 /**
  * Get PSN games and stats together (avoids double-fetching titles)
  */
@@ -167,7 +172,7 @@ export async function getPSNData(): Promise<{ games: PSNGame[]; stats: PSNStats 
 
     if (titles.length === 0) {
       log.error('No PSN titles found');
-      return null;
+      return psnFallback();
     }
 
     // Calculate total trophies across all games
@@ -202,7 +207,7 @@ export async function getPSNData(): Promise<{ games: PSNGame[]; stats: PSNStats 
     return { games: titles, stats };
   } catch (error) {
     log.error('Error fetching PSN data:', error);
-    return null;
+    return psnFallback();
   }
 }
 

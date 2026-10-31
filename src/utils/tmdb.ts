@@ -111,7 +111,7 @@ export async function getTmdbTVData(): Promise<TmdbTVData | null> {
 
     if (!listItems.length) {
       log.error('No shows found in TMDB list');
-      return null;
+      return cache.fallback('TMDB');
     }
 
     const ratingsMap = new Map<number, number>();
@@ -162,6 +162,6 @@ export async function getTmdbTVData(): Promise<TmdbTVData | null> {
     return data;
   } catch (error) {
     log.error('Error fetching TMDB TV data:', error);
-    return null;
+    return cache.fallback('TMDB');
   }
 }

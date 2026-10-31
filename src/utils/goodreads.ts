@@ -114,35 +114,30 @@ export function parseRSSFeed(xml: string, status: BookStatus): GoodreadsBook[] {
 
 /**
  * Fetch books from a specific Goodreads shelf
- * Includes retry logic for transient failures
+ * Includes retry logic for transient failures. Throws on failure so an
+ * unreachable shelf isn't mistaken for an empty one.
  */
 async function fetchShelf(userId: string, shelf: string, status: BookStatus): Promise<GoodreadsBook[]> {
-  try {
-    const url = `https://www.goodreads.com/review/list_rss/${userId}?shelf=${shelf}`;
-    log.info(`Fetching Goodreads ${shelf} shelf...`);
+  const url = `https://www.goodreads.com/review/list_rss/${userId}?shelf=${shelf}`;
+  log.info(`Fetching Goodreads ${shelf} shelf...`);
 
-    const response = await fetchWithRetry(url, undefined, {
-      maxRetries: 2,
-      initialDelayMs: 1000,
-      onRetry: (error, attempt) => {
-        log.info(`Goodreads ${shelf} shelf retry ${attempt}: ${error.message}`);
-      },
-    });
+  const response = await fetchWithRetry(url, undefined, {
+    maxRetries: 2,
+    initialDelayMs: 1000,
+    onRetry: (error, attempt) => {
+      log.info(`Goodreads ${shelf} shelf retry ${attempt}: ${error.message}`);
+    },
+  });
 
-    if (!response.ok) {
-      log.error(`Failed to fetch Goodreads ${shelf} shelf: ${response.status}`);
-      return [];
-    }
-
-    const xml = await response.text();
-    const books = parseRSSFeed(xml, status);
-
-    log.info(`Fetched ${books.length} books from ${shelf} shelf`);
-    return books;
-  } catch (error) {
-    log.error(`Error fetching Goodreads ${shelf} shelf:`, error);
-    return [];
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Goodreads ${shelf} shelf: ${response.status}`);
   }
+
+  const xml = await response.text();
+  const books = parseRSSFeed(xml, status);
+
+  log.info(`Fetched ${books.length} books from ${shelf} shelf`);
+  return books;
 }
 
 /**
@@ -187,8 +182,10 @@ export async function getGoodreadsData(): Promise<GoodreadsData | null> {
 
     return data;
   } catch (error) {
+    // Don't cache anything: an empty result here would overwrite the last
+    // good copy in the build-cache bucket.
     log.error('Error fetching Goodreads data:', error);
-    return null;
+    return cache.fallback('Goodreads');
   }
 }
 

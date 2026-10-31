@@ -3,7 +3,8 @@
 /**
  * Pre-build token refresh script
  *
- * Refreshes OAuth tokens (MAL, IGDB, PSN) BEFORE the Astro build starts.
+ * Refreshes OAuth tokens (MAL, IGDB, PSN) and the Goodreads session BEFORE
+ * the Astro build starts.
  * This avoids race conditions when multiple pages try to refresh concurrently.
  *
  * - Updates Secret Manager (for Cloud Build persistence)
@@ -154,6 +155,14 @@ async function destroyOldVersions(client, parent, keepName) {
 }
 
 /**
+ * Single-quote a value for bash / dotenv. Cookies contain spaces, |, ?, &
+ * and could contain $ or `, none of which survive double quotes or no quotes.
+ */
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+/**
  * Write refreshed tokens to a file that can be sourced by bash
  * This is used in Cloud Build where we need to pass tokens between steps
  */
@@ -164,11 +173,16 @@ function writeRefreshFile(updates) {
 
   const refreshFile = path.join(process.cwd(), '.env.refresh');
   const lines = Object.entries(updates)
-    .map(([key, value]) => `export ${key}="${value}"`)
+    .map(([key, value]) => `export ${key}=${shellQuote(value)}`)
     .join('\n');
 
   fs.writeFileSync(refreshFile, lines + '\n');
   console.log(`  ✓ Wrote ${Object.keys(updates).length} token(s) to .env.refresh`);
+}
+
+/** Values with whitespace or # need quoting in .env; plain tokens stay bare */
+function envValue(value) {
+  return /[\s#'"]/.test(value) ? shellQuote(value) : value;
 }
 
 /**
@@ -192,14 +206,127 @@ function updateEnvFile(updates) {
   for (const [key, value] of Object.entries(updates)) {
     const regex = new RegExp(`^${key}=.*$`, 'm');
     if (regex.test(content)) {
-      content = content.replace(regex, `${key}=${value}`);
+      // Function replacement: a $ in the value must not be read as a $& pattern
+      content = content.replace(regex, () => `${key}=${envValue(value)}`);
     } else {
-      content += `\n${key}=${value}`;
+      content += `\n${key}=${envValue(value)}`;
     }
   }
 
   fs.writeFileSync(ENV_FILE, content);
   console.log(`  ✓ Updated .env file with ${Object.keys(updates).length} token(s)`);
+}
+
+// Amazon's sign-in for Goodreads, minus openid.pape.max_auth_age=0 (which the
+// site's own sign-in link sends to force a password prompt). Without it, a
+// still-valid session is re-signed silently: 302 back to /ap-handler/sign-in
+// with fresh at-main / sess-at-main / session-token cookies, each expiring a
+// year from now. A dead session gets the 200 sign-in form instead.
+const GOODREADS_SIGNIN_URL = 'https://www.goodreads.com/ap/signin?' + new URLSearchParams({
+  'language': 'en_US',
+  'openid.assoc_handle': 'amzn_goodreads_web_na',
+  'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select',
+  'openid.identity': 'http://specs.openid.net/auth/2.0/identifier_select',
+  'openid.mode': 'checkid_setup',
+  'openid.ns': 'http://specs.openid.net/auth/2.0',
+  'openid.return_to': 'https://www.goodreads.com/ap-handler/sign-in',
+});
+const GOODREADS_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:157.0) Gecko/20100101 Firefox/157.0';
+const GOODREADS_SESSION_FILE = path.join(process.cwd(), '.cache', 'goodreads-session.json');
+
+function parseCookieHeader(header) {
+  const jar = new Map();
+  for (const part of header.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq > 0) jar.set(part.slice(0, eq).trim(), part.slice(eq + 1).trim());
+  }
+  return jar;
+}
+
+/** Apply Set-Cookie headers to a jar; returns the Expires of at-main if set */
+function applySetCookies(jar, setCookies) {
+  let atMainExpires = null;
+  for (const line of setCookies) {
+    const [pair, ...attrs] = line.split(';');
+    const eq = pair.indexOf('=');
+    const name = pair.slice(0, eq).trim();
+    const expires = attrs.map(a => a.trim()).find(a => /^expires=/i.test(a));
+    const expiresAt = expires ? new Date(expires.slice(8)) : null;
+    if (expiresAt && expiresAt.getTime() < Date.now()) {
+      jar.delete(name);
+    } else {
+      jar.set(name, pair.slice(eq + 1).trim());
+      if (name === 'at-main') atMainExpires = expiresAt;
+    }
+  }
+  return atMainExpires;
+}
+
+const serializeJar = (jar) => [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
+
+/**
+ * Renew the Goodreads session so it never reaches its one-year expiry.
+ *
+ * Goodreads itself never re-issues the Amazon login cookies, so without this
+ * GOODREADS_COOKIE would die a year after it was pasted. Re-signing in
+ * silently each build moves the expiry to a year from now. The old cookie
+ * keeps working after a renewal, so a failed persist is harmless.
+ *
+ * Writes .cache/goodreads-session.json either way so the health check can
+ * alert on a failed renewal long before the cookie actually stops working.
+ */
+async function refreshGoodreads() {
+  const cookie = process.env.GOODREADS_COOKIE;
+  const userId = process.env.GOODREADS_USER_ID;
+  if (!cookie || !userId) {
+    console.log('  Goodreads: GOODREADS_COOKIE or GOODREADS_USER_ID not set, skipping');
+    return null;
+  }
+
+  const record = (fields) => {
+    try {
+      fs.mkdirSync(path.dirname(GOODREADS_SESSION_FILE), { recursive: true });
+      fs.writeFileSync(GOODREADS_SESSION_FILE, JSON.stringify({ timestamp: Date.now(), ...fields }, null, 2));
+    } catch (error) {
+      console.log(`  ⚠ Goodreads: could not write session status: ${error.message}`);
+    }
+  };
+
+  try {
+    const jar = parseCookieHeader(cookie);
+    const headers = () => ({ 'Cookie': serializeJar(jar), 'User-Agent': GOODREADS_USER_AGENT });
+
+    const signIn = await fetchWithRetry(GOODREADS_SIGNIN_URL, { headers: headers(), redirect: 'manual' });
+    const location = signIn.headers.get('location') || '';
+    if (signIn.status !== 302 || !location.includes('/ap-handler/sign-in')) {
+      throw new Error(`silent sign-in was refused (HTTP ${signIn.status}${location ? ` → ${location.split('?')[0]}` : ''}); the session has expired or was signed out`);
+    }
+
+    const expiresAt = applySetCookies(jar, signIn.headers.getSetCookie());
+    if (!expiresAt) {
+      throw new Error('sign-in succeeded but issued no new at-main cookie');
+    }
+    // Goodreads' own 6-hour session cookie; it's re-minted on every request
+    jar.delete('_session_id2');
+
+    // Only persist cookies proven to work
+    const check = await fetchWithRetry(
+      `https://www.goodreads.com/review/list/${userId}?shelf=read&per_page=1`,
+      { headers: headers(), redirect: 'manual' },
+    );
+    if (check.status !== 200) {
+      throw new Error(`renewed cookies were rejected by the shelf page (HTTP ${check.status})`);
+    }
+
+    await persistTokenUpdate('GOODREADS_COOKIE', serializeJar(jar));
+    console.log(`  ✓ Goodreads session renewed (now expires ${expiresAt.toISOString().slice(0, 10)})`);
+    record({ renewed: true, expiresAt: expiresAt.toISOString() });
+    return true;
+  } catch (error) {
+    console.log(`  ✗ Goodreads session renewal failed: ${error.message}`);
+    record({ renewed: false, error: error.message });
+    return null;
+  }
 }
 
 /**
@@ -430,12 +557,13 @@ async function main() {
     refreshMAL().then(r => { console.log('  MAL: done'); return r; }),
     refreshIGDB().then(r => { console.log('  IGDB: done'); return r; }),
     refreshPSN().then(r => { console.log('  PSN: done'); return r; }),
+    refreshGoodreads().then(r => { console.log('  Goodreads: done'); return r; }),
   ]);
 
   // Log any unexpected rejections
   results.forEach((result, i) => {
     if (result.status === 'rejected') {
-      const names = ['MAL', 'IGDB', 'PSN'];
+      const names = ['MAL', 'IGDB', 'PSN', 'Goodreads'];
       console.log(`  ✗ ${names[i]} unexpected error: ${result.reason?.message || result.reason}`);
     }
   });

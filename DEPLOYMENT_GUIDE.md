@@ -216,11 +216,11 @@ chmod +x deploy.sh
 
 ### API Health Monitoring
 
-The build automatically monitors all 10 API integrations and sends Discord notifications if any fail:
+The build automatically monitors every API integration and sends Discord notifications if any fail:
 
 **Monitored APIs:**
-- With API keys (self-healing): Spotify, MyAnimeList, IGDB
-- With API keys (manual renewal): Steam, PSN, TMDB, Kaya login (`KAYA_REFRESH_TOKEN`), Goodreads (`GOODREADS_COOKIE`, ~yearly)
+- With API keys (self-healing): Spotify, MyAnimeList, IGDB, Goodreads (`GOODREADS_COOKIE`, re-signed in silently every build)
+- With API keys (manual renewal): Steam, PSN, TMDB, Kaya login (`KAYA_REFRESH_TOKEN`)
 - Web scraping/public APIs: Letterboxd, Nintendo (Exophase), Kaya (climbing)
 
 **How it works:**
@@ -287,7 +287,7 @@ This script will:
 - TV Shows: `TMDB_READ_TOKEN`, `TMDB_ACCESS_TOKEN`, `TMDB_ACCOUNT_OBJECT_ID`, `TMDB_TV_LIST_ID`
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`, `KAYA_USERNAME`
 - Kaya login: `KAYA_REFRESH_TOKEN` (from Firefox on a Mac; long-lived, not rotated by builds)
-- Goodreads login: `GOODREADS_COOKIE` (whole Cookie header from a signed-in goodreads.com request; ~1 year, not rotated by builds)
+- Goodreads login: `GOODREADS_COOKIE` (whole Cookie header from a signed-in goodreads.com request; renewed and re-saved by every build, so it only needs re-pasting if the login is killed)
 - Discord Notifications: `DISCORD_BOT_TOKEN`, `DISCORD_USER_ID`
 
 ### Pulling Secrets to Local .env

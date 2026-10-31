@@ -14,7 +14,7 @@ The API health monitoring system runs 11 integration checks after each build and
 5. IGDB (access token for game covers)
 6. TMDB (long-lived access token)
 7. Kaya login (`KAYA_REFRESH_TOKEN`, from Firefox on a Mac) — alerts when the logged-in ascents query fails and the build fell back to the capped public queries. The alert shows the failure reason with tokens redacted.
-8. Goodreads (`GOODREADS_COOKIE`, a signed-in session; ~1 year) — shelf RSS is gone, so shelves are scraped signed in. Alerts when the cookie expires or a shelf fails; the site keeps the last good books meanwhile.
+8. Goodreads (`GOODREADS_COOKIE`, a signed-in session) — shelf RSS is gone, so shelves are scraped signed in. The session is renewed silently before every build, which keeps it a year from expiry. Two checks: "Goodreads" (a shelf failed or the cookie is dead; the site keeps the last good books) and "Goodreads (session renewal)" (renewal failed; the current cookie still works for now, so this is the early warning).
 
 **Web scraping / public APIs (no credentials):**
 9. Letterboxd (username-based; pages 2+ merge from the previous list when Cloudflare blocks them)

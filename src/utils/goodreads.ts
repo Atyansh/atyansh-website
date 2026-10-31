@@ -3,10 +3,11 @@
 // shelf pages now require sign-in, so this scrapes the signed-in shelf list
 // pages (/review/list/<id>) using the browser session in GOODREADS_COOKIE.
 //
-// What keeps the session signed in is Amazon's at-main / sess-at-main pair,
-// which Goodreads never re-issues; it mints a fresh 6-hour _session_id2 from
-// it on every request. So there is nothing to rotate or persist — the cookie
-// lasts until that Amazon login expires (about a year) or is signed out.
+// What keeps the session signed in is Amazon's login cookies (at-main,
+// sess-at-main, ...), which expire a year after they were issued. Goodreads
+// never re-issues them, so scripts/refresh-tokens.cjs re-signs in silently
+// before every build and saves the renewed cookie, keeping it a year from
+// expiry indefinitely.
 
 import { FileCache } from './cache';
 import type { BookStatus } from '../content/config';

@@ -91,9 +91,18 @@ const APIs = [
     name: 'Goodreads',
     cacheFile: 'goodreads-data.json',
     checkFn: (data) => data.books && data.books.length > 0,
-    renewal: 'Sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), then pbpaste | gcloud secrets versions add GOODREADS_COOKIE --data-file=- --project personal-website-334502 (and destroy the previous version). Lasts ~1 year unless you sign out everywhere or change your password',
+    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), then pbpaste | gcloud secrets versions add GOODREADS_COOKIE --data-file=- --project personal-website-334502',
     requiresApiKey: true,
-    selfHealing: false,
+    selfHealing: true, // Session renewed by refresh-tokens.cjs (see "Goodreads (session renewal)")
+  },
+  {
+    name: 'Goodreads (session renewal)',
+    cacheFile: 'goodreads-session.json',
+    checkFn: (data) => data.renewed,
+    failReason: (data) => `Couldn't renew the Goodreads login: ${data.error}. The current cookie still works until it expires (up to a year after the last successful renewal), so the books page is fine for now`,
+    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), then pbpaste | gcloud secrets versions add GOODREADS_COOKIE --data-file=- --project personal-website-334502',
+    requiresApiKey: true,
+    selfHealing: true, // Re-signs in silently every build, pushing expiry a year out
   },
   {
     name: 'Nintendo Switch',

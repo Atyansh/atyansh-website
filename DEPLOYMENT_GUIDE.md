@@ -215,11 +215,13 @@ Astro middleware never runs in production):
   documented, so they must never overlap. `'unsafe-inline'` scripts are
   allowed (Astro inline/hoisted scripts and the theme init script; static
   headers can't carry per-build hashes).
-- Allowed third parties: Spotify embeds (`open.spotify.com` frames and the
-  iFrame API script, which loads from `embed-cdn.spotifycdn.com`), YouTube
-  embeds, GoatCounter (`atyansh.goatcounter.com` hits; `gc.zgo.at` until
-  count.js is self-hosted), Kaya climbing videos (`assets.plastick.rocks`),
-  and images from any `https:` origin.
+- No third-party scripts: the site rule's `script-src` is `'self'` plus
+  `'unsafe-inline'` (GoatCounter's count.js is self-hosted, and the /music
+  player is a plain Spotify embed iframe, not Spotify's iFrame API, which
+  would need `'unsafe-eval'`).
+- Allowed third parties: Spotify embed frames (`open.spotify.com`), YouTube
+  embeds, GoatCounter hits (`atyansh.goatcounter.com`), Kaya climbing videos
+  (`assets.plastick.rocks`), and images from any `https:` origin.
 - `Strict-Transport-Security: max-age=31536000; includeSubDomains` (no
   preload), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` +
   `frame-ancestors 'none'`, `Referrer-Policy: strict-origin-when-cross-origin`,

@@ -1,104 +1,98 @@
-import { motion } from 'framer-motion';
-import { useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import StarRating from './StarRating';
 
-interface MediaCardProps {
+export interface MediaCardProps {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   image: string;
+  /** Rating on a 0–5 scale; fractional values render as half stars */
   rating?: number;
+  /** Accessible description of the rating, e.g. "9 out of 10" */
+  ratingLabel?: string;
+  /** External page for this item; the card becomes a link (new tab) */
   href?: string;
+  /** Spotify track id; the card becomes a button that plays it in the site's
+   *  Spotify player (see SpotifyPlayer.astro) instead of linking out */
+  spotifyTrackId?: string;
   tags?: string[];
-  delay?: number;
+  /** Entrance animation delay in seconds; omit for no entrance animation */
+  enterDelay?: number;
+  /** Load the image eagerly (first screenful) instead of lazily */
+  eager?: boolean;
 }
 
+/**
+ * Poster-style media tile. Stateless and framer-free so it can be rendered
+ * statically by Astro (no hydration) or inside an island. Overlay reveal is
+ * pure CSS (.media-card rules in global.css): hover on hover-capable
+ * pointers, :focus-visible for keyboards, and [data-expanded] — toggled by
+ * the delegated tap handler in TapToReveal.astro — on touch screens.
+ */
 export default function MediaCard({
   title,
   subtitle,
   image,
   rating,
+  ratingLabel,
   href,
+  spotifyTrackId,
   tags = [],
-  delay = 0
+  enterDelay,
+  eager = false,
 }: MediaCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const animated = enterDelay !== undefined;
+  const className = `media-card group relative block w-full overflow-hidden rounded-lg shadow-lg text-left cursor-pointer${animated ? ' animate-pop' : ''}`;
+  const style = animated ? ({ '--enter-delay': `${enterDelay}s` } as CSSProperties) : undefined;
 
-  const handleTap = (e: React.MouseEvent | React.TouchEvent) => {
-    // Only toggle on touch devices (no hover capability)
-    if (window.matchMedia('(hover: none)').matches) {
-      e.preventDefault();
-      setIsExpanded(!isExpanded);
-    }
-  };
+  const body: ReactNode = (
+    <>
+      <span className="relative block aspect-[2/3] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+        {image && (
+          <img
+            src={image}
+            alt=""
+            width={300}
+            height={450}
+            loading={eager ? 'eager' : 'lazy'}
+            data-warm={eager ? undefined : ''}
+            decoding="async"
+            className="media-card-image w-full h-full object-cover"
+          />
+        )}
 
-  const cardVariants = {
-    hidden: { opacity: 0, scale: 0.8 },
-    visible: {
-      opacity: 1,
-      scale: 1,
-      transition: {
-        duration: 0.4,
-        delay: delay,
-        ease: 'easeOut' as const
-      }
-    }
-  };
+        {spotifyTrackId && (
+          <span className="media-card-now-playing absolute top-2 left-2 z-10 px-2 py-1 rounded-full text-xs font-bold items-center gap-1" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}>
+            <svg className="w-3 h-3" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+            In player
+          </span>
+        )}
 
-  const Component = href ? motion.a : motion.div;
-  const linkProps = href ? { href } : {};
-
-  return (
-    <Component
-      {...linkProps}
-      onClick={handleTap}
-      className={`group relative overflow-hidden rounded-lg shadow-lg cursor-pointer`}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, margin: '-50px' }}
-      whileHover={{
-        y: -10,
-        transition: { duration: 0.2 }
-      }}
-      variants={cardVariants}
-    >
-      {/* Image Container */}
-      <div className="relative aspect-[2/3] overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <motion.img
-          src={image}
-          alt={title}
-          className="w-full h-full object-cover"
-          whileHover={{ scale: 1.1 }}
-          transition={{ duration: 0.3 }}
-        />
-
-        {/* Overlay - tap to show on mobile, hover on desktop */}
-        <div
-          className={`absolute inset-0 flex flex-col justify-end transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0'} md:opacity-0 md:group-hover:opacity-100`}
+        {/* Full overlay: hover (mouse), focus (keyboard), tap (touch) */}
+        <span
+          className="media-card-overlay absolute inset-0 flex flex-col justify-end"
           style={{
             background: 'linear-gradient(to bottom, transparent 0%, transparent 20%, color-mix(in srgb, var(--bg-primary) 95%, transparent) 100%)'
           }}
         >
-          <div className="p-4" style={{ color: 'var(--text-primary)' }}>
-            <h3 className="font-bold text-lg mb-1 line-clamp-2">{title}</h3>
-            <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{subtitle}</p>
+          {spotifyTrackId && (
+            <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+              <span className="w-12 h-12 rounded-full flex items-center justify-center border-2 shadow-lg" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--accent)' }}>
+                <svg className="w-5 h-5" style={{ transform: 'translateX(1px)' }} fill="var(--accent)" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+            </span>
+          )}
+          <span className="relative block p-4" style={{ color: 'var(--text-primary)' }}>
+            <span className="font-bold text-lg mb-1 line-clamp-2">{title}</span>
+            {subtitle && <span className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{subtitle}</span>}
 
-            {rating && (
-              <div className="flex items-center gap-1 mb-2">
-                {[...Array(5)].map((_, i) => (
-                  <svg
-                    key={i}
-                    className="w-4 h-4"
-                    style={{ color: i < rating ? 'var(--accent)' : 'var(--text-secondary)' }}
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
+            {rating !== undefined && rating > 0 && (
+              <StarRating rating={rating} label={ratingLabel} className="mb-2" />
             )}
 
             {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
+              <span className="flex flex-wrap gap-1">
                 {tags.slice(0, 2).map((tag, index) => (
                   <span
                     key={index}
@@ -108,21 +102,53 @@ export default function MediaCard({
                     {tag}
                   </span>
                 ))}
-              </div>
+              </span>
             )}
-          </div>
-        </div>
-      </div>
+          </span>
+        </span>
+      </span>
 
-      {/* Minimal info - hidden when expanded on mobile, shown on desktop until hover */}
-      <div
-        className={`absolute bottom-0 left-0 right-0 p-3 transition-opacity ${isExpanded ? 'opacity-0' : 'opacity-100'} md:opacity-100 md:group-hover:opacity-0`}
+      {/* Minimal caption, hidden while the overlay is showing */}
+      <span
+        className="media-card-caption absolute bottom-0 left-0 right-0 p-3"
+        aria-hidden="true"
         style={{
           background: 'linear-gradient(to top, color-mix(in srgb, var(--bg-primary) 90%, transparent), transparent)'
         }}
       >
-        <h3 className="font-semibold text-sm line-clamp-1" style={{ color: 'var(--text-primary)' }}>{title}</h3>
-      </div>
-    </Component>
+        <span className="font-semibold text-sm line-clamp-1" style={{ color: 'var(--text-primary)' }}>{title}</span>
+      </span>
+    </>
+  );
+
+  if (spotifyTrackId) {
+    return (
+      <button
+        type="button"
+        className={className}
+        style={style}
+        data-spotify-track={spotifyTrackId}
+        data-track-title={title}
+        data-track-subtitle={subtitle}
+        aria-label={subtitle ? `Play ${title} by ${subtitle}` : `Play ${title}`}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={className} style={style} data-tap-reveal="">
+        {body}
+      </a>
+    );
+  }
+
+  // No destination: still focusable so keyboard users can reveal the overlay
+  return (
+    <div tabIndex={0} className={className} style={style} data-tap-reveal="">
+      {body}
+    </div>
   );
 }

@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import BooksFilter from '../components/BooksFilter';
 import StatGrid from '../components/StatGrid.astro';
+import LoadError from '../components/LoadError.astro';
 import { getGoodreadsData } from '../utils/goodreads';
 
 // Fetch Goodreads data at build time
@@ -16,8 +17,8 @@ const books = (goodreadsData?.books ?? []).map(book => ({
     coverImage: book.coverImage,
     rating: book.rating,
     status: book.status,
-    dateRead: book.dateRead,
     publishedDate: book.publishedDate,
+    link: book.link,
   }
 }));
 ---
@@ -56,11 +57,7 @@ const books = (goodreadsData?.books ?? []).map(book => ({
     )}
 
     {books.length === 0 && (
-      <div class="text-center py-12">
-        <p class="text-lg" style="color: var(--text-secondary);">
-          Couldn't load book data right now — check back soon.
-        </p>
-      </div>
+      <LoadError thing="book" />
     )}
   </div>
 </BaseLayout>

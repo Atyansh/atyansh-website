@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
-import AnimatedCard from '../components/AnimatedCard';
+import AnimatedCard from '../components/AnimatedCard.astro';
 import PetPhotoCarousel from '../components/PetPhotoCarousel';
 
 const pets = await getCollection('pets');
@@ -40,7 +40,7 @@ const pets = await getCollection('pets');
 
         return (
           <section class="overflow-hidden md:overflow-visible">
-            <AnimatedCard client:load delay={index * 0.1}>
+            <AnimatedCard delay={index * 0.1}>
               <div class="grid md:grid-cols-2 gap-8 overflow-hidden md:overflow-visible">
                 <div class="min-w-0">
                   <div class="flex items-start justify-between mb-4">
@@ -93,7 +93,7 @@ const pets = await getCollection('pets');
 
                 <div class="min-w-0 overflow-hidden md:overflow-visible">
                   <PetPhotoCarousel
-                    client:load
+                    client:visible
                     images={galleryImages}
                   />
                 </div>

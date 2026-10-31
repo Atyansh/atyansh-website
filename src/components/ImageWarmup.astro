@@ -1,0 +1,39 @@
+---
+// Lazy cover images ([data-warm], set by MediaCard) keep the first screen
+// fast: only the visible rows compete with the page's own HTML/JS. Once those
+// have loaded, this switches the remaining ones to eager so they download in
+// the background (in document order) — by the time the visitor scrolls they
+// are usually already there, instead of only starting when they near the
+// viewport. Net effect: early paint of lazy loading, no scroll pop-in of
+// eager loading.
+---
+
+<script>
+  function warmUp() {
+    const pending = [...document.querySelectorAll<HTMLImageElement>('img:not([loading="lazy"])')].filter(
+      (img) => !img.complete,
+    );
+    const firstScreenLoaded = Promise.all(
+      pending.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            img.addEventListener('load', () => resolve(), { once: true });
+            img.addEventListener('error', () => resolve(), { once: true });
+          }),
+      ),
+    );
+    const timeout = new Promise<void>((resolve) => setTimeout(resolve, 4000));
+    void Promise.race([firstScreenLoaded, timeout]).then(() => {
+      const upgrade = () => {
+        document.querySelectorAll<HTMLImageElement>('img[loading="lazy"][data-warm]').forEach((img) => {
+          img.loading = 'eager';
+        });
+      };
+      if ('requestIdleCallback' in window) requestIdleCallback(upgrade, { timeout: 1000 });
+      else setTimeout(upgrade, 200);
+    });
+  }
+
+  // Runs on the first load and after every View Transitions navigation
+  document.addEventListener('astro:page-load', warmUp);
+</script>

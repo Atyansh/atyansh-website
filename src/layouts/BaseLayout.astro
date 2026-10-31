@@ -3,6 +3,8 @@ import '../styles/global.css';
 import ThemeSwitcher from '../components/ThemeSwitcher.astro';
 import AudioToggle from '../components/AudioToggle.astro';
 import StructuredData from '../components/StructuredData.astro';
+import TapToReveal from '../components/TapToReveal.astro';
+import ImageWarmup from '../components/ImageWarmup.astro';
 import { ViewTransitions } from 'astro:transitions';
 
 interface Props {
@@ -41,11 +43,6 @@ if (image) {
     <meta name="generator" content={Astro.generator} />
     <meta name="author" content="Atyansh Jaiswal" />
     <link rel="canonical" href={canonicalURL} />
-
-    <!-- Security headers -->
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-    <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=()" />
 
     <!-- OpenGraph tags -->
     <meta property="og:title" content={title} />
@@ -99,37 +96,22 @@ if (image) {
     </script>
 
     <script is:inline>
-      // Run FIRST to set theme before ANY rendering
+      // Apply the saved theme before first paint so non-default themes don't
+      // flash the default palette. Must stay inline (not a deferred module).
       (function() {
-        const theme = localStorage.getItem('theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const isDark = theme === 'dark' || (!theme && prefersDark);
-
-        if (isDark) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+        var theme = 'minimal-technical';
+        try { theme = localStorage.getItem('theme') || theme; } catch (e) {}
+        document.documentElement.setAttribute('data-theme', theme);
       })();
     </script>
 
     <script>
-      // Persist theme and data-theme across view transitions
+      // View Transitions replace <html> attributes with the incoming page's
+      // static ones; carry the saved theme over before the swap paints.
       document.addEventListener('astro:before-swap', (e) => {
-        // Preserve dark mode class
-        const theme = localStorage.getItem('theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const isDark = theme === 'dark' || (!theme && prefersDark);
-
-        if (isDark) {
-          e.newDocument.documentElement.classList.add('dark');
-        } else {
-          e.newDocument.documentElement.classList.remove('dark');
-        }
-
-        // Preserve data-theme attribute
-        const savedTheme = localStorage.getItem('theme') || 'minimal-technical';
-        e.newDocument.documentElement.setAttribute('data-theme', savedTheme);
+        let theme = 'minimal-technical';
+        try { theme = localStorage.getItem('theme') || theme; } catch {}
+        e.newDocument.documentElement.setAttribute('data-theme', theme);
       });
 
       // Suppress harmless WebSocket closed errors during View Transitions (dev only)
@@ -146,13 +128,16 @@ if (image) {
          banner needed). no_onload disables its automatic counting; the
          astro:page-load listener below counts BOTH the initial load and every
          View Transitions navigation, which count.js can't see on its own.
-         count.js ignores localhost, so dev traffic never pollutes stats. -->
+         count.js ignores localhost, so dev traffic never pollutes stats.
+         count.js is a vendored copy (public/goatcounter/count.js) so no
+         third-party script runs; it only sends the hit to the endpoint below
+         (sendBeacon, falling back to an <img> pixel). -->
     <script
       is:inline
       data-goatcounter="https://atyansh.goatcounter.com/count"
       data-goatcounter-settings='{"no_onload": true}'
       async
-      src="https://gc.zgo.at/count.js"></script>
+      src="/goatcounter/count.js"></script>
     <script is:inline>
       document.addEventListener('astro:page-load', function () {
         // count.js loads async and may not be ready on the first page-load
@@ -224,8 +209,8 @@ if (image) {
           <div class="flex items-center gap-4">
             <span class="audio-gated"><AudioToggle /></span>
             <ThemeSwitcher />
-            <button id="mobile-menu-button" class="p-2 lg:hidden" aria-label="Toggle menu">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button id="mobile-menu-button" type="button" class="p-2 lg:hidden" aria-label="Menu" aria-expanded="false" aria-controls="mobile-menu">
+              <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
               </svg>
             </button>
@@ -268,7 +253,8 @@ if (image) {
 
         if (button && mobileMenu) {
           button.addEventListener('click', () => {
-            mobileMenu.classList.toggle('hidden');
+            const isHidden = mobileMenu.classList.toggle('hidden');
+            button.setAttribute('aria-expanded', String(!isHidden));
           }, { signal });
         }
 
@@ -276,8 +262,8 @@ if (image) {
         const dropdowns = document.querySelectorAll('.nav-dropdown');
 
         dropdowns.forEach(dropdown => {
-          const trigger = dropdown.querySelector('.nav-dropdown-trigger');
-          const menu = dropdown.querySelector('.nav-dropdown-menu');
+          const trigger = dropdown.querySelector<HTMLElement>('.nav-dropdown-trigger');
+          const menu = dropdown.querySelector<HTMLElement>('.nav-dropdown-menu');
           const arrow = trigger?.querySelector('svg');
 
           if (!trigger || !menu) return;
@@ -317,7 +303,7 @@ if (image) {
           }, { signal });
 
           // Keyboard navigation
-          trigger.addEventListener('keydown', (e) => {
+          trigger.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               const isVisible = menu.classList.contains('visible');
@@ -344,7 +330,7 @@ if (image) {
             document.querySelectorAll('.nav-dropdown-trigger').forEach(trigger => {
               trigger.setAttribute('aria-expanded', 'false');
               const arrow = trigger.querySelector('svg');
-              if (arrow) (arrow as HTMLElement).style.transform = '';
+              if (arrow) arrow.style.transform = '';
             });
           }
         }, { signal });
@@ -370,5 +356,8 @@ if (image) {
         </div>
       </div>
     </footer>
+
+    <TapToReveal />
+    <ImageWarmup />
   </body>
 </html>

@@ -6,14 +6,12 @@ interface AnimeData {
   title: string;
   englishTitle?: string;
   imageUrl: string;
+  /** MAL score, 1–10 */
   score?: number;
   status: AnimeStatus;
-  episodes?: number;
-  episodesWatched?: number;
   type?: string;
   year?: number;
-  startDate?: string;
-  endDate?: string;
+  startDate?: Date | string;
   malUrl: string;
 }
 
@@ -110,6 +108,8 @@ const config: MediaFilterGridConfig<Anime> = {
     getSubtitle: (a) => a.data.type || '',
     getImage: (a) => a.data.imageUrl,
     getRating: (a) => a.data.score ? a.data.score / 2 : undefined,
+    getRatingLabel: (a) => a.data.score ? `${a.data.score} out of 10` : undefined,
+    getHref: (a) => a.data.malUrl,
   },
   filterColumnClass: 'lg:grid-cols-5',
   itemNounPlural: 'anime',

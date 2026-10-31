@@ -8,8 +8,8 @@ interface BookData {
   coverImage: string;
   rating?: number;
   status: BookStatus;
-  dateRead?: Date;
-  publishedDate?: Date;
+  publishedDate?: Date | string;
+  link?: string;
 }
 
 interface Book {
@@ -64,7 +64,7 @@ const config: MediaFilterGridConfig<Book> = {
       label: 'Published Date',
       compare: (a, b) => {
         if (a.data.publishedDate && b.data.publishedDate)
-          return b.data.publishedDate.valueOf() - a.data.publishedDate.valueOf();
+          return new Date(b.data.publishedDate).getTime() - new Date(a.data.publishedDate).getTime();
         if (a.data.publishedDate) return -1;
         if (b.data.publishedDate) return 1;
         return 0;
@@ -93,6 +93,7 @@ const config: MediaFilterGridConfig<Book> = {
     getSubtitle: (b) => b.data.author,
     getImage: (b) => b.data.coverImage,
     getRating: (b) => b.data.rating,
+    getHref: (b) => b.data.link,
   },
   filterColumnClass: 'lg:grid-cols-4',
   itemNounPlural: 'books',

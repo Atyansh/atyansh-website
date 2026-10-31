@@ -1,6 +1,7 @@
 ---
+import { formatCalendarDate } from '../../components/formatDate';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import AnimatedCard from '../../components/AnimatedCard';
+import AnimatedCard from '../../components/AnimatedCard.astro';
 import { getCollection } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -22,7 +23,7 @@ const { Content } = await project.render();
   <article class="max-w-5xl mx-auto">
     <!-- Header -->
     <header class="mb-12">
-      <AnimatedCard client:load delay={0}>
+      <AnimatedCard delay={0}>
         <div class="mb-6">
           <h1 class="text-4xl md:text-5xl font-bold mb-4" style="color: var(--text-primary);">
             {project.data.title}
@@ -98,13 +99,13 @@ const { Content } = await project.render();
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
           <time datetime={project.data.startDate.toISOString()}>
-            {project.data.startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+            {formatCalendarDate(project.data.startDate, { year: 'numeric', month: 'long' })}
           </time>
           {project.data.endDate && (
             <>
               {' - '}
               <time datetime={project.data.endDate.toISOString()}>
-                {project.data.endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                {formatCalendarDate(project.data.endDate, { year: 'numeric', month: 'long' })}
               </time>
             </>
           )}
@@ -113,7 +114,7 @@ const { Content } = await project.render();
     </header>
 
     <!-- Content -->
-    <AnimatedCard client:load delay={0.1}>
+    <AnimatedCard delay={0.1}>
       <div class="project-content">
         <Content />
       </div>

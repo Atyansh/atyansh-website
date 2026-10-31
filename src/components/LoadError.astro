@@ -1,0 +1,16 @@
+---
+// Shared failure/empty state for data-driven pages, so every page says the
+// same thing when its build-time fetch (and last-known-good cache) came up empty
+interface Props {
+  /** What failed to load, e.g. "music" → "Couldn't load music data right now" */
+  thing: string;
+}
+
+const { thing } = Astro.props;
+---
+
+<div class="text-center py-12" role="status">
+  <p class="text-lg" style="color: var(--text-secondary);">
+    Couldn't load {thing} data right now — check back soon.
+  </p>
+</div>

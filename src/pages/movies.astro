@@ -3,12 +3,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import MoviesFilter from '../components/MoviesFilter';
 import StatGrid from '../components/StatGrid.astro';
 import LoadError from '../components/LoadError.astro';
+import { formatCalendarDate, maybeDate } from '../components/formatDate';
 import { getLetterboxdData } from '../utils/letterboxd';
 
 // Fetch Letterboxd data at build time
 const letterboxdData = await getLetterboxdData();
 
 // Use Letterboxd data if available
+type Detail = { label: string; value: string };
+const details = (...rows: Array<[string, string | number | undefined | false]>): Detail[] =>
+  rows.filter(([, v]) => v !== undefined && v !== false && v !== '').map(([label, value]) => ({ label, value: String(value) }));
+
+// Card details formatted at build time (Letterboxd diary dates are calendar dates)
 const movies = (letterboxdData?.movies ?? []).map(movie => ({
     data: {
       title: movie.title,
@@ -17,8 +23,15 @@ const movies = (letterboxdData?.movies ?? []).map(movie => ({
       director: movie.director,
       posterImage: movie.posterImage,
       rating: movie.rating,
-      link: movie.link,
       rewatch: movie.rewatch,
+      details: details(
+        ['Director', movie.director],
+        // the card subtitle is the director, or the year when there's no director
+        ['Year', movie.director ? movie.year : undefined],
+        ['Watched', maybeDate(movie.watchedDate) && formatCalendarDate(movie.watchedDate!, { year: 'numeric', month: 'short', day: 'numeric' })],
+        ['Rewatch', movie.rewatch && 'Yes'],
+        ['Rating', movie.rating ? `${movie.rating}/5` : undefined],
+      ),
     }
   }));
 ---

@@ -9,7 +9,8 @@ interface BookData {
   rating?: number;
   status: BookStatus;
   publishedDate?: Date | string;
-  link?: string;
+  /** Extra facts for the expanded card, formatted in books.astro */
+  details?: Array<{ label: string; value: string }>;
 }
 
 interface Book {
@@ -93,7 +94,7 @@ const config: MediaFilterGridConfig<Book> = {
     getSubtitle: (b) => b.data.author,
     getImage: (b) => b.data.coverImage,
     getRating: (b) => b.data.rating,
-    getHref: (b) => b.data.link,
+    getDetails: (b) => b.data.details,
   },
   filterColumnClass: 'lg:grid-cols-4',
   itemNounPlural: 'books',

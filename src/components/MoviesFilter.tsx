@@ -9,7 +9,8 @@ interface MovieData {
   posterImage: string;
   /** Letterboxd stars, 0.5–5 */
   rating?: number;
-  link?: string;
+  /** Extra facts for the expanded card, formatted in movies.astro */
+  details?: Array<{ label: string; value: string }>;
 }
 
 interface Movie {
@@ -94,7 +95,7 @@ const config: MediaFilterGridConfig<Movie> = {
     getSubtitle: (m) => m.data.director || (m.data.year ? `${m.data.year}` : ''),
     getImage: (m) => m.data.posterImage,
     getRating: (m) => m.data.rating,
-    getHref: (m) => m.data.link,
+    getDetails: (m) => m.data.details,
   },
   filterColumnClass: 'lg:grid-cols-4',
   itemNounPlural: 'films',

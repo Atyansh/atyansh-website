@@ -1,181 +1,336 @@
 ---
-// In-site Spotify player: a single fixed bottom bar that plays whichever
-// track tile ([data-spotify-track], rendered by MediaCard) the visitor
-// clicks or taps, instead of sending them off to Spotify.
+// Track previews for /music: clicking a track tile's play button plays the
+// track right there — no visible player — with a progress ring around the
+// button (MediaCard renders the button; styles in global.css).
 //
-// It is a plain Spotify embed <iframe>; the src is swapped when another
-// track is chosen. No Spotify JavaScript runs in our page (the iFrame API
-// needs 'unsafe-eval'), so the only CSP allowance needed is
-// frame-src https://open.spotify.com. The iframe is only created on the
-// first click, so visitors who never press play load nothing from Spotify.
-// Visitors may have to press play inside the embed; visitors not logged in
-// to Spotify get 30-second previews, logged-in visitors get full tracks.
+// Playback goes through ONE hidden (off-screen, not display:none, not lazy)
+// Spotify embed iframe, driven by the embed's own postMessage protocol. No
+// Spotify JavaScript runs in our page, so the CSP only needs
+// frame-src https://open.spotify.com.
+//   embed → page: {type:'ready'}, {type:'playback_started'},
+//                 {type:'playback_update', payload:{isPaused, position, duration}} (ms)
+//   page → embed: {command:'load_complete_ack'}, {command:'play'|'pause'|'resume'|'toggle'},
+//                 {command:'seek', timestamp:<seconds>}
+// If playback hasn't started ~2.5 s after `play` (e.g. Safari's stricter
+// autoplay rules), the embed is revealed as a small floating player so the
+// visitor can press play in it. Visitors not logged in to Spotify hear the
+// 30-second preview; logged-in visitors may get the full track.
 ---
 
-<div id="spotify-player" class="spotify-player" hidden>
-  <section class="spotify-player-bar container mx-auto" aria-label="Spotify player">
-    <div id="spotify-player-embed" class="spotify-player-embed"></div>
-    <button
-      id="spotify-player-close"
-      type="button"
-      class="spotify-player-close"
-      aria-label="Close player"
-      title="Close player"
-    >
-      <svg class="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<div id="spotify-fallback" class="spotify-fallback" hidden>
+  <div class="spotify-fallback-head">
+    <span id="spotify-fallback-label" class="spotify-fallback-label">Press play to listen</span>
+    <button id="spotify-fallback-close" type="button" class="spotify-fallback-close" aria-label="Close Spotify player">
+      <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
       </svg>
     </button>
-  </section>
-  <p id="spotify-player-status" class="sr-only" aria-live="polite"></p>
+  </div>
+  <div class="spotify-fallback-slot"></div>
 </div>
+<p id="spotify-status" class="sr-only" aria-live="polite"></p>
 
 <style>
-  .spotify-player {
+  /* Fallback mini player (only shown when the hidden embed couldn't autoplay) */
+  .spotify-fallback {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 40;
-    padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom));
-    /* --bg-secondary is opaque in every theme (--bg-card isn't in Modern Glass) */
+    right: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    z-index: 45;
+    width: min(320px, calc(100vw - 2rem));
+    padding: 0.5rem;
+    border-radius: 14px;
     background-color: var(--bg-secondary);
-    border-top: 1px solid var(--border);
-    box-shadow: 0 -4px 16px var(--shadow);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 24px var(--shadow);
   }
 
-  .spotify-player[hidden] {
+  .spotify-fallback[hidden] {
     display: none;
   }
 
-  .spotify-player-bar {
+  .spotify-fallback-head {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
   }
 
-  .spotify-player-embed {
-    flex: 1;
-    min-width: 0;
-    height: 80px;
-    border-radius: 12px;
-    overflow: hidden;
-    background-color: var(--bg-secondary);
-  }
-
-  .spotify-player-embed :global(iframe) {
-    display: block;
-    width: 100%;
-    height: 80px;
-    border: 0;
-  }
-
-  .spotify-player-close {
+  .spotify-fallback-close {
     flex-shrink: 0;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 2rem;
+    height: 2rem;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
     border: 1px solid var(--border);
-    background-color: var(--bg-secondary);
     color: var(--text-primary);
+    background: var(--bg-card);
     cursor: pointer;
   }
 
-  .spotify-player-close:hover {
-    color: var(--accent);
-    border-color: var(--accent);
+  /* Space the revealed embed occupies inside the box */
+  .spotify-fallback-slot {
+    height: 80px;
   }
 
-  /* Keep the page's last row reachable above the bar */
-  :global(html.spotify-player-open body) {
-    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  /* The playback iframe lives in <body>: off-screen but rendered (a
+     display:none or lazy iframe would never load). When revealed it is
+     positioned over the fallback box's slot — moving it in the DOM would
+     reload it and lose the track. */
+  :global(.spotify-embed) {
+    display: block;
+    border: 0;
+    width: 300px;
+    height: 80px;
+  }
+
+  :global(.spotify-embed.is-hidden) {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+  }
+
+  :global(.spotify-embed.is-visible) {
+    position: fixed;
+    right: 1.5rem;
+    bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    z-index: 46;
+    width: calc(min(320px, calc(100vw - 2rem)) - 1rem);
+    border-radius: 12px;
   }
 </style>
 
 <script>
-  const EMBED_URL = 'https://open.spotify.com/embed/track/';
+  const ORIGIN = 'https://open.spotify.com';
+  const FALLBACK_AFTER_MS = 2500; // after `play` was sent
+  const FALLBACK_NO_READY_MS = 6000; // if the embed never even reports ready
 
+  type State = 'loading' | 'playing' | 'paused';
+
+  let iframe: HTMLIFrameElement | null = null;
   let currentId: string | null = null;
-  let lastTrigger: HTMLElement | null = null;
+  let state: State | null = null;
+  let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  // Progress, interpolated between the embed's ~1/s updates
+  let position = 0;
+  let duration = 0;
+  let updatedAt = 0;
+  let rafId = 0;
+  let finished = false;
+  let pauseRequested = false;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-  const els = () => ({
-    root: document.getElementById('spotify-player'),
-    embed: document.getElementById('spotify-player-embed'),
-    status: document.getElementById('spotify-player-status'),
+  const tilesFor = (id: string | null): HTMLElement[] =>
+    id ? [...document.querySelectorAll<HTMLElement>(`[data-spotify-track="${CSS.escape(id)}"]`)] : [];
+
+  function post(message: Record<string, unknown>) {
+    iframe?.contentWindow?.postMessage(message, ORIGIN);
+  }
+
+  function announce(text: string) {
+    const el = document.getElementById('spotify-status');
+    if (el) el.textContent = text;
+  }
+
+  function trackName() {
+    return tilesFor(currentId)[0]?.dataset.trackName ?? 'track';
+  }
+
+  function setProgress(fraction: number | null) {
+    tilesFor(currentId).forEach((tile) => {
+      if (fraction === null) tile.style.removeProperty('--track-progress');
+      else tile.style.setProperty('--track-progress', String(Math.min(Math.max(fraction, 0), 1)));
+    });
+  }
+
+  // Smooth ring between updates (skipped under reduced motion: the ring then
+  // just steps with each update)
+  function tick() {
+    rafId = 0;
+    if (state !== 'playing' || !duration) return;
+    setProgress((position + (performance.now() - updatedAt)) / duration);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function setState(next: State | null) {
+    state = next;
+    tilesFor(currentId).forEach((tile) => {
+      if (next) tile.dataset.trackState = next;
+      else delete tile.dataset.trackState;
+      tile.setAttribute('aria-pressed', String(next === 'playing'));
+      tile.setAttribute('aria-label', `${next === 'playing' ? 'Pause' : 'Play'} preview: ${tile.dataset.trackName ?? 'track'}`);
+    });
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+    if (next === 'playing' && !reduceMotion.matches) rafId = requestAnimationFrame(tick);
+  }
+
+  function hideFallback() {
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    fallbackTimer = null;
+    const box = document.getElementById('spotify-fallback');
+    if (box) box.hidden = true;
+    if (iframe?.classList.contains('is-visible')) {
+      iframe.classList.replace('is-visible', 'is-hidden');
+      iframe.tabIndex = -1;
+      iframe.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function showFallback() {
+    fallbackTimer = null;
+    const box = document.getElementById('spotify-fallback');
+    if (!box || !iframe || state !== 'loading') return;
+    const label = document.getElementById('spotify-fallback-label');
+    if (label) label.textContent = `Press play: ${trackName()}`;
+    box.hidden = false;
+    iframe.classList.replace('is-hidden', 'is-visible');
+    iframe.tabIndex = 0;
+    iframe.removeAttribute('aria-hidden');
+    announce(`Press play in the Spotify player to hear ${trackName()}`);
+  }
+
+  function stop() {
+    hideFallback();
+    setProgress(null);
+    setState(null);
+    iframe?.remove();
+    iframe = null;
+    currentId = null;
+    position = duration = 0;
+    finished = false;
+    pauseRequested = false;
+  }
+
+  function start(tile: HTMLElement) {
+    const id = tile.dataset.spotifyTrack;
+    if (!id) return;
+    stop();
+    currentId = id;
+    setState('loading');
+    announce(`Loading preview: ${trackName()}`);
+
+    iframe = document.createElement('iframe');
+    iframe.className = 'spotify-embed is-hidden';
+    iframe.allow = 'autoplay; encrypted-media';
+    iframe.title = `Spotify: ${trackName()}`;
+    iframe.tabIndex = -1;
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.src = `${ORIGIN}/embed/track/${encodeURIComponent(id)}?utm_source=iframe-api`;
+    document.body.appendChild(iframe);
+    fallbackTimer = setTimeout(showFallback, FALLBACK_NO_READY_MS);
+  }
+
+  function onTileClick(tile: HTMLElement) {
+    if (tile.dataset.spotifyTrack === currentId && iframe) {
+      if (state === 'playing') {
+        pauseRequested = true;
+        post({ command: 'pause' });
+      } else if (state === 'paused') {
+        pauseRequested = false;
+        if (finished) {
+          // Replay from the start
+          finished = false;
+          setState('loading');
+          post({ command: 'seek', timestamp: 0 });
+          post({ command: 'play' });
+        } else {
+          post({ command: 'resume' });
+        }
+      }
+      return; // still loading: wait
+    }
+    start(tile);
+  }
+
+  window.addEventListener('message', (e) => {
+    if (!iframe || e.source !== iframe.contentWindow || e.origin !== ORIGIN) return;
+    let data = e.data;
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch {
+        return;
+      }
+    }
+    if (!data || typeof data !== 'object') return;
+
+    if (data.type === 'ready') {
+      post({ command: 'load_complete_ack' });
+      post({ command: 'play' });
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      fallbackTimer = setTimeout(showFallback, FALLBACK_AFTER_MS);
+      return;
+    }
+    if (data.type !== 'playback_update' || !data.payload) return;
+
+    const payload = data.payload as { isPaused?: boolean; position?: number; duration?: number };
+    position = Number(payload.position) || 0;
+    duration = Number(payload.duration) || duration;
+    updatedAt = performance.now();
+
+    const atEnd = duration > 0 && position >= duration - 300;
+    if (atEnd) {
+      // Preview finished (the embed may keep reporting isPaused:false at the
+      // end): reset the ring and show the play icon again
+      if (!finished) {
+        finished = true;
+        setState('paused');
+        setProgress(null);
+        announce('Preview finished');
+      }
+      return;
+    }
+
+    if (!payload.isPaused) {
+      if (state !== 'playing') {
+        hideFallback();
+        finished = false;
+        setState('playing');
+        announce(`Playing preview: ${trackName()}`);
+      }
+      if (reduceMotion.matches || !rafId) setProgress(duration ? position / duration : 0);
+      return;
+    }
+
+    if (state === 'playing' && !pauseRequested && !finished && position < 500) {
+      // Started and immediately stopped without us asking: the browser
+      // blocked autoplay in the frame. Let the visitor press play in it.
+      setState('loading');
+      showFallback();
+      return;
+    }
+
+    if (state === 'playing') {
+      setState('paused');
+      setProgress(duration ? position / duration : 0);
+      announce('Paused');
+    }
   });
 
-  function markPlaying(id: string | null) {
-    document.querySelectorAll<HTMLElement>('[data-spotify-track][data-playing]').forEach((tile) => {
-      delete tile.dataset.playing;
-    });
-    if (!id) return;
-    document.querySelectorAll<HTMLElement>(`[data-spotify-track="${CSS.escape(id)}"]`).forEach((tile) => {
-      tile.dataset.playing = '';
-    });
-  }
-
-  function playTrack(tile: HTMLElement) {
-    const { root, embed, status } = els();
-    const id = tile.dataset.spotifyTrack;
-    if (!root || !embed || !id) return;
-    lastTrigger = tile;
-    if (id === currentId && embed.querySelector('iframe')) return; // already loaded
-
-    currentId = id;
-    const title = tile.dataset.trackTitle ?? 'track';
-    const by = tile.dataset.trackSubtitle ? ` by ${tile.dataset.trackSubtitle}` : '';
-
-    let iframe = embed.querySelector('iframe');
-    if (!iframe) {
-      iframe = document.createElement('iframe');
-      iframe.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture';
-      iframe.loading = 'lazy';
-      embed.appendChild(iframe);
-    }
-    iframe.title = `Spotify player: ${title}${by}`;
-    iframe.src = `${EMBED_URL}${encodeURIComponent(id)}?utm_source=generator`;
-
-    root.hidden = false;
-    document.documentElement.classList.add('spotify-player-open');
-    markPlaying(id);
-    if (status) status.textContent = `Loaded in player: ${title}${by}`;
-  }
-
-  function closePlayer({ restoreFocus = true } = {}) {
-    const { root, embed, status } = els();
-    currentId = null;
-    if (embed) embed.innerHTML = ''; // removing the iframe stops playback
-    if (status) status.textContent = '';
-    if (root) root.hidden = true;
-    document.documentElement.classList.remove('spotify-player-open');
-    markPlaying(null);
-    if (restoreFocus && lastTrigger?.isConnected) lastTrigger.focus();
-    lastTrigger = null;
-  }
-
-  // Delegated listeners on document, registered once: they work for tiles
-  // in static HTML and inside hydrated islands, and survive page swaps.
+  // Delegated listeners on document, registered once: they work for tiles in
+  // static HTML and inside hydrated islands, and survive page swaps.
   document.addEventListener('click', (e) => {
     const target = e.target as Element | null;
-    if (target?.closest('#spotify-player-close')) {
-      closePlayer();
+    if (target?.closest('#spotify-fallback-close')) {
+      stop();
       return;
     }
     const tile = target?.closest<HTMLElement>('[data-spotify-track]');
     if (!tile) return;
     e.preventDefault();
-    playTrack(tile);
+    onTileClick(tile);
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && (e.target as Element | null)?.closest?.('#spotify-player')) {
-      closePlayer();
-    }
+    if (e.key === 'Escape' && document.getElementById('spotify-fallback')?.hidden === false) stop();
   });
 
-  // Leaving the page removes the bar; reset state with it
-  document.addEventListener('astro:before-swap', () => closePlayer({ restoreFocus: false }));
+  // Leaving the page stops playback
+  document.addEventListener('astro:before-swap', stop);
 </script>

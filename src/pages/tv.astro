@@ -3,12 +3,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import TVFilter from '../components/TVFilter';
 import StatGrid from '../components/StatGrid.astro';
 import LoadError from '../components/LoadError.astro';
+import { formatCalendarDate, maybeDate } from '../components/formatDate';
 import { getTmdbTVData } from '../utils/tmdb';
 
 // Fetch TV data from TMDB at build time
 const tvData = await getTmdbTVData();
 
 // Map shows to the format expected by the UI
+type Detail = { label: string; value: string };
+const details = (...rows: Array<[string, string | number | undefined | false]>): Detail[] =>
+  rows.filter(([, v]) => v !== undefined && v !== false && v !== '').map(([label, value]) => ({ label, value: String(value) }));
+
+// Card details formatted at build time (TMDB air dates are calendar dates)
 const shows = (tvData?.shows ?? []).map(show => ({
     data: {
       title: show.title,
@@ -16,7 +22,10 @@ const shows = (tvData?.shows ?? []).map(show => ({
       posterImage: show.posterImage,
       firstAiredAt: show.firstAiredAt,
       rating: show.rating,
-      link: show.link,
+      details: details(
+        ['First aired', maybeDate(show.firstAiredAt) && formatCalendarDate(show.firstAiredAt!, { year: 'numeric', month: 'short', day: 'numeric' })],
+        ['Rating', show.rating ? `${show.rating}/10` : undefined],
+      ),
     }
   }));
 ---

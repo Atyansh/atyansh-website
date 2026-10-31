@@ -4,12 +4,14 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
-    "prebuild": "node scripts/pull-secrets.cjs && node scripts/refresh-tokens.cjs",
     "build": "astro build",
+    "build:fresh": "node scripts/pull-secrets.cjs && node scripts/refresh-tokens.cjs && npm run build",
     "preview": "astro preview",
     "astro": "astro",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "astro sync && tsc --noEmit -p .",
+    "check:astro": "astro check"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.3.14",

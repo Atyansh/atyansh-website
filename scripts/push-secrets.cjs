@@ -2,7 +2,7 @@
 
 /**
  * Push values from .env into the SITE_SECRETS secret (see site-secrets.cjs).
- * Run via ./scripts/sync-secrets-to-gcloud.sh.
+ * The counterpart of pull-secrets.cjs.
  *
  * Usage:
  *   node scripts/push-secrets.cjs                       # every key already in SITE_SECRETS
@@ -22,7 +22,8 @@ const fs = require('fs');
 const path = require('path');
 const { readSecrets, writeSecrets, SECRET_NAME } = require('./site-secrets.cjs');
 
-const ENV_FILE = path.join(process.cwd(), '.env');
+// The repo's .env, wherever this is run from
+const ENV_FILE = path.join(__dirname, '..', '.env');
 
 async function main() {
   const args = process.argv.slice(2);

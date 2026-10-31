@@ -74,7 +74,7 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
 
 4. **Configure your API keys** (see detailed instructions below)
 
-**Note:** `npm run build` automatically syncs secrets from Secret Manager before building (if gcloud is configured). Every credential lives in one JSON secret, `SITE_SECRETS`, which is the single source of truth; push `.env` changes back with `./scripts/sync-secrets-to-gcloud.sh KEY ...` (see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)).
+**Note:** `npm run build` automatically syncs secrets from Secret Manager before building (if gcloud is configured). Every credential lives in one JSON secret, `SITE_SECRETS`, which is the single source of truth; push `.env` changes back with `node scripts/push-secrets.cjs KEY ...` (see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)).
 
 ## Quick Start (Minimal Setup)
 
@@ -299,7 +299,7 @@ MyAnimeList uses OAuth2. Use the included helper script.
    ```
 6. Push both to `SITE_SECRETS` (the cookie must be single-quoted in `.env`; the sync script handles the spaces in it):
    ```bash
-   ./scripts/sync-secrets-to-gcloud.sh GOODREADS_USER_ID GOODREADS_COOKIE
+   node scripts/push-secrets.cjs GOODREADS_USER_ID GOODREADS_COOKIE
    ```
 
 **Note:** Goodreads removed shelf RSS feeds in October 2026 and shelf pages now require sign-in, so the build scrapes your signed-in shelf pages (`/review/list/<id>`).
@@ -373,7 +373,7 @@ Get notified via Discord DM when API keys expire during automated builds.
    DISCORD_BOT_TOKEN=your_discord_bot_token_here
    DISCORD_USER_ID=your_discord_user_id_here
    ```
-6. Push both to `SITE_SECRETS`: `./scripts/sync-secrets-to-gcloud.sh DISCORD_BOT_TOKEN DISCORD_USER_ID` (see [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for details)
+6. Push both to `SITE_SECRETS`: `node scripts/push-secrets.cjs DISCORD_BOT_TOKEN DISCORD_USER_ID` (see [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) for details)
 
 **What it does:**
 - Runs after every build (daily at 2 AM Pacific in production)
@@ -445,8 +445,7 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   ├── oauth-helpers.cjs       # Shared helpers for the OAuth scripts
 │   ├── site-secrets.cjs        # Read/write the single SITE_SECRETS secret
 │   ├── pull-secrets.cjs        # Sync SITE_SECRETS to .env
-│   ├── push-secrets.cjs        # Sync .env to SITE_SECRETS
-│   ├── sync-secrets-to-gcloud.sh # Wrapper for push-secrets.cjs
+│   ├── push-secrets.cjs        # Push .env values to SITE_SECRETS
 │   └── …                       # Token setup and health-check helpers
 ├── src/
 │   ├── audio/                  # Client-side audio engine
@@ -665,7 +664,7 @@ If you accidentally commit secrets:
 **Spotify tokens expire periodically:**
 - Re-run `node scripts/get-spotify-token.cjs` to get new tokens
 - Update `.env` with new values
-- For production: Sync to Google Cloud with `./scripts/sync-secrets-to-gcloud.sh SPOTIFY_REFRESH_TOKEN`
+- For production: Sync to Google Cloud with `node scripts/push-secrets.cjs SPOTIFY_REFRESH_TOKEN`
 
 **PSN uses a refresh token flow** to avoid frequent manual renewal:
 - The NPSSO bootstraps the refresh token on first use
@@ -674,7 +673,7 @@ If you accidentally commit secrets:
 - When the refresh token also expires, get a new NPSSO:
   - Log out of https://store.playstation.com, then log back in
   - Visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh token
-  - Update `PSN_NPSSO` in `.env`, then `./scripts/sync-secrets-to-gcloud.sh PSN_NPSSO`
+  - Update `PSN_NPSSO` in `.env`, then `node scripts/push-secrets.cjs PSN_NPSSO`
 
 **Automated monitoring:**
 - If Discord notifications are configured, you'll automatically receive a DM when tokens expire

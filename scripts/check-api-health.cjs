@@ -58,7 +58,7 @@ const APIs = [
     name: 'PlayStation Network',
     cacheFile: 'psn-data.json',
     checkFn: (data) => data.games && data.games.length > 0,
-    renewal: 'Auto-refreshes via refresh token (~10d window). If that also fails: log out + log back in at playstation.com, get fresh NPSSO from https://ca.account.sony.com/api/v1/ssocookie, set PSN_NPSSO in .env, then ./scripts/sync-secrets-to-gcloud.sh PSN_NPSSO',
+    renewal: 'Auto-refreshes via refresh token (~10d window). If that also fails: log out + log back in at playstation.com, get fresh NPSSO from https://ca.account.sony.com/api/v1/ssocookie, set PSN_NPSSO in .env, then node scripts/push-secrets.cjs PSN_NPSSO',
     requiresApiKey: true,
     selfHealing: true, // Auto-refreshes via refresh token for ~10d; NPSSO bootstrap only needed when that expires
   },
@@ -92,7 +92,7 @@ const APIs = [
     name: 'Goodreads',
     cacheFile: 'goodreads-data.json',
     checkFn: (data) => data.books && data.books.length > 0,
-    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then ./scripts/sync-secrets-to-gcloud.sh GOODREADS_COOKIE',
+    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then node scripts/push-secrets.cjs GOODREADS_COOKIE',
     requiresApiKey: true,
     selfHealing: true, // Session renewed by refresh-tokens.cjs (see "Goodreads (session renewal)")
   },
@@ -101,7 +101,7 @@ const APIs = [
     cacheFile: 'goodreads-session.json',
     checkFn: (data) => data.renewed,
     failReason: (data) => `Couldn't renew the Goodreads login: ${data.error}. The current cookie still works until it expires (up to a year after the last successful renewal), so the books page is fine for now`,
-    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then ./scripts/sync-secrets-to-gcloud.sh GOODREADS_COOKIE',
+    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then node scripts/push-secrets.cjs GOODREADS_COOKIE',
     requiresApiKey: true,
     selfHealing: true, // Re-signs in silently every build, pushing expiry a year out
   },
@@ -129,7 +129,7 @@ const APIs = [
     cacheFile: 'kaya-data.json',
     checkFn: (data) => !data.authError,
     failReason: (data) => `Logged-in fetch failed, fell back to public queries: ${data.authError}`,
-    renewal: 'In Firefox on a Mac, sign in at kaya-app.kayaclimb.com, run copy(localStorage.getItem("refresh_token")) in the console, set KAYA_REFRESH_TOKEN in .env, then ./scripts/sync-secrets-to-gcloud.sh KAYA_REFRESH_TOKEN',
+    renewal: 'In Firefox on a Mac, sign in at kaya-app.kayaclimb.com, run copy(localStorage.getItem("refresh_token")) in the console, set KAYA_REFRESH_TOKEN in .env, then node scripts/push-secrets.cjs KAYA_REFRESH_TOKEN',
     requiresApiKey: true,
     selfHealing: false,
   },

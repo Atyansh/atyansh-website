@@ -75,7 +75,7 @@ DISCORD_USER_ID=123456789012345678
 Then push them (naming the keys adds them):
 
 ```bash
-./scripts/sync-secrets-to-gcloud.sh DISCORD_BOT_TOKEN DISCORD_USER_ID
+node scripts/push-secrets.cjs DISCORD_BOT_TOKEN DISCORD_USER_ID
 ```
 
 ### Step 5: Check Permissions
@@ -167,7 +167,7 @@ You'll receive a Discord DM with an embed containing:
 
 Error: "401"
 - **Cause:** Bot token is invalid or was reset
-- **Fix:** Regenerate the token in the Discord Developer Portal, set `DISCORD_BOT_TOKEN` in `.env`, then `./scripts/sync-secrets-to-gcloud.sh DISCORD_BOT_TOKEN`
+- **Fix:** Regenerate the token in the Discord Developer Portal, set `DISCORD_BOT_TOKEN` in `.env`, then `node scripts/push-secrets.cjs DISCORD_BOT_TOKEN`
 
 Error: "Failed to open DM channel"
 - **Cause:** Bot and user don't share a server
@@ -198,20 +198,20 @@ If you get notifications for APIs that should work:
 
 ## Updating API Keys
 
-When you receive a notification that an API key expired: update the value in `.env`, then push just those keys with `./scripts/sync-secrets-to-gcloud.sh KEY ...` (everything lives in the single `SITE_SECRETS` secret).
+When you receive a notification that an API key expired: update the value in `.env`, then push just those keys with `node scripts/push-secrets.cjs KEY ...` (everything lives in the single `SITE_SECRETS` secret).
 
 ### Spotify
 ```bash
 node scripts/get-spotify-token.cjs
 # Follow prompts, set SPOTIFY_REFRESH_TOKEN in .env, then:
-./scripts/sync-secrets-to-gcloud.sh SPOTIFY_REFRESH_TOKEN
+node scripts/push-secrets.cjs SPOTIFY_REFRESH_TOKEN
 ```
 
 ### MyAnimeList
 ```bash
 node scripts/get-mal-token.cjs
 # Follow prompts, set both tokens in .env, then:
-./scripts/sync-secrets-to-gcloud.sh MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN
+node scripts/push-secrets.cjs MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN
 ```
 
 ### PSN (Refresh Token / NPSSO)
@@ -225,7 +225,7 @@ the NPSSO when the refresh token expires or is revoked.
 3. Copy the `npsso` value from the JSON response
 4. Set `PSN_NPSSO` in `.env`, then:
    ```bash
-   ./scripts/sync-secrets-to-gcloud.sh PSN_NPSSO
+   node scripts/push-secrets.cjs PSN_NPSSO
    ```
 5. The next build will exchange the NPSSO for a fresh refresh token and persist it automatically
 
@@ -234,7 +234,7 @@ the NPSSO when the refresh token expires or is revoked.
 2. Regenerate access token
 3. Set `IGDB_ACCESS_TOKEN` in `.env`, then:
    ```bash
-   ./scripts/sync-secrets-to-gcloud.sh IGDB_ACCESS_TOKEN
+   node scripts/push-secrets.cjs IGDB_ACCESS_TOKEN
    ```
 
 ### Steam
@@ -243,7 +243,7 @@ Steam API keys don't expire, but if you need to regenerate:
 2. Regenerate key
 3. Set `STEAM_API_KEY` in `.env`, then:
    ```bash
-   ./scripts/sync-secrets-to-gcloud.sh STEAM_API_KEY
+   node scripts/push-secrets.cjs STEAM_API_KEY
    ```
 
 ## Disabling Notifications
@@ -252,7 +252,7 @@ If you want to disable Discord notifications but keep the health check:
 
 ### Option 1: Remove the Discord keys from `SITE_SECRETS`
 ```bash
-./scripts/sync-secrets-to-gcloud.sh --remove DISCORD_BOT_TOKEN --remove DISCORD_USER_ID
+node scripts/push-secrets.cjs --remove DISCORD_BOT_TOKEN --remove DISCORD_USER_ID
 ```
 
 The health check will still run and log results, but won't send DMs.

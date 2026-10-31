@@ -254,16 +254,16 @@ After editing your `.env` file:
 
 ```bash
 # Update every key SITE_SECRETS already has from .env
-./scripts/sync-secrets-to-gcloud.sh
+node scripts/push-secrets.cjs
 
 # Update (or add) specific keys
-./scripts/sync-secrets-to-gcloud.sh SPOTIFY_REFRESH_TOKEN
+node scripts/push-secrets.cjs SPOTIFY_REFRESH_TOKEN
 
 # Remove a key
-./scripts/sync-secrets-to-gcloud.sh --remove TMDB_READ_TOKEN
+node scripts/push-secrets.cjs --remove TMDB_READ_TOKEN
 ```
 
-This script (a wrapper around `scripts/push-secrets.cjs`):
+This script:
 - Reads values from `.env` with dotenv, so quoted values with spaces (like `GOODREADS_COOKIE`) work
 - With no key names, only updates keys `SITE_SECRETS` already has — `.env` also holds local-only values (e.g. the 1-hour `PSN_ACCESS_TOKEN`) that must not be stored. Name a key to add it
 - Writes only keys whose value changed, as a single new version
@@ -350,11 +350,11 @@ gcloud builds submit --config cloudbuild.yaml .
 ```
 
 **Manual renewal (fallback if auto-refresh fails):**
-- **Spotify**: Re-run `scripts/get-spotify-token.cjs`, update `.env`, then `./scripts/sync-secrets-to-gcloud.sh SPOTIFY_REFRESH_TOKEN`
-- **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, update `.env`, then `./scripts/sync-secrets-to-gcloud.sh MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN`
-- **TMDB**: The v4 access token is long-lived and shouldn't expire. If revoked, re-run `node scripts/setup-tmdb.cjs`, then `./scripts/sync-secrets-to-gcloud.sh TMDB_ACCESS_TOKEN TMDB_ACCOUNT_OBJECT_ID TMDB_TV_LIST_ID`
-- **PSN**: Uses a refresh token (~10d) bootstrapped from the NPSSO. Only bootstrap when the refresh token expires or is revoked. To bootstrap: log out + log back in at playstation.com, visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh NPSSO, update `.env`, then `./scripts/sync-secrets-to-gcloud.sh PSN_NPSSO` — the next build will exchange it for a refresh token
-- **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then `./scripts/sync-secrets-to-gcloud.sh IGDB_ACCESS_TOKEN`
+- **Spotify**: Re-run `scripts/get-spotify-token.cjs`, update `.env`, then `node scripts/push-secrets.cjs SPOTIFY_REFRESH_TOKEN`
+- **MyAnimeList**: Re-run `scripts/get-mal-token.cjs`, update `.env`, then `node scripts/push-secrets.cjs MAL_ACCESS_TOKEN MAL_REFRESH_TOKEN`
+- **TMDB**: The v4 access token is long-lived and shouldn't expire. If revoked, re-run `node scripts/setup-tmdb.cjs`, then `node scripts/push-secrets.cjs TMDB_ACCESS_TOKEN TMDB_ACCOUNT_OBJECT_ID TMDB_TV_LIST_ID`
+- **PSN**: Uses a refresh token (~10d) bootstrapped from the NPSSO. Only bootstrap when the refresh token expires or is revoked. To bootstrap: log out + log back in at playstation.com, visit https://ca.account.sony.com/api/v1/ssocookie to get a fresh NPSSO, update `.env`, then `node scripts/push-secrets.cjs PSN_NPSSO` — the next build will exchange it for a refresh token
+- **IGDB**: Regenerate access token (expires every ~61 days), update `.env`, then `node scripts/push-secrets.cjs IGDB_ACCESS_TOKEN`
 
 ### Build Succeeds but Site Not Updated
 - Check the release landed: https://console.firebase.google.com/project/personal-website-334502/hosting (release history shows every deploy)
@@ -396,7 +396,7 @@ The site is served by Firebase Hosting (Blaze plan) — its global CDN terminate
 - `cloudbuild-image.yaml` - Build config for the custom Docker image
 - `Dockerfile.cloudbuild` - Custom Docker image with Chrome dependencies
 - `scripts/site-secrets.cjs` - Read/write the single `SITE_SECRETS` secret (merge, validation, version pruning)
-- `scripts/push-secrets.cjs` / `scripts/sync-secrets-to-gcloud.sh` - Sync values from .env into `SITE_SECRETS`
+- `scripts/push-secrets.cjs` - Push values from .env into `SITE_SECRETS`
 - `scripts/pull-secrets.cjs` - Sync `SITE_SECRETS` to .env (runs automatically before builds)
 - `scripts/check-api-health.cjs` - API health monitoring and Discord notifications
 - `API_HEALTH_MONITORING.md` - Complete guide for Discord notification setup

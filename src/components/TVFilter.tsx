@@ -88,6 +88,7 @@ const config: MediaFilterGridConfig<Show> = {
   },
   filterColumnClass: 'lg:grid-cols-4',
   itemNounPlural: 'shows',
+  viewerLabel: 'Show details',
 };
 
 function TVFilterInner({ shows }: TVFilterProps) {

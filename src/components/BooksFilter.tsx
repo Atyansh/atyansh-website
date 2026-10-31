@@ -98,6 +98,7 @@ const config: MediaFilterGridConfig<Book> = {
   },
   filterColumnClass: 'lg:grid-cols-4',
   itemNounPlural: 'books',
+  viewerLabel: 'Book details',
 };
 
 function BooksFilterInner({ books }: BooksFilterProps) {

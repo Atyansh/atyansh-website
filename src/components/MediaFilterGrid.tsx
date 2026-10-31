@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import MediaCard, { type MediaCardDetail } from './MediaCard';
+import MediaViewer, { type ViewerItem } from './MediaViewer';
 
 interface FilterOption {
   value: string;
@@ -43,13 +44,15 @@ export interface MediaFilterGridConfig<T> {
     getRating?: (item: T) => number | undefined;
     /** Accessible rating text, e.g. "9 out of 10" (defaults to "x out of 5 stars") */
     getRatingLabel?: (item: T) => string | undefined;
-    /** Facts shown in the card's expanded panel (pre-formatted at build time) */
+    /** Facts shown in the media viewer (pre-formatted at build time) */
     getDetails?: (item: T) => MediaCardDetail[] | undefined;
   };
   renderItem?: (item: T, index: number) => React.ReactNode;
   gridClassName?: string;
   filterColumnClass: string;
   itemNounPlural: string;
+  /** Accessible name prefix for the viewer dialog, e.g. "Book details" */
+  viewerLabel?: string;
 }
 
 interface MediaFilterGridProps<T> {
@@ -72,6 +75,8 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
     return defaults;
   });
   const [sortBy, setSortBy] = useState(config.defaultSort);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const resolvedFilters = useMemo(() =>
     config.filters.map(f => ({
@@ -95,6 +100,24 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
 
     return filtered;
   }, [items, searchQuery, filterValues, sortBy, config]);
+
+  // The viewer walks the grid in its current filtered/sorted order
+  const viewerItems: ViewerItem[] = useMemo(
+    () =>
+      filteredAndSorted.map((item) => ({
+        image: config.card.getImage(item),
+        title: config.card.getTitle(item),
+        subtitle: config.card.getSubtitle(item),
+        rating: config.card.getRating?.(item),
+        ratingLabel: config.card.getRatingLabel?.(item),
+        details: config.card.getDetails?.(item),
+      })),
+    [filteredAndSorted, config],
+  );
+  const getOrigin = useCallback(
+    (index: number) => gridRef.current?.querySelector<HTMLElement>(`[data-viewer-index="${index}"] img`) ?? null,
+    [],
+  );
 
   const setFilter = (id: string, value: string) => {
     setFilterValues(prev => ({ ...prev, [id]: value }));
@@ -188,10 +211,11 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
       </div>
 
       <AnimatePresence mode="popLayout" initial={false}>
-        <motion.div layout className={gridClassName}>
+        <motion.div layout className={gridClassName} ref={gridRef}>
           {filteredAndSorted.map((item, index) => (
             <motion.div
               key={config.card.getKey(item)}
+              data-viewer-index={index}
               layout
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -205,7 +229,7 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
                   image={config.card.getImage(item)}
                   rating={config.card.getRating?.(item)}
                   ratingLabel={config.card.getRatingLabel?.(item)}
-                  details={config.card.getDetails?.(item)}
+                  onOpen={() => setViewerIndex(index)}
                   eager={index < EAGER_IMAGE_COUNT}
                 />
               )}
@@ -220,6 +244,16 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
             No {config.itemNounPlural} found matching your filters.
           </p>
         </div>
+      )}
+      {viewerIndex !== null && viewerItems[viewerIndex] && (
+        <MediaViewer
+          items={viewerItems}
+          index={viewerIndex}
+          onIndexChange={setViewerIndex}
+          onClose={() => setViewerIndex(null)}
+          getOrigin={getOrigin}
+          label={config.viewerLabel ?? 'Details'}
+        />
       )}
     </div>
     </MotionConfig>

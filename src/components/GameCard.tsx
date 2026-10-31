@@ -16,9 +16,11 @@ export interface GameCardData {
 
 interface GameCardProps {
   game: GameCardData;
+  /** Opens the game in the shared MediaViewer */
+  onOpen?: () => void;
 }
 
-export default function GameCard({ game }: GameCardProps) {
+export default function GameCard({ game, onOpen }: GameCardProps) {
   const [imageError, setImageError] = useState(false);
   const [imageSrc, setImageSrc] = useState(game.image);
   const [fallbackIndex, setFallbackIndex] = useState(0);
@@ -43,10 +45,19 @@ export default function GameCard({ game }: GameCardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Stats overlay: hover (mouse), focus (keyboard), or tap on touch screens
-  // ([data-tap-reveal] → TapToReveal.astro; styles in global.css)
+  // Stats overlay on hover / keyboard focus (global.css); click or tap opens
+  // the detail viewer via the full-card button below
   return (
-    <div className="game-card relative group w-full" tabIndex={0} role="group" aria-label={game.name} data-tap-reveal="">
+    <div className="game-card relative group w-full">
+      {onOpen && (
+        <button
+          type="button"
+          className="game-card-open absolute inset-0 z-30 w-full h-full cursor-pointer rounded-lg"
+          onClick={onOpen}
+          aria-haspopup="dialog"
+          aria-label={`${game.name}: view details`}
+        />
+      )}
       <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden shadow-md border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
         {/* Game Image */}
         {!imageError && imageSrc ? (

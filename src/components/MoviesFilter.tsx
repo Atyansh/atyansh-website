@@ -99,6 +99,7 @@ const config: MediaFilterGridConfig<Movie> = {
   },
   filterColumnClass: 'lg:grid-cols-4',
   itemNounPlural: 'films',
+  viewerLabel: 'Film details',
 };
 
 function MoviesFilterInner({ movies }: MoviesFilterProps) {

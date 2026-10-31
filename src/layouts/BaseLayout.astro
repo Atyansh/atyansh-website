@@ -3,9 +3,7 @@ import '../styles/global.css';
 import ThemeSwitcher from '../components/ThemeSwitcher.astro';
 import AudioToggle from '../components/AudioToggle.astro';
 import StructuredData from '../components/StructuredData.astro';
-import TapToReveal from '../components/TapToReveal.astro';
 import ImageWarmup from '../components/ImageWarmup.astro';
-import CardExpand from '../components/CardExpand.astro';
 import { ViewTransitions } from 'astro:transitions';
 
 interface Props {
@@ -358,8 +356,6 @@ if (image) {
       </div>
     </footer>
 
-    <TapToReveal />
-    <CardExpand />
     <ImageWarmup />
   </body>
 </html>

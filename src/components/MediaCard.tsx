@@ -1,5 +1,6 @@
 import { useId, type CSSProperties, type ReactNode } from 'react';
 import StarRating from './StarRating';
+import PlayButton from './PlayButton';
 
 export interface MediaCardDetail {
   label: string;
@@ -81,22 +82,6 @@ export default function MediaCard({
             background: 'linear-gradient(to bottom, transparent 0%, transparent 20%, color-mix(in srgb, var(--bg-primary) 95%, transparent) 100%)'
           }}
         >
-          {spotify && (
-            <span className="absolute inset-x-0 top-0 bottom-[40%] flex items-center justify-center" aria-hidden="true">
-              <span className="track-control relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: 'var(--bg-primary)' }}>
-                <svg className="track-ring absolute inset-0 w-full h-full" viewBox="0 0 56 56">
-                  <circle className="track-ring-bg" cx="28" cy="28" r="26" fill="none" strokeWidth="3" />
-                  <circle className="track-ring-progress" cx="28" cy="28" r="26" fill="none" strokeWidth="3" pathLength={1} strokeDasharray="1" strokeLinecap="round" />
-                </svg>
-                <svg className="track-icon-play w-5 h-5" style={{ transform: 'translateX(1px)' }} fill="var(--accent)" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                <svg className="track-icon-pause w-5 h-5" fill="var(--accent)" viewBox="0 0 24 24">
-                  <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
-                </svg>
-              </span>
-            </span>
-          )}
           <span className="relative block p-4" style={{ color: 'var(--text-primary)' }}>
             <span className="font-bold text-lg mb-1 line-clamp-2">{title}</span>
             {subtitle && <span className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{subtitle}</span>}
@@ -118,6 +103,14 @@ export default function MediaCard({
             )}
           </span>
         </span>
+
+        {/* Centered on the tile; shown with the overlay (and always on touch
+            screens, which can't hover) */}
+        {spotify && (
+          <span className="media-card-play absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
+            <PlayButton />
+          </span>
+        )}
       </span>
 
       {/* Minimal caption, hidden while the overlay is showing */}

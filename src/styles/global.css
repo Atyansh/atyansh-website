@@ -847,8 +847,10 @@ html[data-audio-enabled] .audio-gated {
 /* Media cards (MediaCard.tsx, and GameCard.tsx's overlay). The detail
    overlay shows on hover for real hover pointers, on keyboard focus, when
    tapped on touch screens ([data-expanded] via TapToReveal.astro), and on
-   the active Spotify track. */
-.media-card-overlay {
+   the active Spotify track. The play control (music tiles) follows it, and
+   is always shown on touch screens, which can't hover. */
+.media-card-overlay,
+.media-card-play {
   opacity: 0;
   transition: opacity 0.3s;
 }
@@ -861,6 +863,8 @@ html[data-audio-enabled] .audio-gated {
 .media-card:focus-visible .media-card-overlay,
 .media-card[data-expanded] .media-card-overlay,
 .media-card[data-track-state] .media-card-overlay,
+.media-card:focus-visible .media-card-play,
+.media-card[data-track-state] .media-card-play,
 .game-card:focus-visible .media-card-overlay,
 .game-card[data-expanded] .media-card-overlay {
   opacity: 1;
@@ -874,6 +878,7 @@ html[data-audio-enabled] .audio-gated {
 
 @media (hover: hover) {
   .media-card:hover .media-card-overlay,
+  .media-card:hover .media-card-play,
   .game-card:hover .media-card-overlay {
     opacity: 1;
   }
@@ -883,14 +888,22 @@ html[data-audio-enabled] .audio-gated {
   }
 }
 
+@media (hover: none) {
+  .media-card-play {
+    opacity: 1;
+  }
+}
+
 /* Hover lift, as before (10px up over 0.2s; no image zoom) */
 @media (prefers-reduced-motion: no-preference) {
-  .media-card {
+  .media-card,
+  .media-lift {
     transition: translate 0.2s ease-out;
   }
 
   @media (hover: hover) {
-    .media-card:hover {
+    .media-card:hover,
+    .media-lift:hover {
       translate: 0 -10px;
     }
   }
@@ -918,40 +931,112 @@ html[data-audio-enabled] .audio-gated {
   z-index: 30;
 }
 
-/* Spotify track control: play/pause icon inside a progress ring
-   (SpotifyPlayer.astro sets data-track-state and --track-progress) */
-.track-ring {
+/* Shared play control (PlayButton.tsx): music tiles and climbing videos.
+   One SVG, so the ring is concentric with the button in every theme and
+   no border-radius rules can turn it into a box. State comes from the
+   nearest [data-track-state] (loading | playing | paused | ready) and
+   progress from --track-progress (0–1), both set by SpotifyPlayer.astro. */
+.play-btn {
+  display: block;
+  width: 3.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+}
+
+.play-btn--sm {
+  width: 3rem;
+  height: 3rem;
+}
+
+@media (max-width: 639.98px) {
+  .play-btn {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .play-btn--sm {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+}
+
+.play-btn-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+
+.play-btn-bg {
+  fill: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+}
+
+.play-btn-ring {
+  transform-box: view-box;
+  transform-origin: 28px 28px;
   transform: rotate(-90deg);
 }
 
-.track-ring-bg {
+.play-btn-track {
   stroke: var(--accent);
+  transition: stroke 0.2s;
 }
 
-.track-ring-progress {
+.play-btn-progress {
   stroke: var(--accent);
   stroke-dashoffset: calc(1 - var(--track-progress, 0));
   opacity: 0;
 }
 
-.media-card[data-track-state] .track-ring-bg {
-  stroke: color-mix(in srgb, var(--accent) 25%, transparent);
+.play-btn-play,
+.play-btn-pause {
+  fill: var(--accent);
 }
 
-.media-card[data-track-state] .track-ring-progress {
+.play-btn-pause {
+  display: none;
+}
+
+[data-track-state] .play-btn-track {
+  stroke: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+[data-track-state] .play-btn-progress {
   opacity: 1;
 }
 
-.track-icon-pause {
+[data-track-state='playing'] .play-btn-pause {
+  display: inline;
+}
+
+[data-track-state='playing'] .play-btn-play {
   display: none;
 }
 
-.media-card[data-track-state='playing'] .track-icon-pause {
-  display: block;
+/* Loading: a spinning arc until the preview is actually playing */
+[data-track-state='loading'] .play-btn-progress {
+  stroke-dashoffset: 0.72;
 }
 
-.media-card[data-track-state='playing'] .track-icon-play {
-  display: none;
+@media (prefers-reduced-motion: no-preference) {
+  [data-track-state='loading'] .play-btn-ring {
+    animation: play-btn-spin 0.9s linear infinite;
+  }
+
+  /* Smooth the stepped progress a little between rAF frames */
+  [data-track-state='paused'] .play-btn-progress {
+    transition: stroke-dashoffset 0.2s;
+  }
+}
+
+@keyframes play-btn-spin {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
 }
 
 /* Playlist "Play" pill (music.astro) shares the player states */
@@ -971,23 +1056,22 @@ html[data-audio-enabled] .audio-gated {
   opacity: 0.7;
 }
 
-/* Loading: a spinning quarter arc until the preview actually starts */
-.media-card[data-track-state='loading'] .track-ring-progress {
-  stroke-dashoffset: 0.75;
+/* PlayButton over a video thumbnail (/climbing, project videos): always
+   shown on touch screens; with a mouse it fades in, over a light dim, on
+   hover / keyboard focus of the .group tile */
+.tile-play {
+  transition: opacity 0.3s;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .media-card[data-track-state='loading'] .track-ring {
-    animation: track-spin 0.9s linear infinite;
+@media (hover: hover) {
+  .tile-play {
+    opacity: 0;
+    background: rgba(0, 0, 0, 0.3);
   }
-}
 
-@keyframes track-spin {
-  from {
-    transform: rotate(-90deg);
-  }
-  to {
-    transform: rotate(270deg);
+  .group:hover .tile-play,
+  .group:focus-visible .tile-play {
+    opacity: 1;
   }
 }
 

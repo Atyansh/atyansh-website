@@ -59,7 +59,7 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
               <iframe
                 key={`video-${activeVideo}`}
                 className="absolute top-0 left-0 w-full h-full"
-                src={`https://www.youtube.com/embed/${currentVideoId}`}
+                src={`https://www.youtube-nocookie.com/embed/${currentVideoId}`}
                 title={videos[activeVideo].title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

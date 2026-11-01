@@ -5,15 +5,17 @@
 # Run from a checkout of the branch to preview:
 #   gcloud builds submit --config=cloudbuild-preview.yaml \
 #     --substitutions=_CHANNEL=my-branch .
-# The URL (https://personal-website-334502--<channel>-<hash>.web.app) is
+# The URL (https://<project-id>--<channel>-<hash>.web.app) is
 # printed at the end of the log and expires after _EXPIRES.
 #
 # Differences from production, on purpose:
 # - Deploys to a preview channel, never the live site.
 # - Doesn't save .cache to the build-cache bucket or the snapshot archive, so
 #   a preview can't overwrite production's last-known-good data.
-# - Runs the health check report-only (no CLOUD_BUILD env, so it doesn't load
-#   the Discord credentials and sends no DM).
+# - Runs the health check with --report-only (it reads SITE_SECRETS to know
+#   which integrations are configured, but sends no DM).
+# Project-specific names use the built-in $PROJECT_ID substitution, as in
+# cloudbuild.yaml.
 # Like production, renewed tokens ARE saved to SITE_SECRETS: providers that
 # rotate refresh tokens may invalidate the old one once it's used, so not
 # saving could break the next production build. Avoid running a preview while
@@ -23,7 +25,7 @@ substitutions:
   _EXPIRES: '7d'
 
 steps:
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
     entrypoint: npm
     args: ['ci']
     id: 'install-dependencies'
@@ -32,11 +34,11 @@ steps:
     entrypoint: bash
     args:
       - '-c'
-      - 'mkdir -p .cache-fallback && gsutil -m rsync -r gs://personal-website-334502_cloudbuild/build-cache .cache-fallback || echo "WARNING: could not restore previous build cache"'
+      - 'mkdir -p .cache-fallback && gsutil -m rsync -r gs://${PROJECT_ID}_cloudbuild/build-cache .cache-fallback || echo "WARNING: could not restore previous build cache"'
     id: 'restore-build-cache'
     waitFor: ['-']
 
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
     entrypoint: bash
     args:
       - '-c'
@@ -64,9 +66,10 @@ steps:
     env:
       - 'NODE_ENV=production'
       - 'CLOUD_BUILD=true'
+      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID'  # SITE_SECRETS lives in this build's project
     waitFor: ['install-dependencies', 'restore-build-cache']
 
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
     entrypoint: bash
     args:
       - '-c'
@@ -98,16 +101,19 @@ steps:
       - 'CI=true'
     waitFor: ['install-dependencies']
 
-  # Report-only: without CLOUD_BUILD it doesn't read the Discord credentials
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+  # Report-only: reads SITE_SECRETS (to know which integrations are
+  # configured) but never sends a DM
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
     entrypoint: node
-    args: ['scripts/check-api-health.cjs']
+    args: ['scripts/check-api-health.cjs', '--report-only']
     id: 'check-api-health'
     env:
       - 'NODE_ENV=production'
+      - 'CLOUD_BUILD=true'
+      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
     waitFor: ['build-site', 'test']
 
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22-2026-10-31'
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
     entrypoint: bash
     args:
       - '-c'
@@ -116,7 +122,7 @@ steps:
           echo "Not deploying the preview: failed step(s): $$(ls .ci-failures | tr '\n' ' ')"
           exit 1
         fi
-        npx firebase-tools hosting:channel:deploy ${_CHANNEL} --expires ${_EXPIRES} --project personal-website-334502 --non-interactive
+        npx firebase-tools hosting:channel:deploy ${_CHANNEL} --expires ${_EXPIRES} --project $PROJECT_ID --non-interactive
     id: 'deploy-preview'
     waitFor: ['build-site', 'test', 'check-api-health']
 

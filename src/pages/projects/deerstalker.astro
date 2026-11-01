@@ -72,7 +72,7 @@ const developmentImages = [
   {
     src: '/projects/deerstalker/3d-modeling.png',
     alt: '3D modeling in progress',
-    caption: '3D character modeling and rigging in Maya'
+    caption: '3D character modeling in Maya'
   },
   {
     src: '/projects/deerstalker/week5-skin-painting.png',
@@ -168,6 +168,7 @@ const weeklyProgress = [
       'Split every hat into a primary and secondary ability, with one HatType enum shared by client and server',
       'Built the propeller hat and the wizard hat\'s mango shot, aimed from the player\'s rotation quaternion',
       'Moved client message handling out of the window code into a state-based MessageHandler',
+      'Sped up the physics simulation and moved character movement back to forces, which made the game feel much better',
     ]
   },
   {
@@ -301,18 +302,24 @@ void Game::loopReset() {
         </h2>
         <div class="space-y-4 text-lg" style="color: var(--text-secondary);">
           <p>
-            CSE 125 at UC San Diego is a ten-week course where a team builds a networked 3D game from scratch.
-            Our team of seven was Team Deerstalker, and the class listing called the game "Super Awesome Hat Attack Mania Wars";
-            the window title just says Deerstalker. Four players start on a construction-site stage with three lives each.
-            Fall off and you lose a life; the last player with lives left wins. Hats drop onto the middle of the stage every
-            ten seconds or so, and each one gives you two abilities for as long as you wear it.
+            CSE 125 at UC San Diego is a ten-week capstone where a team builds a networked 3D game from scratch, with no
+            game engine. Our team of seven was Team Deerstalker. The game went by "Rag Cage" on our team site and
+            "Super Awesome Hat Attack Mania Wars" at the class showcase, and the pitch was simple: mysterious hats with great
+            power have started showing up all over the world, so prove you're the true hat master in a last-one-standing brawl.
           </p>
           <p>
-            I wrote the server and the networking: the game loop, the protobuf protocol, the Bullet physics world, the character
+            Four players start on a construction-site stage with three lives each. Fall off and you lose a life; the last
+            player with lives left wins. Hats drop onto the middle of the stage every ten seconds or so, and each one gives
+            you two abilities for as long as you wear it. The idea started as a four-person "pseudo wrestling" game with
+            rag-doll fighting, and the hats were the hook from the very first design doc.
+          </p>
+          <p>
+            We split into a graphics and modeling sub-team and a networking and game-logic sub-team, and I was on the
+            second. I wrote the server and the networking: the game loop, the protobuf protocol, the Bullet physics world, the character
             controller, all the combat and hat logic, the client's input and message handling, and the FMOD sound engine. By
             <code>git blame</code>, about 88% of the server code is mine. The rest of the team built the skeletal animation
-            system, the HUD and text rendering, the camera and skybox, and the art (modeling, rigging and animating the
-            characters and hats), and wrote server pieces I built on or merged: the first server skeleton, the config loader,
+            system and its ten character animations, the HUD and text rendering, the camera, skybox and cloud floor, and
+            the art (modeling, rigging and animating the characters, the stage and five hats), and wrote server pieces I built on or merged: the first server skeleton, the config loader,
             item drops, respawning and shooting.
           </p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
@@ -361,7 +368,7 @@ void Game::loopReset() {
             The server runs Boost.Asio on one thread to accept connections and read messages, and pushes every incoming message
             onto a mutex-protected queue. The main thread runs a fixed 30 Hz loop: drain the queue and apply each input event,
             step the Bullet world, expire mangoes and hats, update stun and respawn timers, then broadcast the result.
-            Each tick advances Bullet in four fixed 1/60 s substeps.
+            Each tick advances Bullet by 1/15 s in four 1/60 s substeps, so the physics runs at double speed. We sped it up in week 8 because the game felt more natural that way.
           </p>
           <p>
             <strong style="color: var(--text-primary);">What goes over the wire.</strong> Both directions use one protobuf
@@ -516,7 +523,7 @@ void Game::loopReset() {
               <span style="color: var(--text-primary);">Character controller</span>
             </h3>
             <p class="mb-2" style="color: var(--text-secondary);"><strong>Problem:</strong> Bullet's kinematic character controller has known issues, and it didn't work for us.</p>
-            <p style="color: var(--text-secondary);"><strong>Fix:</strong> Players became ordinary rigid bodies with rotation locked, moved by forces, with ray casts for ground checks and attack targets. In the last week I tried mixing in direct velocity control, then switched back to forces only on the final day.</p>
+            <p style="color: var(--text-secondary);"><strong>Fix:</strong> Players became ordinary rigid bodies with rotation locked, moved by forces, with ray casts for ground checks and attack targets.</p>
           </div>
           <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
             <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
@@ -577,8 +584,8 @@ void Game::loopReset() {
           <div class="flex gap-4">
             <span class="text-3xl">📚</span>
             <div>
-              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">Learning curves collide</h4>
-              <p style="color: var(--text-secondary);">Bullet and skeletal animation got hard for both sub-teams in the same stretch. The rag-doll style fighting we originally planned was dropped, mostly because it was too hard to build in Bullet.</p>
+              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">From scratch</h4>
+              <p style="color: var(--text-secondary);">Building the engine ourselves is the point of the course, and I liked it: it's how you learn what a game engine actually does. For a game I just wanted to make, I'd reach for an engine like Unity and spend the time on gameplay instead.</p>
             </div>
           </div>
         </div>

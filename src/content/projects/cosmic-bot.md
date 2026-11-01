@@ -1,6 +1,6 @@
 ---
 title: 'Cosmic Bot'
-description: "A Discord bot for Cosmic Encounter: type !alien and a name, and it posts that alien's full power sheet, for any of nearly 200 aliens."
+description: "A Discord bot for our Cosmic Encounter nights on Tabletop Simulator: type !alien and a name to pull up that alien's full power sheet."
 technologies: ['Python', 'discord.py']
 featured: false
 startDate: 2020-08-01
@@ -8,9 +8,9 @@ links:
   github: 'https://github.com/atyansh/cosmic-bot'
 ---
 
-Cosmic Encounter is a board game where every player is an alien with a power that breaks the rules in its own way. Between the base game and its expansions there are nearly 200 of them, and when someone across the table plays one you've never seen, you want to know what it does right now.
+During the COVID lockdowns, my friends and I played a lot of Cosmic Encounter on Tabletop Simulator, with a Discord group for voice and chat. In Cosmic Encounter every player is an alien with a power that breaks the rules in its own way. Between the base game and its expansions there are nearly 200 of them, so someone was always asking what an alien actually does.
 
-So I made a Discord bot for it. Type `!alien <name>` in a channel and it posts that alien's full sheet: the power, its history, notes, and the Wild and Super flares.
+So I made a bot for our Discord. Type `!alien <name>` and it posts that alien's full sheet mid-game: the power, its history, notes, and the Wild and Super flares.
 
 ```
 !alien ace

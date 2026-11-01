@@ -20,33 +20,78 @@
  * so it uses the Node SDK. Locally the SDK has no credentials unless you've run
  * `gcloud auth application-default login`, so it shells out to the gcloud CLI
  * you're already signed in to.
+ *
+ * Project: SITE_GCP_PROJECT, else GOOGLE_CLOUD_PROJECT / GCP_PROJECT /
+ * GCLOUD_PROJECT (cloudbuild*.yaml set GOOGLE_CLOUD_PROJECT=$PROJECT_ID),
+ * else the project the Cloud Build SDK detects, else locally
+ * `gcloud config get-value project`. Nothing here names a project, so a fork
+ * works in its own.
  */
 
 const { execFileSync } = require('child_process');
 
-const PROJECT_ID = 'personal-website-334502';
 const SECRET_NAME = 'SITE_SECRETS';
 const KEEP_VERSIONS = 3;
 const MAX_BYTES = 60 * 1024; // Secret Manager's limit is 64 KiB per version
 
 const isCloudBuild = () => process.env.CLOUD_BUILD === 'true' || Boolean(process.env.BUILD_ID);
 
+const PROJECT_ENV_KEYS = ['SITE_GCP_PROJECT', 'GOOGLE_CLOUD_PROJECT', 'GCP_PROJECT', 'GCLOUD_PROJECT'];
+
+const UNKNOWN_PROJECT = 'Unknown Google Cloud project for SITE_SECRETS: set SITE_GCP_PROJECT '
+  + '(or GOOGLE_CLOUD_PROJECT) to your project id, or run `gcloud config set project <id>`';
+
+/** The project named in the environment, if any. Pure. */
+function projectFromEnv(env = process.env) {
+  const key = PROJECT_ENV_KEYS.find(k => env[k] && env[k].trim());
+  return key ? env[key].trim() : null;
+}
+
+/** `gcloud config get-value project`, or null if gcloud is missing/unset */
+function projectFromGcloud() {
+  try {
+    const value = execFileSync('gcloud', ['config', 'get-value', 'project'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return value && value !== '(unset)' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The Google Cloud project holding SITE_SECRETS (see the header comment).
+ * Throws a clear error when it can't be determined.
+ */
+function resolveProjectId({ env = process.env, gcloud = projectFromGcloud } = {}) {
+  const project = projectFromEnv(env) || gcloud();
+  if (!project) throw new Error(UNKNOWN_PROJECT);
+  return project;
+}
+
 /** Node SDK transport (Cloud Build) */
 function sdkStore() {
   const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
   const client = new SecretManagerServiceClient();
-  const parent = `projects/${PROJECT_ID}/secrets/${SECRET_NAME}`;
+  let parentPromise;
+  // Env first; else the project of the build's credentials (metadata server)
+  const secretParent = () => parentPromise ??= (async () => {
+    const project = projectFromEnv() || await client.getProjectId().catch(() => null);
+    if (!project) throw new Error(UNKNOWN_PROJECT);
+    return `projects/${project}/secrets/${SECRET_NAME}`;
+  })();
   return {
     async access() {
-      const [version] = await client.accessSecretVersion({ name: `${parent}/versions/latest` });
+      const [version] = await client.accessSecretVersion({ name: `${await secretParent()}/versions/latest` });
       return { version: version.name, payload: version.payload.data.toString('utf8') };
     },
     async add(payload) {
-      const [version] = await client.addSecretVersion({ parent, payload: { data: Buffer.from(payload, 'utf8') } });
+      const [version] = await client.addSecretVersion({ parent: await secretParent(), payload: { data: Buffer.from(payload, 'utf8') } });
       return version.name;
     },
     async list() {
-      const [versions] = await client.listSecretVersions({ parent });
+      const [versions] = await client.listSecretVersions({ parent: await secretParent() });
       return versions.map(v => ({ name: v.name, state: v.state }));
     },
     async destroy(name) {
@@ -57,7 +102,8 @@ function sdkStore() {
 
 /** gcloud CLI transport (local machines) */
 function cliStore() {
-  const gcloud = (args, input) => execFileSync('gcloud', [...args, `--project=${PROJECT_ID}`], {
+  let project;
+  const gcloud = (args, input) => execFileSync('gcloud', [...args, `--project=${project ??= resolveProjectId()}`], {
     input,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -176,8 +222,9 @@ async function writeSecrets(updates, { removals = [], store = defaultStore(), lo
 }
 
 module.exports = {
-  PROJECT_ID,
   SECRET_NAME,
+  projectFromEnv,
+  resolveProjectId,
   KEEP_VERSIONS,
   isCloudBuild,
   mergeUpdates,

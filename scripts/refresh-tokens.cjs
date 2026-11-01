@@ -22,13 +22,8 @@
 const fs = require('fs');
 const path = require('path');
 const { readSecrets, writeSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs');
-
-// Load .env file for local development
-try {
-  require('dotenv').config();
-} catch (e) {
-  // dotenv not available in Cloud Build, that's fine
-}
+const { shellQuote, envValue, applyEnvUpdates } = require('./env-file.cjs');
+const { isToggledOn } = require('./site-config.cjs');
 
 const ENV_FILE = path.join(process.cwd(), '.env');
 
@@ -105,14 +100,6 @@ async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
 }
 
 /**
- * Single-quote a value for bash / dotenv. Cookies contain spaces, |, ?, &
- * and could contain $ or `, none of which survive double quotes or no quotes.
- */
-function shellQuote(value) {
-  return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
-
-/**
  * Write tokens to a file that can be sourced by bash.
  * In Cloud Build this carries every credential (not just refreshed ones)
  * from this script to the build step, since SITE_SECRETS is read here.
@@ -131,11 +118,6 @@ function writeRefreshFile(updates) {
   console.log(`  ✓ Wrote ${Object.keys(updates).length} token(s) to .env.refresh`);
 }
 
-/** Values with whitespace or # need quoting in .env; plain tokens stay bare */
-function envValue(value) {
-  return /[\s#'"]/.test(value) ? shellQuote(value) : value;
-}
-
 /**
  * Update .env file with new token values
  */
@@ -149,19 +131,8 @@ function updateEnvFile(updates) {
     return;
   }
 
-  let content = fs.readFileSync(ENV_FILE, 'utf-8');
-
-  for (const [key, value] of Object.entries(updates)) {
-    const regex = new RegExp(`^${key}=.*$`, 'm');
-    if (regex.test(content)) {
-      // Function replacement: a $ in the value must not be read as a $& pattern
-      content = content.replace(regex, () => `${key}=${envValue(value)}`);
-    } else {
-      content += `\n${key}=${envValue(value)}`;
-    }
-  }
-
-  fs.writeFileSync(ENV_FILE, content);
+  const content = fs.readFileSync(ENV_FILE, 'utf-8');
+  fs.writeFileSync(ENV_FILE, applyEnvUpdates(content, updates));
   console.log(`  ✓ Updated .env file with ${Object.keys(updates).length} token(s)`);
 }
 
@@ -522,6 +493,24 @@ async function saveSecretUpdates() {
   }
 }
 
+/**
+ * readSecrets() with retries: if SITE_SECRETS can't be loaded, the whole
+ * build runs without credentials, so a transient Secret Manager error
+ * shouldn't be the end of it.
+ */
+async function readSecretsWithRetry({ attempts = 3, delayMs = 2000, read = readSecrets } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await read();
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      const delay = delayMs * Math.pow(2, attempt - 1);
+      console.log(`  ⚠ Could not load ${SECRET_NAME} (attempt ${attempt}/${attempts}): ${error.message}; retrying in ${delay}ms`);
+      await sleep(delay);
+    }
+  }
+}
+
 async function main() {
   console.log('🔄 Pre-build token refresh\n');
 
@@ -530,7 +519,7 @@ async function main() {
   let loaded = {};
   if (isCloudBuild()) {
     try {
-      loaded = (await readSecrets()).values;
+      loaded = (await readSecretsWithRetry()).values;
       Object.assign(process.env, loaded);
       console.log(`  ✓ Loaded ${Object.keys(loaded).length} credentials from ${SECRET_NAME}\n`);
     } catch (error) {
@@ -542,18 +531,28 @@ async function main() {
 
   // Refresh all tokens in parallel. Each only records its new values in
   // memory, so they can't race each other; one save happens afterwards.
-  const results = await Promise.allSettled([
-    refreshMAL().then(r => { console.log('  MAL: done'); return r; }),
-    refreshIGDB().then(r => { console.log('  IGDB: done'); return r; }),
-    refreshPSN().then(r => { console.log('  PSN: done'); return r; }),
-    refreshGoodreads().then(r => { console.log('  Goodreads: done'); return r; }),
-  ]);
+  // Integrations switched off in src/site.config.ts are left alone; ones
+  // without credentials skip themselves.
+  const refreshers = [
+    ['MAL', 'myanimelist', refreshMAL],
+    ['IGDB', 'igdb', refreshIGDB],
+    ['PSN', 'psn', refreshPSN],
+    ['Goodreads', 'goodreads', refreshGoodreads],
+  ];
+  const results = await Promise.allSettled(refreshers.map(async ([name, id, refresh]) => {
+    if (!isToggledOn(id)) {
+      console.log(`  Skipping ${name}: switched off in src/site.config.ts`);
+      return null;
+    }
+    const r = await refresh();
+    console.log(`  ${name}: done`);
+    return r;
+  }));
 
   // Log any unexpected rejections
   results.forEach((result, i) => {
     if (result.status === 'rejected') {
-      const names = ['MAL', 'IGDB', 'PSN', 'Goodreads'];
-      console.log(`  ✗ ${names[i]} unexpected error: ${result.reason?.message || result.reason}`);
+      console.log(`  ✗ ${refreshers[i][0]} unexpected error: ${result.reason?.message || result.reason}`);
     }
   });
 
@@ -570,18 +569,38 @@ async function main() {
   console.log('\n✅ Token refresh complete\n');
 }
 
-// The Secret Manager gRPC client can throw async errors that escape the
-// per-call try/catch (e.g. ADC lookup failures on local machines). Those
-// must not kill the prebuild — persist failures are already tolerated.
-process.on('uncaughtException', (error) => {
-  console.log(`  ⚠ Ignoring async error: ${error.message}`);
-});
-process.on('unhandledRejection', (reason) => {
-  console.log(`  ⚠ Ignoring async rejection: ${reason?.message || reason}`);
-});
+if (require.main === module) {
+  // Load .env file for local development (not on import, e.g. from tests)
+  try {
+    require('dotenv').config();
+  } catch (e) {
+    // dotenv not available in Cloud Build, that's fine
+  }
 
-main().catch((error) => {
-  console.error('Token refresh failed:', error);
-  // Don't exit with error - let the build continue with existing tokens
-  process.exit(0);
-});
+  // The Secret Manager gRPC client can throw async errors that escape the
+  // per-call try/catch (e.g. ADC lookup failures on local machines). Those
+  // must not kill the prebuild — persist failures are already tolerated.
+  process.on('uncaughtException', (error) => {
+    console.log(`  ⚠ Ignoring async error: ${error.message}`);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.log(`  ⚠ Ignoring async rejection: ${reason?.message || reason}`);
+  });
+
+  main().catch((error) => {
+    console.error('Token refresh failed:', error);
+    // Don't exit with error - let the build continue with existing tokens
+    process.exit(0);
+  });
+}
+
+module.exports = {
+  parseCookieHeader,
+  applySetCookies,
+  serializeJar,
+  shellQuote,
+  envValue,
+  applyEnvUpdates,
+  readSecretsWithRetry,
+  GOODREADS_SIGNIN_URL,
+};

@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import MediaCard from './MediaCard';
+import { useState, useMemo, useRef, useCallback } from 'react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
+import MediaCard, { type MediaCardDetail } from './MediaCard';
+import MediaViewer, { type ViewerItem } from './MediaViewer';
 
 interface FilterOption {
   value: string;
@@ -39,18 +40,30 @@ export interface MediaFilterGridConfig<T> {
     getTitle: (item: T) => string;
     getSubtitle: (item: T) => string;
     getImage: (item: T) => string;
+    /** 0–5 scale; fractional values show half stars */
     getRating?: (item: T) => number | undefined;
+    /** Accessible rating text, e.g. "9 out of 10" (defaults to "x out of 5 stars") */
+    getRatingLabel?: (item: T) => string | undefined;
+    /** Facts shown in the media viewer (pre-formatted at build time) */
+    getDetails?: (item: T) => MediaCardDetail[] | undefined;
   };
   renderItem?: (item: T, index: number) => React.ReactNode;
   gridClassName?: string;
   filterColumnClass: string;
   itemNounPlural: string;
+  /** Accessible name prefix for the viewer dialog, e.g. "Book details" */
+  viewerLabel?: string;
 }
 
 interface MediaFilterGridProps<T> {
   items: T[];
   config: MediaFilterGridConfig<T>;
 }
+
+// Covers in the first rows load eagerly; the rest are lazy (and warmed up in
+// the background once the page has loaded, see ImageWarmup.astro). The
+// aspect-ratio boxes reserve their space, so there's no layout shift.
+const EAGER_IMAGE_COUNT = 12;
 
 export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridProps<T>) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,6 +75,8 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
     return defaults;
   });
   const [sortBy, setSortBy] = useState(config.defaultSort);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const resolvedFilters = useMemo(() =>
     config.filters.map(f => ({
@@ -86,17 +101,37 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
     return filtered;
   }, [items, searchQuery, filterValues, sortBy, config]);
 
+  // The viewer walks the grid in its current filtered/sorted order
+  const viewerItems: ViewerItem[] = useMemo(
+    () =>
+      filteredAndSorted.map((item) => ({
+        image: config.card.getImage(item),
+        title: config.card.getTitle(item),
+        subtitle: config.card.getSubtitle(item),
+        rating: config.card.getRating?.(item),
+        ratingLabel: config.card.getRatingLabel?.(item),
+        details: config.card.getDetails?.(item),
+      })),
+    [filteredAndSorted, config],
+  );
+  const getOrigin = useCallback(
+    (index: number) => gridRef.current?.querySelector<HTMLElement>(`[data-viewer-index="${index}"] img`) ?? null,
+    [],
+  );
+
   const setFilter = (id: string, value: string) => {
     setFilterValues(prev => ({ ...prev, [id]: value }));
   };
 
   const gridClassName = config.gridClassName ?? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6';
 
+  // Server-rendered cards must be visible before (and without) hydration, so
+  // nothing animates in on first render (AnimatePresence initial={false});
+  // only filter/sort changes animate, and not at all under reduced motion.
   return (
+    <MotionConfig reducedMotion="user">
     <div className="w-full">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="mb-8 p-6 rounded-lg"
         style={{ backgroundColor: 'var(--bg-secondary)' }}
       >
@@ -170,16 +205,17 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
           </div>
         </div>
 
-        <div className="mt-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <div className="mt-4 text-sm" style={{ color: 'var(--text-secondary)' }} aria-live="polite">
           Showing {filteredAndSorted.length} of {items.length} {config.itemNounPlural}
         </div>
-      </motion.div>
+      </div>
 
-      <AnimatePresence mode="popLayout">
-        <motion.div layout className={gridClassName}>
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.div layout className={gridClassName} ref={gridRef}>
           {filteredAndSorted.map((item, index) => (
             <motion.div
               key={config.card.getKey(item)}
+              data-viewer-index={index}
               layout
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -192,7 +228,9 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
                   subtitle={config.card.getSubtitle(item)}
                   image={config.card.getImage(item)}
                   rating={config.card.getRating?.(item)}
-                  delay={0}
+                  ratingLabel={config.card.getRatingLabel?.(item)}
+                  onOpen={() => setViewerIndex(index)}
+                  eager={index < EAGER_IMAGE_COUNT}
                 />
               )}
             </motion.div>
@@ -201,12 +239,23 @@ export default function MediaFilterGrid<T>({ items, config }: MediaFilterGridPro
       </AnimatePresence>
 
       {filteredAndSorted.length === 0 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
+        <div className="text-center py-12" role="status">
           <p className="text-lg" style={{ color: 'var(--text-secondary)' }}>
             No {config.itemNounPlural} found matching your filters.
           </p>
-        </motion.div>
+        </div>
+      )}
+      {viewerIndex !== null && viewerItems[viewerIndex] && (
+        <MediaViewer
+          items={viewerItems}
+          index={viewerIndex}
+          onIndexChange={setViewerIndex}
+          onClose={() => setViewerIndex(null)}
+          getOrigin={getOrigin}
+          label={config.viewerLabel ?? 'Details'}
+        />
       )}
     </div>
+    </MotionConfig>
   );
 }

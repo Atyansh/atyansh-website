@@ -1,7 +1,7 @@
 // Letterboxd web scraping integration
 // Fetches movie data by scraping Letterboxd profile pages with pagination
 
-import { withRetry, fetchWithRetry } from './retry';
+import { withRetry, fetchWithRetry, DEFAULT_FETCH_TIMEOUT_MS } from './retry';
 import { FileCache } from './cache';
 import { createLogger } from './logger';
 import { pLimit } from './concurrency';
@@ -10,7 +10,29 @@ import { launchStealthBrowser } from './browser';
 const LETTERBOXD_USERNAME = import.meta.env.LETTERBOXD_USERNAME;
 
 const log = createLogger('Letterboxd');
-const cache = new FileCache<LetterboxdData>('letterboxd-data', { ttl: 24 * 60 * 60 * 1000 });
+const cache = new FileCache<LetterboxdData>('letterboxd-data', {
+  ttl: 24 * 60 * 60 * 1000,
+  // JSON leaves dates as strings; mixed with fresh Date objects the movies
+  // page's date sort compares NaN and silently does nothing
+  deserialize: (data) => ({
+    ...data,
+    movies: data.movies.map(reviveMovieDates),
+  }),
+});
+
+function toDate(value: unknown): Date | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const d = value instanceof Date ? value : new Date(value as string);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+export function reviveMovieDates(movie: LetterboxdMovie): LetterboxdMovie {
+  return {
+    ...movie,
+    releaseDate: toDate(movie.releaseDate),
+    watchedDate: toDate(movie.watchedDate),
+  };
+}
 
 export interface LetterboxdMovie {
   title: string;
@@ -105,6 +127,12 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
               posterUrl = `https://a.ltrbxd.com/resized/film-poster/${idPath}/${filmId}-${filmSlug}-0-230-0-345-crop.jpg`;
             }
 
+            // The member's rating sits next to the poster as a "rated-N" class,
+            // N in half stars (rated-7 = 3.5). Unrated films have none.
+            const ratingEl = container.closest('li')?.querySelector('.poster-viewingdata .rating');
+            const ratedMatch = /\brated-(\d+)\b/.exec(ratingEl?.className || '');
+            const rating = ratedMatch ? parseInt(ratedMatch[1], 10) / 2 : undefined;
+
             // Include all movies (missing/wrong posters are recovered below via the film page)
             if (title) {
               films.push({
@@ -112,6 +140,7 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
                 year,
                 link,
                 posterImage: posterUrl,
+                rating,
               });
             }
           });
@@ -148,6 +177,7 @@ async function scrapePage(browser: Awaited<ReturnType<Awaited<typeof import('pup
             releaseDate,
             posterImage: film.posterImage,
             link: film.link.startsWith('http') ? film.link : `https://letterboxd.com${film.link}`,
+            ...(film.rating > 0 ? { rating: film.rating } : {}),
           };
         });
 
@@ -197,7 +227,7 @@ async function fetchPosterFromFilmPage(filmLink: string): Promise<string | null>
   try {
     return await withRetry(
       async () => {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS) });
         if (!res.ok) throw new Error(`Film page ${url} returned ${res.status}`);
         const html = await res.text();
         const jsonLdMatch = /"image":"([^"]+)"/.exec(html);
@@ -228,13 +258,22 @@ const decodeXml = (text: string) => text
   .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'")
   .trim();
 
+/** "2026-10-16" as a local-midnight date, like the year-only release dates */
+function parseDiaryDate(text?: string): Date | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text ?? '');
+  return m ? new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10)) : undefined;
+}
+
 /**
  * Parse films out of a member's Letterboxd RSS feed (their ~20 most recent
- * diary entries). Non-film items (lists, etc.) and repeat watches are skipped.
+ * diary entries), with the diary details the listing grid doesn't show:
+ * watch date, rating, and whether it was a rewatch. Non-film items (lists,
+ * etc.) are skipped; a film logged more than once keeps its most recent entry
+ * (feeds are newest-first) and counts as a rewatch.
  */
 export function parseLetterboxdRSS(xml: string): LetterboxdMovie[] {
   const movies: LetterboxdMovie[] = [];
-  const seen = new Set<string>();
+  const bySlug = new Map<string, LetterboxdMovie>();
 
   for (const [, item] of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
     const tag = (name: string) => {
@@ -244,8 +283,14 @@ export function parseLetterboxdRSS(xml: string): LetterboxdMovie[] {
 
     const title = tag('letterboxd:filmTitle');
     const slug = filmSlug(tag('link'));
-    if (!title || !slug || seen.has(slug)) continue;
-    seen.add(slug);
+    if (!title || !slug) continue;
+
+    const rewatch = tag('letterboxd:rewatch') === 'Yes';
+    const earlier = bySlug.get(slug);
+    if (earlier) {
+      earlier.rewatch = true;
+      continue;
+    }
 
     const yearText = tag('letterboxd:filmYear');
     const year = yearText ? parseInt(yearText, 10) : undefined;
@@ -254,13 +299,21 @@ export function parseLetterboxdRSS(xml: string): LetterboxdMovie[] {
     // Feed posters are 600x900; the listing uses the 230x345 crop
     const poster = /<img src="([^"]+)"/.exec(item)?.[1] ?? '';
 
-    movies.push({
+    const ratingText = tag('letterboxd:memberRating');
+    const rating = ratingText ? parseFloat(ratingText) : NaN;
+
+    const movie: LetterboxdMovie = {
       title,
       year,
       releaseDate,
       posterImage: poster.replace(/-0-\d+-0-\d+-crop/, '-0-230-0-345-crop'),
       link: `https://letterboxd.com/film/${slug}/`,
-    });
+      watchedDate: parseDiaryDate(tag('letterboxd:watchedDate')),
+      ...(rating > 0 ? { rating } : {}),
+      ...(rewatch ? { rewatch } : {}),
+    };
+    bySlug.set(slug, movie);
+    movies.push(movie);
   }
 
   return movies;
@@ -278,13 +331,61 @@ export function mergeIncremental(
   previous: LetterboxdMovie[]
 ): LetterboxdMovie[] {
   const merged = new Map<string, LetterboxdMovie>();
+  const onFirstPage = new Set(firstPage.map(filmKey));
   for (const movie of [...firstPage, ...rss, ...previous]) {
-    const key = filmSlug(movie.link) ?? movie.title;
-    if (!merged.has(key)) {
+    const key = filmKey(movie);
+    const existing = merged.get(key);
+    if (!existing) {
       merged.set(key, movie);
+    } else if (!onFirstPage.has(key)) {
+      // A feed entry for a film off page 1: anything the feed lacks (a
+      // rating it wasn't logged with, a poster) comes from the previous copy
+      const known = Object.entries(existing).filter(([, value]) => value !== undefined && value !== '');
+      merged.set(key, { ...movie, ...Object.fromEntries(known) });
     }
   }
-  return [...merged.values()];
+  return addDiaryDetails([...merged.values()], rss, previous);
+}
+
+const filmKey = (movie: LetterboxdMovie) => filmSlug(movie.link) ?? movie.title;
+
+function indexBySlug(movies: LetterboxdMovie[]): Map<string, LetterboxdMovie> {
+  const index = new Map<string, LetterboxdMovie>();
+  for (const movie of movies) {
+    if (!index.has(filmKey(movie))) index.set(filmKey(movie), movie);
+  }
+  return index;
+}
+
+/**
+ * Fill in the diary details the listing grid doesn't show (watch date,
+ * rewatch) from the RSS feed, which only covers recent entries, and failing
+ * that from the previous build's copy, so they accumulate across builds.
+ * The grid's own rating wins (a removed rating must disappear); the feed's
+ * is used only when the grid showed none.
+ */
+export function addDiaryDetails(
+  movies: LetterboxdMovie[],
+  rss: LetterboxdMovie[],
+  previous: LetterboxdMovie[]
+): LetterboxdMovie[] {
+  const rssBySlug = indexBySlug(rss);
+  const previousBySlug = indexBySlug(previous);
+  return movies.map(movie => {
+    const fromRss = rssBySlug.get(filmKey(movie));
+    const fromPrevious = previousBySlug.get(filmKey(movie));
+    const rating = movie.rating ?? fromRss?.rating;
+    const watchedDate = fromRss?.watchedDate ?? movie.watchedDate ?? fromPrevious?.watchedDate;
+    const rewatch = Boolean(fromRss?.rewatch || movie.rewatch || fromPrevious?.rewatch);
+    const director = movie.director ?? fromPrevious?.director;
+    return {
+      ...movie,
+      ...(rating !== undefined ? { rating } : {}),
+      ...(watchedDate ? { watchedDate } : {}),
+      ...(rewatch ? { rewatch } : {}),
+      ...(director ? { director } : {}),
+    };
+  });
 }
 
 async function fetchRSSMovies(): Promise<LetterboxdMovie[]> {
@@ -312,7 +413,7 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
 
   if (!LETTERBOXD_USERNAME) {
     log.info('Letterboxd username not configured, skipping...');
-    return null;
+    return cache.fallback('Letterboxd');
   }
 
   log.info('Fetching Letterboxd data...');
@@ -361,8 +462,14 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
 
     let lastFullScrape: number | undefined = Date.now();
     let persist = true;
-    if (!fullScrape) {
-      const [rssMovies, previous] = await Promise.all([fetchRSSMovies(), cache.getStale()]);
+    // The feed carries watch dates/rewatches for recent entries; the previous
+    // copy keeps the ones that have since scrolled out of it
+    const [rssMovies, previous] = await Promise.all([fetchRSSMovies(), cache.getStale()]);
+    if (fullScrape) {
+      const enriched = addDiaryDetails(allMovies, rssMovies, previous?.movies ?? []);
+      allMovies.length = 0;
+      allMovies.push(...enriched);
+    } else {
       if (!previous) {
         // Caching this would overwrite the last full list in the build-cache
         // bucket with a truncated one. Serve it, but skip the cache so the
@@ -380,7 +487,8 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
     // A poster URL is correct only if the CDN actually serves it. The film id pins
     // the film, so any HEAD 200 is guaranteed to be the right poster.
     const headOk = (u: string) =>
-      fetch(u, { method: 'HEAD' }).then(res => res.ok).catch(() => false);
+      fetch(u, { method: 'HEAD', signal: AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS) })
+        .then(res => res.ok).catch(() => false);
 
     // Toggle a trailing release-year on the slug of a constructed poster URL, e.g.
     // "...667550-the-fall-guy-2024-0-230-..." <-> "...667550-the-fall-guy-0-230-...".
@@ -437,7 +545,7 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
     };
 
     if (persist) {
-      await cache.set(data);
+      await cache.setIfPlausible('Letterboxd', data, d => d.movies.length);
     }
 
     log.info(fullScrape
@@ -450,12 +558,7 @@ export async function getLetterboxdData(): Promise<LetterboxdData | null> {
     // Serve last-known-good data rather than shipping a blank movies page.
     // The stale timestamp still trips the post-build health check, so the
     // failure is alerted either way.
-    const stale = await cache.getStale();
-    if (stale) {
-      log.error(`Falling back to stale Letterboxd data from ${new Date(stale.timestamp).toISOString()}`);
-      return stale;
-    }
-    return null;
+    return cache.fallback('Letterboxd');
   } finally {
     await browser.close().catch(() => {});
   }

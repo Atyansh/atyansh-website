@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import FullscreenImageViewer from './FullscreenImageViewer';
+import { useState, useRef, useCallback } from 'react';
+import MediaViewer from './MediaViewer';
 
 interface Image {
   src: string;
@@ -15,6 +15,12 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // The visible thumbnail for an image: a mobile card, or the desktop slide
+  const getOrigin = useCallback((index: number) => {
+    const candidates = rootRef.current?.querySelectorAll<HTMLElement>(`[data-viewer-index="${index}"] img`) ?? [];
+    return [...candidates].find((el) => el.getBoundingClientRect().width > 0) ?? null;
+  }, []);
 
   const handlePrevious = () => {
     setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
@@ -27,7 +33,7 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
   const currentImage = images[currentIndex];
 
   return (
-    <div className="image-gallery-slider">
+    <div className="image-gallery-slider" ref={rootRef}>
       {/* Counter Badge (desktop only) */}
       <div className="hidden lg:flex items-center justify-center mb-6">
         <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ backgroundColor: 'rgba(var(--accent-rgb), 0.1)', border: '1px solid rgba(var(--accent-rgb), 0.2)' }}>
@@ -53,6 +59,9 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
             {images.map((image, index) => (
               <button
                 key={index}
+                type="button"
+                data-viewer-index={index}
+                aria-haspopup="dialog"
                 onClick={() => {
                   setCurrentIndex(index);
                   setIsFullscreen(true);
@@ -83,7 +92,7 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
       {/* Desktop Slider (visible on desktop) */}
       <div className="hidden lg:block relative rounded-2xl overflow-hidden shadow-2xl" style={{ backgroundColor: 'var(--bg-secondary)' }}>
         {/* Image Container */}
-        <div className="relative w-full cursor-pointer" style={{ paddingBottom: '60%' }} onClick={() => setIsFullscreen(true)}>
+        <div className="relative w-full cursor-pointer" style={{ paddingBottom: '60%' }} onClick={() => setIsFullscreen(true)} data-viewer-index={currentIndex}>
           <img
             key={currentIndex}
             src={currentImage.src}
@@ -91,6 +100,23 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
             className="absolute top-0 left-0 w-full h-full object-contain hover:opacity-95 transition-opacity"
             style={{ backgroundColor: 'var(--bg-primary)' }}
           />
+
+          {/* Keyboard-accessible way into the viewer (the slide itself is a click target) */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsFullscreen(true);
+            }}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 z-10"
+            style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)' }}
+            aria-haspopup="dialog"
+            aria-label="View image full size"
+          >
+            <svg className="w-5 h-5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />
+            </svg>
+          </button>
 
           {/* Navigation Arrows */}
           {images.length > 1 && (
@@ -166,12 +192,14 @@ export default function ImageGallery({ images }: ImageGalleryProps) {
       `}</style>
 
       {isFullscreen && (
-        <FullscreenImageViewer
-          images={images}
-          currentIndex={currentIndex}
+        <MediaViewer
+          variant="photo"
+          items={images.map((img) => ({ image: img.src, alt: img.alt, caption: img.caption || img.alt }))}
+          index={currentIndex}
+          onIndexChange={setCurrentIndex}
           onClose={() => setIsFullscreen(false)}
-          onPrevious={handlePrevious}
-          onNext={handleNext}
+          getOrigin={getOrigin}
+          label="Image"
         />
       )}
     </div>

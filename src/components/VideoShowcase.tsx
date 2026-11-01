@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PlayButton from './PlayButton';
 
 interface Video {
   title: string;
@@ -58,7 +59,7 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
               <iframe
                 key={`video-${activeVideo}`}
                 className="absolute top-0 left-0 w-full h-full"
-                src={`https://www.youtube.com/embed/${currentVideoId}`}
+                src={`https://www.youtube-nocookie.com/embed/${currentVideoId}`}
                 title={videos[activeVideo].title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -121,42 +122,13 @@ export default function VideoShowcase({ videos }: VideoShowcaseProps) {
                       absolute inset-0 transition-all duration-300
                       ${isActive
                         ? 'bg-gradient-to-t from-black/80 via-transparent'
-                        : 'bg-transparent md:group-hover:bg-black/30'
+                        : 'bg-transparent'
                       }
                     `}>
-                      {/* Small play badge - mobile only */}
+                      {/* Shared play control (same as /music and /climbing) */}
                       {!isActive && (
-                        <div className="absolute top-2 left-2 md:hidden">
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center border"
-                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--accent)' }}
-                          >
-                            <svg
-                              className="w-3 h-3"
-                              style={{ transform: 'translateX(0.5px)', fill: 'var(--accent)' }}
-                              viewBox="0 0 24 24"
-                            >
-                              <path d="M8 5v14l11-7z"/>
-                            </svg>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Full play button - desktop hover only */}
-                      {!isActive && (
-                        <div className="absolute inset-0 hidden md:flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center border-2 transition-transform duration-300 group-hover:scale-110"
-                            style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--accent)' }}
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              style={{ transform: 'translateX(1px)', fill: 'var(--accent)' }}
-                              viewBox="0 0 24 24"
-                            >
-                              <path d="M8 5v14l11-7z"/>
-                            </svg>
-                          </div>
+                        <div className="tile-play absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                          <PlayButton size="sm" />
                         </div>
                       )}
 

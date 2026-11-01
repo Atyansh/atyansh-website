@@ -1,7 +1,8 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
-import AnimatedCard from '../components/AnimatedCard';
+import AnimatedCard from '../components/AnimatedCard.astro';
 
 const projects = (await getCollection('projects'))
   .sort((a, b) => {
@@ -17,10 +18,12 @@ const papers = (await getCollection('papers'))
 ---
 
 <BaseLayout
-  title="Work - Atyansh Jaiswal"
+  title={pageTitle('Work')}
   description="Professional projects and research papers"
 >
   <div class="max-w-6xl mx-auto">
+    <h1 class="sr-only">Work: projects and research</h1>
+
     <!-- Projects Section -->
     <section class="mb-20">
       <h2 class="text-3xl font-bold mb-8" style="color: var(--text-primary);">
@@ -29,8 +32,7 @@ const papers = (await getCollection('papers'))
       <div class="grid md:grid-cols-2 gap-6 md:auto-rows-fr">
         {projects.map((project, index) => (
           <AnimatedCard
-            client:load
-            href={`/projects/${project.slug}`}
+            href={`/projects/${project.id}`}
             delay={index * 0.05}
             className="h-full flex flex-col"
           >
@@ -71,8 +73,7 @@ const papers = (await getCollection('papers'))
       <div class="space-y-6">
         {papers.map((paper, index) => (
           <AnimatedCard
-            client:load
-            href={`/papers/${paper.slug}`}
+            href={`/papers/${paper.id}`}
             delay={index * 0.05 + 0.2}
           >
             <div class="flex justify-between items-start mb-3">

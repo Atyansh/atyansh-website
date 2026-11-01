@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
-import AnimatedCard from '../../../components/AnimatedCard';
+import AnimatedCard from '../../../components/AnimatedCard.astro';
 import { getCollection } from 'astro:content';
 
 const allPosts = await getCollection('blog', ({ data }) => !data.draft);
@@ -41,7 +41,7 @@ const sortedTags = Array.from(tagCounts.entries())
       </p>
     </header>
 
-    <AnimatedCard client:load delay={0}>
+    <AnimatedCard delay={0}>
       <div class="flex flex-wrap gap-3">
         {sortedTags.map(([tag, count], index) => (
           <a

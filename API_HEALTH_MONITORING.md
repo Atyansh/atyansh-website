@@ -4,20 +4,30 @@ This guide explains how to set up Discord notifications for API health monitorin
 
 ## Overview
 
-The API health monitoring system runs 12 integration checks after each build and sends Discord notifications if any fail:
+The API health monitoring system runs 13 integration checks after each build and sends Discord notifications if any fail:
+
+Only **enabled** integrations are checked: an entry is skipped (listed as
+"Skipped" in the report, never alerted) when its integration is switched off
+in `src/site.config.ts` or its required keys aren't set (in Cloud Build the
+check reads `SITE_SECRETS` to find out; locally `.env`). The "Kaya (Logged-in)"
+check additionally needs `KAYA_REFRESH_TOKEN`. Which entry belongs to which
+integration is in `src/integrations.ts` (`healthChecks`); a test checks every
+entry is claimed exactly once. If `SITE_SECRETS` can't be read, every
+integration toggled on is checked, as before. `--report-only` prints the
+report without sending a DM (the preview build uses it).
 
 **APIs with credentials (can expire):**
-1. Spotify (OAuth refresh token)
+1. Spotify (OAuth refresh token) — top tracks, top artists, playlists and recently played must all be non-empty
 2. MyAnimeList (OAuth access token)
 3. Steam (API key)
 4. PlayStation Network (refresh token, ~10 days; NPSSO only used to bootstrap)
 5. IGDB (access token for game covers)
 6. TMDB (long-lived access token)
-7. Kaya login (`KAYA_REFRESH_TOKEN`, from Firefox on a Mac) — alerts when the logged-in ascents query fails and the build fell back to the capped public queries. The alert shows the failure reason with tokens redacted.
+7. Kaya login (`KAYA_REFRESH_TOKEN`, from Firefox on a Mac) — alerts when the logged-in ascents query fails and the build fell back to the capped public queries. The alert shows the failure reason with tokens redacted. Skipped when there's no fresh Kaya data at all ("Kaya climbing stats" already alerts then).
 8. Goodreads (`GOODREADS_COOKIE`, a signed-in session) — shelf RSS is gone, so shelves are scraped signed in. The session is renewed silently before every build, which keeps it a year from expiry. Two checks: "Goodreads" (a shelf failed or the cookie is dead; the site keeps the last good books) and "Goodreads (session renewal)" (renewal failed; the current cookie still works for now, so this is the early warning).
 
 **Web scraping / public APIs (no credentials):**
-9. Letterboxd (username-based; pages 2+ merge from the previous list when Cloudflare blocks them)
+9. Letterboxd (username-based; pages 2+ merge from the previous list when Cloudflare blocks them). The merge never picks up rating changes or removals on older films; `lastFullScrape` in the cache records when every page last loaded (a build from a home connection refreshes it)
 10. Nintendo Switch (Exophase scraping)
 11. Kaya climbing stats (grade pyramid + send videos)
 
@@ -25,14 +35,16 @@ The API health monitoring system runs 12 integration checks after each build and
 
 1. **Build runs** (`npm run build` in Cloud Build after `refresh-tokens.cjs`; `npm run build` or `npm run build:fresh` locally) - All APIs are called and cache files are created
 2. **Health check runs** (`scripts/check-api-health.cjs`) - Validates cache files
-3. **If failures detected** - Discord notification sent with details and @mention
+3. **If failures detected** - Discord notification sent with details and @mention (footer: "`shortName` Website Monitor" from `src/site.config.ts`)
 
 ### Cache Validation
 
 The health check validates that:
 - Cache file exists for each API
-- Cache was created within the last hour (during THIS build)
+- Cache was created within the last hour (during THIS build). IGDB allows 8 days: covers are reused for 7, so a healthy build may look nothing up
 - Cache contains actual data (not empty)
+
+Sources don't write a fresh cache file when a fetch fails, or when the result is empty or under half the size of the previous copy (`FileCache.setIfPlausible`). The page is served the last good data, and the missing file is what raises the alert.
 
 If any check fails, you get notified which API failed and how to fix it.
 
@@ -136,6 +148,8 @@ You'll receive a Discord DM with an embed containing:
 - **Self-Healing Failed:** APIs that normally auto-refresh but failed
 - **Web Scraping Failed:** Scraping-based integrations that broke
 - **Healthy APIs:** List of APIs that are working fine
+
+Each failed API gets its own field (Discord caps fields at 1024 characters, 25 fields and 6000 characters per embed; anything that doesn't fit is summarised as "…and N more"). If Discord still rejects the embed, the alert is resent as a plain-text message.
 - Sent directly to your DMs so you don't miss it
 
 ### When You Get Notified

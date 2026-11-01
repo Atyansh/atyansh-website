@@ -1,6 +1,6 @@
 import MediaFilterGrid, { type MediaFilterGridConfig } from './MediaFilterGrid';
 import ErrorBoundary from './ErrorBoundary';
-import type { BookStatus } from '../content/config';
+import type { BookStatus } from '../content.config';
 
 interface BookData {
   title: string;
@@ -8,8 +8,9 @@ interface BookData {
   coverImage: string;
   rating?: number;
   status: BookStatus;
-  dateRead?: Date;
-  publishedDate?: Date;
+  publishedDate?: Date | string;
+  /** Extra facts for the expanded card, formatted in books.astro */
+  details?: Array<{ label: string; value: string }>;
 }
 
 interface Book {
@@ -64,7 +65,7 @@ const config: MediaFilterGridConfig<Book> = {
       label: 'Published Date',
       compare: (a, b) => {
         if (a.data.publishedDate && b.data.publishedDate)
-          return b.data.publishedDate.valueOf() - a.data.publishedDate.valueOf();
+          return new Date(b.data.publishedDate).getTime() - new Date(a.data.publishedDate).getTime();
         if (a.data.publishedDate) return -1;
         if (b.data.publishedDate) return 1;
         return 0;
@@ -93,9 +94,11 @@ const config: MediaFilterGridConfig<Book> = {
     getSubtitle: (b) => b.data.author,
     getImage: (b) => b.data.coverImage,
     getRating: (b) => b.data.rating,
+    getDetails: (b) => b.data.details,
   },
   filterColumnClass: 'lg:grid-cols-4',
   itemNounPlural: 'books',
+  viewerLabel: 'Book details',
 };
 
 function BooksFilterInner({ books }: BooksFilterProps) {

@@ -23,6 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const { readSecrets, writeSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs');
 const { shellQuote, envValue, applyEnvUpdates } = require('./env-file.cjs');
+const { isToggledOn } = require('./site-config.cjs');
 
 const ENV_FILE = path.join(process.cwd(), '.env');
 
@@ -530,18 +531,28 @@ async function main() {
 
   // Refresh all tokens in parallel. Each only records its new values in
   // memory, so they can't race each other; one save happens afterwards.
-  const results = await Promise.allSettled([
-    refreshMAL().then(r => { console.log('  MAL: done'); return r; }),
-    refreshIGDB().then(r => { console.log('  IGDB: done'); return r; }),
-    refreshPSN().then(r => { console.log('  PSN: done'); return r; }),
-    refreshGoodreads().then(r => { console.log('  Goodreads: done'); return r; }),
-  ]);
+  // Integrations switched off in src/site.config.ts are left alone; ones
+  // without credentials skip themselves.
+  const refreshers = [
+    ['MAL', 'myanimelist', refreshMAL],
+    ['IGDB', 'igdb', refreshIGDB],
+    ['PSN', 'psn', refreshPSN],
+    ['Goodreads', 'goodreads', refreshGoodreads],
+  ];
+  const results = await Promise.allSettled(refreshers.map(async ([name, id, refresh]) => {
+    if (!isToggledOn(id)) {
+      console.log(`  Skipping ${name}: switched off in src/site.config.ts`);
+      return null;
+    }
+    const r = await refresh();
+    console.log(`  ${name}: done`);
+    return r;
+  }));
 
   // Log any unexpected rejections
   results.forEach((result, i) => {
     if (result.status === 'rejected') {
-      const names = ['MAL', 'IGDB', 'PSN', 'Goodreads'];
-      console.log(`  ✗ ${names[i]} unexpected error: ${result.reason?.message || result.reason}`);
+      console.log(`  ✗ ${refreshers[i][0]} unexpected error: ${result.reason?.message || result.reason}`);
     }
   });
 

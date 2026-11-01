@@ -6,6 +6,7 @@ import VideoShowcase from '../../components/VideoShowcase';
 import WeeklyTimeline from '../../components/WeeklyTimeline';
 import TechStackGrid from '../../components/TechStackGrid';
 import ImageGallery from '../../components/ImageGallery';
+import DeerstalkerDiagram from '../../components/DeerstalkerDiagram.astro';
 
 // Lines of code is the team's own count from the CSE 125 final report
 // (`cat | wc` over the client, server and util sources).
@@ -363,6 +364,9 @@ void Game::loopReset() {
           How It Works
         </h2>
         <div class="space-y-4 text-lg max-w-4xl mx-auto" style="color: var(--text-secondary);">
+          <DeerstalkerDiagram variant="overview">
+            Four clients, one authoritative server. Clients send what the player wants to do; the server decides what happens and tells everyone.
+          </DeerstalkerDiagram>
           <p>
             <strong style="color: var(--text-primary);">The server owns everything.</strong> Clients never simulate anything.
             The server runs Boost.Asio on one thread to accept connections and read messages, and pushes every incoming message
@@ -370,6 +374,9 @@ void Game::loopReset() {
             step the Bullet world, expire mangoes and hats, update stun and respawn timers, then broadcast the result.
             Each tick advances Bullet by 1/15 s in four 1/60 s substeps, so the physics runs at double speed. We sped it up in week 8 because the game felt more natural that way.
           </p>
+          <DeerstalkerDiagram variant="tick">
+            The server's main loop. Input from all four players is applied before the physics step, so everyone's actions land in the same tick.
+          </DeerstalkerDiagram>
           <p>
             <strong style="color: var(--text-primary);">What goes over the wire.</strong> Both directions use one protobuf
             <code>Message</code>, framed as a 6-character ASCII length followed by the serialized bytes, over TCP with Nagle's
@@ -380,6 +387,9 @@ void Game::loopReset() {
             animation state, visibility and hat timer. Alongside that come events for things clients should react to once:
             sounds, deletions, ready/start, win and game over.
           </p>
+          <DeerstalkerDiagram variant="wire">
+            One message type in both directions. Clients only ever send intent, and the server only ever sends the truth.
+          </DeerstalkerDiagram>
           <p>
             <strong style="color: var(--text-primary);">The client is a renderer.</strong> A background Asio thread parses
             snapshots into a queue; the render loop drains it each frame, creates scene-graph nodes for new IDs, and sets each
@@ -387,6 +397,9 @@ void Game::loopReset() {
             animation each player is in, and the client keeps a preloaded skinned model per animation and just shows the right
             one. FMOD plays sound effects in 3D at the position of the player or object involved, with the listener on your own player.
           </p>
+          <DeerstalkerDiagram variant="client">
+            The client's screens and its frame loop. Once you're out of lives, the camera switches to another player until the match ends.
+          </DeerstalkerDiagram>
           <p>
             <strong style="color: var(--text-primary);">Movement.</strong> Players are dynamic rigid bodies with rotation
             locked off, driven by a controller adapted from the dynamic character controller in Bullet's old demos. Each

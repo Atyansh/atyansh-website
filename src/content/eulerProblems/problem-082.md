@@ -7,27 +7,23 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler82.java'
 ---
 
-## Problem Statement
+## The problem
 
-NOTE: This problem is a more challenging version of Problem 81.
+In the same 80×80 grid, find the smallest path sum from any cell in the left column to any cell in the right column, now allowing moves up, down and right.
 
-The minimal path sum in the 5 by 5 matrix below, by starting in any cell in the left column and finishing in any cell in the right column, and only moving up, down, and right, is indicated in bold red and is equal to 994.
+## My solution
 
+This reuses the queue-based shortest-path search from problem 81. Each `Node` now has `up`, `down` and `right` links. A node's distance is relaxed through each of them, and a neighbour goes back on the FIFO queue whenever its distance improves.
+
+To allow any starting cell, I run the search once from each of the 80 left-column cells, seeding that cell's distance with its own value:
+
+```java
+for(int i = 0; i < length; i++) {
+  pattern[i][0].distance = pattern[i][0].value;
+  setDistance(pattern[i][0]);
+}
 ```
-131 673 234 103 18
-201 96  342 965 150
-630 803 746 422 111
-537 699 497 121 956
-805 732 524 37  331
-```
 
-Find the minimal path sum from the left column to the right column in matrix.txt, a 31K text file containing an 80 by 80 matrix.
+Distances aren't reset between runs. Each run starts from what earlier runs found and can only lower it, so after the last run every cell holds its cheapest distance from any left-column start. Reseeding a start cell with its own value never raises it, because any path into that cell from another start costs more than the cell alone. The answer is the smallest distance in the right column.
 
-## Approach
-
-The solution involves:
-1. Reading the 80x80 matrix from the file
-2. Using dynamic programming with column-by-column processing
-3. For each column, computing minimal paths from any cell in the previous column
-4. Allowing moves: right, up, and down
-5. The answer is the minimum value in the rightmost column
+As in 81, this is Bellman–Ford with a work queue (SPFA), and it converges to the true shortest distances because all the values are positive.

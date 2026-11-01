@@ -7,69 +7,24 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler10.java'
 ---
 
-# Problem 10: Summation of Primes
+## The problem
 
-## Problem Statement
+Add up all the primes below two million.
 
-The sum of the primes below 10 is 2 + 3 + 5 + 7 = 17.
+## My solution
 
-**Find the sum of all the primes below two million.**
-
-## Approach
-
-### Sieve of Eratosthenes
-The most efficient approach for finding all primes below a given number is the Sieve of Eratosthenes:
-
-1. Create a boolean array of size n, initially all true
-2. Mark 0 and 1 as not prime
-3. For each number i from 2 to √n:
-   - If i is marked as prime
-   - Mark all multiples of i (starting from i²) as not prime
-4. Sum all numbers that remain marked as prime
+Trial division. The sum starts at 2, then every odd number from 3 up to 1,999,999 is tested and added if it is prime:
 
 ```java
-boolean[] isPrime = new boolean[2000000];
-Arrays.fill(isPrime, true);
-isPrime[0] = isPrime[1] = false;
-
-for (int i = 2; i * i < 2000000; i++) {
-    if (isPrime[i]) {
-        for (int j = i * i; j < 2000000; j += i) {
-            isPrime[j] = false;
-        }
-    }
-}
-
-long sum = 0;
-for (int i = 2; i < 2000000; i++) {
-    if (isPrime[i]) sum += i;
+public static boolean isPrime(long n) {
+  long sqrt = (long) Math.sqrt(n);
+  for(long i = 3; i <= sqrt; i += 2)
+    if(n % i == 0)
+      return false;
+  return true;
 }
 ```
 
-## Why Sieve of Eratosthenes?
+`isPrime` only tries odd divisors up to √n, and the caller only ever passes it odd numbers. The sum is a `long` because it doesn't fit in an `int`.
 
-- Trial division would require checking each number individually (too slow)
-- Sieve efficiently finds all primes in one pass
-- Optimal for finding all primes below a given limit
-
-## Complexity
-
-- **Time Complexity**: O(n log log n)
-- **Space Complexity**: O(n)
-
-## Optimization Tips
-
-- Start marking from i² instead of 2i (smaller multiples already marked)
-- Only iterate up to √n in the outer loop
-- Use long for the sum to avoid integer overflow
-
-## Solution
-
-View the complete solution on [GitHub](https://github.com/atyansh/Project-Euler/blob/master/Euler10.java).
-
-## Related Concepts
-
-- Prime numbers
-- Sieve of Eratosthenes algorithm
-- Efficient prime generation
-- Time-space tradeoffs
+Each test costs at most about √n / 2 ≈ 700 divisions, and composites usually fail much sooner, so roughly a million candidates is manageable.

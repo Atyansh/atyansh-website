@@ -7,17 +7,21 @@ solutionLanguage: 'Python'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler63.py'
 ---
 
-## Problem Statement
+## The problem
 
-The 5-digit number, 16807 = 7⁵, is also a fifth power. Similarly, the 9-digit number, 134217728 = 8⁹, is a ninth power.
+Count the positive integers that have exactly n digits and are also an nth power.
 
-How many n-digit positive integers exist which are also an nth power?
+## My solution
 
-## Approach
+Check every base from 1 to 9 against every exponent from 1 to 21, counting the cases where `m**n` has exactly n digits:
 
-The solution involves:
-1. Recognizing that for n-digit numbers to be nth powers, the base must be less than 10
-2. For each base b (1-9), computing b^n for increasing n
-3. Checking if the number of digits equals n
-4. Stopping when b^n has fewer than n digits (this happens eventually for all bases)
-5. Counting all valid combinations
+```python
+for n in range(1, 22):
+  for m in range(1, 10):
+    value = m**n
+
+    if len(str(value)) == n:
+      counter += 1
+```
+
+Both bounds are tight. The base can't be 10 or more, because 10ⁿ already has n + 1 digits. For the exponent, 9ⁿ has ⌊n·log₁₀9⌋ + 1 ≈ ⌊0.954n⌋ + 1 digits, which equals n only up to n = 21 and falls behind from n = 22 on. Smaller bases fall behind sooner. So 189 checks cover every case, and the script runs instantly. It's Python 2 (`print counter`).

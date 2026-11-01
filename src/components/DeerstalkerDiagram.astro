@@ -1,0 +1,463 @@
+---
+// System diagrams for the Deerstalker project page, drawn as inline SVG so
+// they follow the site theme. Text and lane colours come from the theme
+// tokens; each subsystem keeps its own hue so the legend means the same thing
+// in every diagram, except in Dark Terminal, which is green-on-black only.
+//
+// Labels that sit inside a box carry data-fit="<max width>". A small script
+// at the bottom squeezes any label that would overflow (e.g. in a theme with
+// a wide monospace font) so text never leaves its box.
+//
+// Everything here was checked against the game's source
+// (github.com/Atyansh/deerstalker): client/main.cpp, client/Window.cpp,
+// server/Game.cpp, server/Server.cpp, util/Protos.proto.
+interface Props {
+  variant: 'overview' | 'tick' | 'wire' | 'client';
+}
+const { variant } = Astro.props;
+const ah = `dz-ah-${variant}`;
+
+type Cat = 'net' | 'logic' | 'phys' | 'gfx' | 'audio' | 'input' | 'shared';
+interface Node {
+  x: number; y: number; w: number; h: number;
+  cat: Cat; tag?: string; title: string; sub?: string[];
+}
+const PAD = 16; // inner padding for text inside a box
+
+const legend: { cat: Cat; label: string }[] = [
+  { cat: 'input', label: 'Input' },
+  { cat: 'net', label: 'Networking' },
+  { cat: 'logic', label: 'Game logic' },
+  { cat: 'phys', label: 'Physics' },
+  { cat: 'gfx', label: 'Graphics' },
+  { cat: 'audio', label: 'Audio' },
+  { cat: 'shared', label: 'Shared code' },
+];
+
+// ---- 1. System overview ---------------------------------------------------
+// Rows are 64 tall with 44 between them, so vertical arrows have room.
+const R = [84, 192, 300, 408];
+const overviewNodes: Node[] = [
+  { x: 36, y: R[0], w: 348, h: 64, cat: 'input', tag: 'INPUT', title: 'Controls', sub: ['Xbox controller via GLFW, or keyboard'] },
+  { x: 36, y: R[1], w: 348, h: 64, cat: 'net', tag: 'NETWORK THREAD', title: 'Boost.Asio reader', sub: ['parses frames into a locked queue'] },
+  { x: 36, y: R[2], w: 348, h: 64, cat: 'logic', tag: 'MAIN THREAD', title: 'Message handler', sub: ['applies each snapshot to the scene'] },
+  { x: 36, y: R[3], w: 166, h: 64, cat: 'gfx', tag: 'GRAPHICS', title: 'OpenGL', sub: ['scene graph, GLSL'] },
+  { x: 218, y: R[3], w: 166, h: 64, cat: 'audio', tag: 'AUDIO', title: 'FMOD', sub: ['music, 3D effects'] },
+  { x: 616, y: R[0], w: 348, h: R[1] + 64 - R[0], cat: 'net', tag: 'NETWORK THREAD', title: 'Boost.Asio sessions', sub: ['one session per player', 'TCP_NODELAY, 1 MB receive buffer', 'input goes on a locked queue'] },
+  { x: 616, y: R[2], w: 348, h: 64, cat: 'logic', tag: 'MAIN THREAD · 30 HZ', title: 'Game loop', sub: ['all the rules: hats, combat, lives'] },
+  { x: 616, y: R[3], w: 348, h: 64, cat: 'phys', tag: 'PHYSICS', title: 'Bullet world', sub: ['rigid bodies, controllers, rays'] },
+  { x: 16, y: 512, w: 968, h: 58, cat: 'shared', tag: 'SHARED UTIL LIBRARY (CLIENT + SERVER)', title: 'Protos.proto messages · length-prefixed framing · HatType enum · .ini config' },
+];
+
+// ---- 2. Server tick -------------------------------------------------------
+const tickSteps: { cat: Cat; title: string; sub: string[] }[] = [
+  { cat: 'logic', title: 'Reset', sub: ['turn off hold-to-use abilities:', 'zero gravity, invisible, bear'] },
+  { cat: 'net', title: 'Apply input', sub: ['drain the queue: move, jump,', 'punch, grab, equip, hats'] },
+  { cat: 'logic', title: 'Match flow', sub: ['start when all four are ready,', 'respawn anyone with lives left'] },
+  { cat: 'phys', title: 'Simulate', sub: ['Bullet advances 1/15 s in', 'four 1/60 s substeps (2× speed)'] },
+  { cat: 'logic', title: 'Resolve', sub: ['expire mangoes and hats, stun', 'at zero health, revive players'] },
+  { cat: 'net', title: 'Broadcast', sub: ['a snapshot of every object,', 'plus events, to all four'] },
+];
+// Clockwise: 1-2-3 left to right on top, 4-5-6 right to left underneath.
+const tickW = 290, tickGapX = 49, tickX0 = 16, tickH = 96, tickRowY = [44, 214];
+const tickPos = (i: number) => i < 3
+  ? { x: tickX0 + i * (tickW + tickGapX), y: tickRowY[0] }
+  : { x: tickX0 + (5 - i) * (tickW + tickGapX), y: tickRowY[1] };
+
+// ---- 3. Wire format -------------------------------------------------------
+const upRows: [string, string][] = [
+  ['MOVE', '8-way direction + camera facing'],
+  ['JUMP · PUNCH · GRAB', 'one-shot actions'],
+  ['EQUIP', 'pick up or throw away a hat'],
+  ['HATR · HATL', 'hat abilities, sent while held'],
+  ['READY', 'from the lobby'],
+];
+const downRows: [string, string][] = [
+  ['GameObject × N', 'every player, hat and mango'],
+  ['  matrix', '4×4 transform, 16 doubles'],
+  ['  state', 'health, lives, hat, timer'],
+  ['  animation', 'one of 13 animations'],
+  ['Events', 'player ID, ready, start, sounds,'],
+  ['', 'music, win, game over'],
+];
+const upKeyX = 36, upValX = 222, upRight = 456;
+const downKeyX = 564, downValX = 714, downRight = 984;
+
+// ---- 4. Client ------------------------------------------------------------
+const screens = ['Loading', 'Title', 'Lobby', 'Ready', 'Match', 'Spectating'];
+const inGame = [false, false, false, false, true, true];
+const transitions = [
+  ['first', 'frame'],
+  ['press', 'Start'],
+  ['press A,', 'sends READY'],
+  ['server sends', 'START_GAME'],
+  ['out of', 'lives'],
+];
+const pillW = 118, pillGap = 48, pillX0 = 28, pillY = 56, pillH = 46;
+const pillX = (i: number) => pillX0 + i * (pillW + pillGap);
+const frameSteps: { cat: Cat; title: string; sub: string[] }[] = [
+  { cat: 'input', title: 'Read input', sub: ['gamepad and keys become', 'events, sent straight', 'to the server'] },
+  { cat: 'audio', title: 'Update audio', sub: ['FMOD tick: music for', 'the screen, 3D effects', 'heard from your player'] },
+  { cat: 'gfx', title: 'Draw', sub: ['scene graph, skinned', 'models, skybox, clouds,', 'HUD, following camera'] },
+  { cat: 'logic', title: 'Handle messages', sub: ['drain the snapshot', 'queue, update every', 'node’s matrix'] },
+];
+const fW = 196, fGap = 46, fX0 = 40, fY = 196, fH = 116;
+const fX = (i: number) => fX0 + i * (fW + fGap);
+---
+
+<figure class="dz not-prose">
+  <div class="dz-scroll">
+    {variant === 'overview' && (
+      <svg viewBox="0 0 1000 624" class="dz-has-legend" preserveAspectRatio="xMidYMin slice" role="img" aria-labelledby="dz-overview-title">
+        <title id="dz-overview-title">Deerstalker system architecture: four clients talk to one authoritative server over TCP</title>
+        <defs>
+          <marker id={ah} viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="dz-arrowhead" /></marker>
+        </defs>
+        <rect x="16" y="40" width="388" height="452" rx="16" class="dz-lane" />
+        <text x="36" y="66" class="dz-lane-label" data-fit="350">CLIENT · ONE PER PLAYER, ×4</text>
+        <rect x="596" y="40" width="388" height="452" rx="16" class="dz-lane" />
+        <text x="616" y="66" class="dz-lane-label" data-fit="350">SERVER · AUTHORITATIVE</text>
+
+        <rect x="424" y={R[0]} width="152" height={R[1] + 64 - R[0]} rx="12" class="dz-wire" />
+        <text x="500" y="164" class="dz-wire-title">TCP</text>
+        <text x="500" y="184" class="dz-small" text-anchor="middle" data-fit="130">length-prefixed</text>
+        <text x="500" y="199" class="dz-small" text-anchor="middle" data-fit="130">protobuf frames</text>
+
+        {overviewNodes.map((n) => (
+          <g class={`dz-node dz-${n.cat}`}>
+            <rect x={n.x} y={n.y} width={n.w} height={n.h} rx="10" />
+            {n.tag && <text x={n.x + PAD} y={n.y + 21} class="dz-tag" data-fit={n.w - 2 * PAD}>{n.tag}</text>}
+            <text x={n.x + PAD} y={n.y + (n.tag ? 41 : 25)} class="dz-title" data-fit={n.w - 2 * PAD}>{n.title}</text>
+            {n.sub?.map((s, i) => <text x={n.x + PAD} y={n.y + 58 + i * 17} class="dz-sub" data-fit={n.w - 2 * PAD}>{s}</text>)}
+          </g>
+        ))}
+
+        <!-- across the wire -->
+        <line x1="386" y1={R[0] + 32} x2="614" y2={R[0] + 32} class="dz-edge" marker-end={`url(#${ah})`} />
+        <text x="500" y={R[0] + 24} class="dz-edge-label" text-anchor="middle">input events</text>
+        <line x1="614" y1={R[1] + 32} x2="386" y2={R[1] + 32} class="dz-edge" marker-end={`url(#${ah})`} />
+        <text x="500" y={R[1] + 52} class="dz-edge-label" text-anchor="middle">snapshot + events</text>
+
+        <!-- client internals -->
+        <line x1="210" y1={R[1] + 66} x2="210" y2={R[2] - 2} class="dz-edge" marker-end={`url(#${ah})`} />
+        <line x1="119" y1={R[2] + 66} x2="119" y2={R[3] - 2} class="dz-edge" marker-end={`url(#${ah})`} />
+        <line x1="301" y1={R[2] + 66} x2="301" y2={R[3] - 2} class="dz-edge" marker-end={`url(#${ah})`} />
+
+        <!-- server internals -->
+        <line x1="730" y1={R[1] + 66} x2="730" y2={R[2] - 2} class="dz-edge" marker-end={`url(#${ah})`} />
+        <text x="720" y={R[2] - 16} class="dz-edge-label" text-anchor="end">queued input</text>
+        <line x1="870" y1={R[2] - 2} x2="870" y2={R[1] + 66} class="dz-edge" marker-end={`url(#${ah})`} />
+        <text x="880" y={R[2] - 16} class="dz-edge-label">broadcast</text>
+        <line x1="790" y1={R[2] + 66} x2="790" y2={R[3] - 2} class="dz-edge" marker-start={`url(#${ah})`} marker-end={`url(#${ah})`} />
+        <text x="802" y={R[3] - 16} class="dz-edge-label">step, read transforms</text>
+
+        <g class="dz-legend-row" transform="translate(16 604)">
+          {legend.map((l, i) => (
+            <g class={`dz-node dz-${l.cat}`} transform={`translate(${i * 140} 0)`}>
+              <rect x="0" y="-11" width="14" height="14" rx="4" />
+              <text x="22" y="1" class="dz-legend" data-fit="110">{l.label}</text>
+            </g>
+          ))}
+        </g>
+      </svg>
+    )}
+
+    {variant === 'tick' && (
+      <svg viewBox="0 0 1000 326" role="img" aria-labelledby="dz-tick-title">
+        <title id="dz-tick-title">One server tick: reset, apply input, match flow, simulate, resolve, broadcast; repeated 30 times a second</title>
+        <defs>
+          <marker id={ah} viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="dz-arrowhead" /></marker>
+        </defs>
+        <text x="16" y="24" class="dz-lane-label">ONE SERVER TICK · EVERY 33 MS</text>
+        {tickSteps.map((s, i) => {
+          const { x, y } = tickPos(i);
+          return (
+            <g class={`dz-node dz-${s.cat}`}>
+              <rect x={x} y={y} width={tickW} height={tickH} rx="12" />
+              <circle cx={x + 28} cy={y + 28} r="13" class="dz-badge" />
+              <text x={x + 28} y={y + 33} class="dz-badge-text">{i + 1}</text>
+              <text x={x + 52} y={y + 33} class="dz-title" data-fit={tickW - 52 - PAD}>{s.title}</text>
+              {s.sub.map((t, j) => <text x={x + PAD} y={y + 62 + j * 17} class="dz-sub" data-fit={tickW - 2 * PAD}>{t}</text>)}
+            </g>
+          );
+        })}
+        {[0, 1].map((i) => {
+          const a = tickPos(i);
+          return <line x1={a.x + tickW + 4} y1={a.y + tickH / 2} x2={a.x + tickW + tickGapX - 4} y2={a.y + tickH / 2} class="dz-edge" marker-end={`url(#${ah})`} />;
+        })}
+        <line x1={tickPos(2).x + tickW / 2} y1={tickRowY[0] + tickH + 4} x2={tickPos(2).x + tickW / 2} y2={tickRowY[1] - 4} class="dz-edge" marker-end={`url(#${ah})`} />
+        {[3, 4].map((i) => {
+          const a = tickPos(i);
+          return <line x1={a.x - 4} y1={a.y + tickH / 2} x2={a.x - tickGapX + 4} y2={a.y + tickH / 2} class="dz-edge" marker-end={`url(#${ah})`} />;
+        })}
+        <line x1={tickPos(5).x + tickW / 2} y1={tickRowY[1] - 4} x2={tickPos(0).x + tickW / 2} y2={tickRowY[0] + tickH + 4} class="dz-edge dz-loop" marker-end={`url(#${ah})`} />
+        <rect x="270" y="164" width="460" height="28" rx="14" class="dz-pill-bg" />
+        <text x="500" y="183" class="dz-edge-label" text-anchor="middle" data-fit="436">sleep out the rest of the 33 ms · a new hat every 10 s</text>
+      </svg>
+    )}
+
+    {variant === 'wire' && (
+      <svg viewBox="0 0 1000 420" role="img" aria-labelledby="dz-wire-title">
+        <title id="dz-wire-title">Message format: a 6-digit length header followed by a protobuf Message; what clients send and what the server sends back</title>
+        <defs>
+          <marker id={ah} viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="dz-arrowhead" /></marker>
+        </defs>
+        <text x="16" y="24" class="dz-lane-label">EVERY MESSAGE, IN BOTH DIRECTIONS</text>
+        {[' ', ' ', '1', '3', '4', '2'].map((d, i) => (
+          <g class="dz-node dz-net">
+            <rect x={16 + i * 35} y="38" width="31" height="58" rx="8" />
+            <text x={31.5 + i * 35} y="74" class="dz-mono" text-anchor="middle">{d === ' ' ? '␣' : d}</text>
+          </g>
+        ))}
+        <g class="dz-node dz-shared">
+          <rect x="232" y="38" width="752" height="58" rx="10" />
+          <text x="608" y="74" class="dz-mono" text-anchor="middle" data-fit="720">protobuf Message {'{'} messageType, event[], gameObject[] {'}'}</text>
+        </g>
+        <text x="119" y="118" class="dz-small" text-anchor="middle" data-fit="206">6 ASCII digits: body length</text>
+        <text x="608" y="118" class="dz-small" text-anchor="middle">serialized bytes</text>
+
+        <g class="dz-node dz-input">
+          <rect x="16" y="150" width="440" height="250" rx="14" />
+          <text x={upKeyX} y="180" class="dz-tag">CLIENT → SERVER</text>
+          <text x={upKeyX} y="203" class="dz-title" data-fit="400">When you press something</text>
+          {upRows.map(([k, v], i) => (
+            <g>
+              <text x={upKeyX} y={238 + i * 30} class="dz-key" data-fit={upValX - upKeyX - 12}>{k}</text>
+              <text x={upValX} y={238 + i * 30} class="dz-sub" data-fit={upRight - upValX - PAD}>{v}</text>
+            </g>
+          ))}
+        </g>
+        <g class="dz-node dz-net">
+          <rect x="544" y="150" width="440" height="250" rx="14" />
+          <text x={downKeyX} y="180" class="dz-tag">SERVER → CLIENT</text>
+          <text x={downKeyX} y="203" class="dz-title" data-fit="400">Every tick, 30 times a second</text>
+          {downRows.map(([k, v], i) => (
+            <g>
+              <text x={downKeyX} y={238 + i * 27} class="dz-key" data-fit={downValX - downKeyX - 12}>{k}</text>
+              <text x={downValX} y={238 + i * 27} class="dz-sub" data-fit={downRight - downValX - PAD}>{v}</text>
+            </g>
+          ))}
+        </g>
+        <line x1="464" y1="250" x2="536" y2="250" class="dz-edge" marker-end={`url(#${ah})`} />
+        <text x="500" y="240" class="dz-edge-label" text-anchor="middle">intent</text>
+        <line x1="536" y1="310" x2="464" y2="310" class="dz-edge" marker-end={`url(#${ah})`} />
+        <text x="500" y="300" class="dz-edge-label" text-anchor="middle">truth</text>
+      </svg>
+    )}
+
+    {variant === 'client' && (
+      <svg viewBox="0 0 1000 350" role="img" aria-labelledby="dz-client-title">
+        <title id="dz-client-title">Client screens from loading to spectating, and the four steps the client runs every frame</title>
+        <defs>
+          <marker id={ah} viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="dz-arrowhead" /></marker>
+        </defs>
+        <text x="16" y="24" class="dz-lane-label">SCREENS</text>
+        {screens.map((s, i) => (
+          <g class={`dz-node ${inGame[i] ? 'dz-logic' : 'dz-shared'}`}>
+            <rect x={pillX(i)} y={pillY} width={pillW} height={pillH} rx={pillH / 2} />
+            <text x={pillX(i) + pillW / 2} y={pillY + 29} class="dz-title" text-anchor="middle" data-fit={pillW - 20}>{s}</text>
+          </g>
+        ))}
+        {transitions.map((t, i) => {
+          const x = pillX(i) + pillW;
+          const mid = x + pillGap / 2;
+          return (
+            <g>
+              <line x1={x + 4} y1={pillY + pillH / 2} x2={x + pillGap - 4} y2={pillY + pillH / 2} class="dz-edge" marker-end={`url(#${ah})`} />
+              <text x={mid} y={pillY + pillH + 22} class="dz-small" text-anchor="middle">{t[0]}</text>
+              <text x={mid} y={pillY + pillH + 36} class="dz-small" text-anchor="middle">{t[1]}</text>
+            </g>
+          );
+        })}
+        <!-- game over: Match and Spectating both return to the lobby -->
+        <path d={`M ${pillX(5) + pillW / 2} ${pillY - 2} V 26 H ${pillX(2) + pillW / 2} V ${pillY - 4}`} class="dz-edge dz-loop" marker-end={`url(#${ah})`} />
+        <line x1={pillX(4) + pillW / 2} y1={pillY - 2} x2={pillX(4) + pillW / 2} y2="26" class="dz-edge dz-loop" />
+        <rect x={(pillX(2) + pillX(4) + pillW) / 2 - 105} y="14" width="210" height="24" rx="12" class="dz-pill-bg" />
+        <text x={(pillX(2) + pillX(4) + pillW) / 2} y="30" class="dz-edge-label" text-anchor="middle" data-fit="196">game over: back to the lobby</text>
+
+        <text x="16" y="180" class="dz-lane-label">EVERY FRAME, ON THE MAIN THREAD</text>
+        {frameSteps.map((s, i) => (
+          <g class={`dz-node dz-${s.cat}`}>
+            <rect x={fX(i)} y={fY} width={fW} height={fH} rx="12" />
+            <circle cx={fX(i) + 28} cy={fY + 28} r="13" class="dz-badge" />
+            <text x={fX(i) + 28} y={fY + 33} class="dz-badge-text">{i + 1}</text>
+            <text x={fX(i) + 50} y={fY + 33} class="dz-title" data-fit={fW - 50 - PAD + 4}>{s.title}</text>
+            {s.sub.map((t, j) => <text x={fX(i) + PAD} y={fY + 64 + j * 17} class="dz-sub" data-fit={fW - 2 * PAD}>{t}</text>)}
+          </g>
+        ))}
+        {frameSteps.slice(0, -1).map((_, i) => (
+          <line x1={fX(i) + fW + 4} y1={fY + fH / 2} x2={fX(i + 1) - 4} y2={fY + fH / 2} class="dz-edge" marker-end={`url(#${ah})`} />
+        ))}
+        <path d={`M ${fX(3) + fW + 4} ${fY + fH / 2} H ${fX(3) + fW + 22} V ${fY + fH + 22} H ${fX0 - 26} V ${fY + fH / 2} H ${fX0 - 4}`} class="dz-edge dz-loop" marker-end={`url(#${ah})`} />
+      </svg>
+    )}
+  </div>
+  <figcaption><slot /></figcaption>
+</figure>
+
+<script>
+  // Squeeze any in-box label that would overflow its box (wide theme fonts).
+  function fitDiagramText() {
+    document.querySelectorAll<SVGTextElement>('figure.dz text[data-fit]').forEach((t) => {
+      t.removeAttribute('textLength');
+      t.removeAttribute('lengthAdjust');
+      const max = Number(t.dataset.fit);
+      if (max > 0 && t.getComputedTextLength() > max) {
+        t.setAttribute('textLength', String(max));
+        t.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+      }
+    });
+  }
+  function scheduleFit() {
+    requestAnimationFrame(fitDiagramText);
+    document.fonts?.ready.then(() => requestAnimationFrame(fitDiagramText));
+  }
+  document.addEventListener('astro:page-load', scheduleFit);
+  new MutationObserver(scheduleFit).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+  scheduleFit();
+</script>
+
+<style>
+  .dz {
+    margin: 2rem 0;
+    --c-input: #22c55e;
+    --c-net: #3b82f6;
+    --c-logic: #14b8a6;
+    --c-phys: #f59e0b;
+    --c-gfx: #8b5cf6;
+    --c-audio: #ec4899;
+    --c-shared: #64748b;
+    --dz-badge-fg: #fff;
+  }
+  /* Dark Terminal is green on black: one hue, square corners, no legend. */
+  :global([data-theme='dark-terminal']) .dz {
+    --c-input: var(--accent);
+    --c-net: var(--accent);
+    --c-logic: var(--accent);
+    --c-phys: var(--accent);
+    --c-gfx: var(--accent);
+    --c-audio: var(--accent);
+    --c-shared: var(--accent);
+    --dz-badge-fg: var(--bg-primary);
+  }
+  :global([data-theme='dark-terminal']) .dz rect { rx: 0; }
+  :global([data-theme='dark-terminal']) .dz .dz-legend-row { display: none; }
+  /* without the legend, crop the overview's legend row */
+  :global([data-theme='dark-terminal']) .dz .dz-has-legend { aspect-ratio: 1000 / 586; }
+  :global([data-theme='dark-terminal']) .dz .dz-node rect {
+    fill: color-mix(in srgb, var(--c) 6%, transparent);
+  }
+
+  .dz-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    min-width: 720px;
+    height: auto;
+    font-family: var(--font-secondary, system-ui, sans-serif);
+  }
+  figcaption {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+  figcaption:empty { display: none; }
+
+  .dz-input { --c: var(--c-input); }
+  .dz-net { --c: var(--c-net); }
+  .dz-logic { --c: var(--c-logic); }
+  .dz-phys { --c: var(--c-phys); }
+  .dz-gfx { --c: var(--c-gfx); }
+  .dz-audio { --c: var(--c-audio); }
+  .dz-shared { --c: var(--c-shared); }
+
+  .dz-lane {
+    fill: var(--bg-secondary);
+    stroke: var(--border);
+    stroke-width: 1.5;
+  }
+  .dz-lane-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    fill: var(--text-secondary);
+  }
+  .dz-wire {
+    fill: none;
+    stroke: var(--text-secondary);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 5;
+    opacity: 0.7;
+  }
+  .dz-wire-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    fill: var(--text-primary);
+    text-anchor: middle;
+  }
+  .dz-node rect {
+    fill: color-mix(in srgb, var(--c) 13%, transparent);
+    stroke: color-mix(in srgb, var(--c) 75%, transparent);
+    stroke-width: 1.5;
+  }
+  .dz-tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    fill: var(--c);
+  }
+  .dz-title {
+    font-size: 15px;
+    font-weight: 650;
+    fill: var(--text-primary);
+  }
+  .dz-sub, .dz-small, .dz-edge-label, .dz-legend {
+    fill: var(--text-secondary);
+  }
+  .dz-sub { font-size: 12.5px; }
+  .dz-small { font-size: 11.5px; }
+  .dz-legend { font-size: 12.5px; }
+  .dz-edge-label { font-size: 12px; font-style: italic; }
+  .dz-key {
+    font-family: var(--font-primary, ui-monospace, monospace);
+    font-size: 12.5px;
+    font-weight: 600;
+    fill: var(--text-primary);
+    white-space: pre;
+  }
+  .dz-mono {
+    font-family: var(--font-primary, ui-monospace, monospace);
+    font-size: 15px;
+    font-weight: 600;
+    fill: var(--text-primary);
+    white-space: pre;
+  }
+  .dz-edge {
+    stroke: var(--text-secondary);
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+  .dz-loop { stroke-dasharray: 5 5; }
+  .dz-arrowhead { fill: var(--text-secondary); }
+  .dz-pill-bg {
+    fill: var(--bg-primary);
+    stroke: var(--border);
+  }
+  .dz-badge { fill: var(--c); }
+  .dz-badge-text {
+    font-size: 13px;
+    font-weight: 800;
+    fill: var(--dz-badge-fg);
+    text-anchor: middle;
+  }
+</style>

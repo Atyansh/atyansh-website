@@ -7,26 +7,20 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler43.java'
 ---
 
-## Problem Statement
+## The problem
 
-The number, 1406357289, is a 0 to 9 pandigital number because it is made up of each of the digits 0 to 9 in some order, but it also has a rather interesting sub-string divisibility property.
+Consider the 0–9 pandigital numbers d₁d₂…d₁₀. Find the sum of those where each three-digit window d₂d₃d₄, d₃d₄d₅, …, d₈d₉d₁₀ is divisible by 2, 3, 5, 7, 11, 13 and 17 respectively.
 
-Let d(1) be the 1st digit, d(2) be the 2nd digit, and so on. In this way, we note the following:
+## My solution
 
-- d(2)d(3)d(4) = 406 is divisible by 2
-- d(3)d(4)d(5) = 063 is divisible by 3
-- d(4)d(5)d(6) = 635 is divisible by 5
-- d(5)d(6)d(7) = 357 is divisible by 7
-- d(6)d(7)d(8) = 572 is divisible by 11
-- d(7)d(8)d(9) = 728 is divisible by 13
-- d(8)d(9)d(10) = 289 is divisible by 17
+Brute force over permutations, reusing the next-permutation function from [problem 24](/euler/24) (`Euler24.next`, so `Euler24.java` has to be compiled alongside). Starting from 1023456789, the smallest pandigital without a leading zero, I step through every permutation up to 9876543210, about 3.3 million of them (9 × 9!). For each one I parse the seven windows with `Integer.parseInt` and test divisibility, moving on at the first failure; survivors are added to the sum.
 
-Find the sum of all 0 to 9 pandigital numbers with this property.
+```java
+for(int i = 0; i < 7; i++) {
+  num = Integer.parseInt(""+arr[i+1]+arr[i+2]+arr[i+3]);
+  if(num % primes[i] != 0)
+    continue loop;
+}
+```
 
-## Approach
-
-The solution involves:
-1. Generating all 0-9 pandigital permutations
-2. For each permutation, checking the divisibility constraints
-3. Using the constraints to prune the search space efficiently
-4. Summing all numbers that satisfy all divisibility properties
+Every permutation is generated and checked, and most are ruled out quickly: about half fail the very first window, which needs d₄ to be even.

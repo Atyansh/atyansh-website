@@ -7,19 +7,25 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler39.java'
 ---
 
-## Problem Statement
+## The problem
 
-If p is the perimeter of a right angle triangle with integral length sides, {a,b,c}, there are exactly three solutions for p = 120.
+For each perimeter p ≤ 1000, count the right triangles with integer sides and that perimeter, and find the p with the most.
 
-{20,48,52}, {24,45,51}, {30,40,50}
+## My solution
 
-For which value of p ≤ 1000, is the number of solutions maximised?
+Brute force over every perimeter from 3 to 1000 and every split of it into three positive sides, checking whether any of the three can be the hypotenuse:
 
-## Approach
+```java
+for(int a = 1; a < p-1; a++) {
+  for(int b = 1; b < p-a-1; b++) {
+    int c = p-a-b;
 
-The solution involves:
-1. Iterating through all possible perimeters up to 1000
-2. For each perimeter p, finding all valid right triangles with sides summing to p
-3. Using the Pythagorean theorem: a² + b² = c²
-4. Counting solutions for each perimeter
-5. Finding the perimeter with the maximum number of solutions
+    A = a*a; B = b*b; C = c*c;
+
+    if(A+B == C || B+C == A || A+C == B)
+      count++;
+  }
+}
+```
+
+The sides aren't ordered, so each triangle shows up once for every arrangement of its three (always distinct) side lengths, six times in all. That multiplies every perimeter's count by the same factor, so the perimeter with the highest count is still the one with the most triangles. Summing p²/2 over all perimeters gives about 1.7 × 10⁸ inner iterations.

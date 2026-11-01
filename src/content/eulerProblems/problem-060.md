@@ -7,17 +7,23 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler60.java'
 ---
 
-## Problem Statement
+## The problem
 
-The primes 3, 7, 109, and 673, are quite remarkable. By taking any two primes and concatenating them in any order the result will always be prime. For example, taking 7 and 109, both 7109 and 1097 are prime. The sum of these four primes, 792, represents the lowest sum for a set of four primes with this property.
+The primes 3, 7, 109 and 673 have the property that concatenating any two of them, in either order, gives another prime. Find the smallest sum of a set of five primes with that property.
 
-Find the lowest sum for a set of five primes for which any two primes concatenate to produce another prime.
+## My solution
 
-## Approach
+A depth-first backtracking search. It takes the first 1,230 odd primes (3 up to 10,009; 2 can't be in a set because anything ending in 2 is even) and fills a five-slot array one level at a time. At each level it tries primes in order and only recurses when the new prime concatenates to a prime both ways with every prime already chosen. The first time all five slots are filled, the search stops and prints the sum.
 
-The solution involves:
-1. Generating prime numbers up to a reasonable limit
-2. Testing pairs of primes to see if their concatenations are prime
-3. Building sets of primes where all pairs satisfy the concatenation property
-4. Using backtracking or systematic search to find sets of size 5
-5. Finding the set with the minimum sum
+```java
+for(int j = 0; j < offset; j++) {
+  if(!isPrime(set[j] + "" + set[offset]) ||
+     !isPrime(set[offset] + "" + set[j]))
+    continue x;
+}
+
+if(pairSet(primes, set, num, offset + 1))
+  return true;
+```
+
+Each concatenation test builds the string, parses it as a `long` (at most ten digits here), and runs trial division by odd numbers up to its square root.

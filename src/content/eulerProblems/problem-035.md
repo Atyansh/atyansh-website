@@ -7,18 +7,27 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler35.java'
 ---
 
-## Problem Statement
+## The problem
 
-The number, 197, is called a circular prime because all rotations of the digits: 197, 971, and 719, are themselves prime.
+A circular prime stays prime under every rotation of its digits (197, 971 and 719, for example). Count the circular primes below one million.
 
-There are thirteen such primes below 100: 2, 3, 5, 7, 11, 13, 17, 31, 37, 71, 73, 79, and 97.
+## My solution
 
-How many circular primes are there below one million?
+Trial division throughout. The count starts at 1 to cover 2; then for every odd i from 3 to 999,999 that is prime, I rotate it repeatedly, testing each rotation, until I'm back at i. The first composite rotation rules the number out.
 
-## Approach
+`rotate` moves the last digit to the front with arithmetic instead of strings:
 
-The solution involves:
-1. Generating all prime numbers below one million using Sieve of Eratosthenes
-2. For each prime, generating all rotations of its digits
-3. Checking if all rotations are also prime
-4. Counting all numbers that satisfy the circular prime property
+```java
+int a = n % 10;
+n /= 10;
+int b = 1;
+
+while(n / b != 0)
+  b *= 10;
+
+n += a*b;
+```
+
+Zeros take care of themselves: a number ending in 0 is even and fails the primality test before it's ever rotated, and any 0 elsewhere eventually rotates into the last place with the same result.
+
+`isPrime` divides by odd numbers up to √n. Composites usually fail on a small divisor, so most of the cost comes from the primes.

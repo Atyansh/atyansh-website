@@ -7,24 +7,23 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler68.java'
 ---
 
-## Problem Statement
+## The problem
 
-Consider the following "magic" 3-gon ring, filled with the numbers 1 to 6, and each line adding to nine.
+Place 1 to 10 on a 5-gon ring (five outer nodes, five inner, five lines of three) so that every line has the same sum. Reading the lines clockwise, starting from the line with the smallest outer node, gives a digit string. Find the largest such string with 16 digits.
 
-Working clockwise, and starting from the group of three with the numerically lowest external node (4,3,2 in this example), each solution can be described uniquely. For example, the above solution can be described by the set: 4,3,2; 6,2,1; 5,1,3.
+## My solution
 
-It is possible to complete the ring with four different totals: 9, 10, 11, and 12. There are eight solutions in total.
+Brute force over all 10! = 3,628,800 arrangements, using the next-permutation routine from my Problem 24 solution. Since that routine works on a `char[]`, the numbers 1 to 10 are encoded as the characters '0' to '9', with '9' standing for 10. Indices 0–4 hold the inner ring and 5–9 the outer nodes, and the line through outer node i is (i, i−5, i−4), with the last one wrapping to (9, 4, 0).
 
-By concatenating each group it is possible to form 9-digit strings; the maximum string for a 3-gon ring is 432621513.
+For each arrangement the code:
 
-Using the numbers 1 to 10, and depending on arrangements, it is possible to form 16-digit and 17-digit strings. What is the maximum 16-digit string for a "magic" 5-gon ring?
+1. Skips it unless 10 is an outer node. An inner 10 would sit on two lines and make a 17-digit string, so this is the 16-digit filter.
+2. Finds the smallest outer node and walks the lines clockwise from there, wrapping from index 9 back to 5, and drops the arrangement as soon as a line sum differs from the first. Sums are compared on the encoded characters, which is fine because every line is shifted by the same amount.
+3. Concatenates the encoded lines, parses the result as a `long`, and keeps the maximum.
 
-## Approach
+At the end, `parse` decodes the winning string by adding 1 to each digit and turning '9' into "10".
 
-The solution involves:
-1. Placing numbers 1-10 in the 5-gon ring structure
-2. Ensuring all lines sum to the same total
-3. Starting from the lowest external node
-4. Generating all valid configurations
-5. Filtering for 16-digit strings (10 must be external)
-6. Finding the maximum 16-digit string
+```java
+for(int i = 0; i < arr.length; i++)
+  str += (arr[i] == '9') ? "10" : ( (char) (arr[i] + 1));
+```

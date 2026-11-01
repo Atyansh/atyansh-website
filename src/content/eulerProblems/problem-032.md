@@ -7,20 +7,23 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler32.java'
 ---
 
-## Problem Statement
+## The problem
 
-We shall say that an n-digit number is pandigital if it makes use of all the digits 1 to n exactly once; for example, the 5-digit number, 15234, is 1 through 5 pandigital.
+Find all products whose multiplication identity (multiplicand × multiplier = product) uses each of the digits 1–9 exactly once, and add them up, counting each product only once.
 
-The product 7254 is unusual, as the identity, 39 × 186 = 7254, containing multiplicand, multiplier, and product is 1 through 9 pandigital.
+## My solution
 
-Find the sum of all products whose multiplicand/multiplier/product identity can be written as a 1 through 9 pandigital.
+Brute force over every pair i, j below 10,000, immediately skipping any pair whose product falls outside 100 … 10,000.
 
-HINT: Some products can be obtained in more than one way so be sure to only include it once in your sum.
+For each surviving pair, I peel digits off the product, `i` and `j` in turn and add them to a `TreeSet`, bailing out as soon as a digit repeats or all three are used up before 9 digits. The pair counts only if all three numbers are fully consumed at exactly 9 digits and 0 never appeared.
 
-## Approach
+```java
+if(product == 0 && I == 0 & J == 0 && !digits.contains(0) && products.add(i*j))
+  sum += i*j;
+```
 
-The solution involves:
-1. Generating combinations of 1-digit and 4-digit numbers, or 2-digit and 3-digit numbers
-2. Checking if multiplicand, multiplier, and product together form a 1-9 pandigital
-3. Using a Set to store unique products
-4. Summing all unique products found
+The second `TreeSet`, `products`, handles the "count each product once" rule: the same product can come from more than one factor pair, and every pair is also visited as both i × j and j × i.
+
+## Notes
+
+The product always has 4 digits. The three numbers share 9 digits, and a product has either as many digits as its two factors combined or one fewer, which only works out to 9 in total with a 4-digit product. So every identity is either 1 digit × 4 digits or 2 digits × 3 digits.

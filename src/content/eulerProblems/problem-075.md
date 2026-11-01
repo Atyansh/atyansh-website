@@ -7,28 +7,30 @@ solutionLanguage: 'Python'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler75.py'
 ---
 
-## Problem Statement
+## The problem
 
-It turns out that 12 cm is the smallest length of wire that can be bent to form an integer sided right angle triangle in exactly one way, but there are many more examples.
+A wire of length L can sometimes be bent into an integer-sided right triangle. Count the lengths L ≤ 1,500,000 for which there is exactly one such triangle.
 
-- 12 cm: (3,4,5)
-- 24 cm: (6,8,10)
-- 30 cm: (5,12,13)
-- 36 cm: (9,12,15)
-- 40 cm: (8,15,17)
-- 48 cm: (12,16,20)
+## My solution
 
-In contrast, some lengths of wire, like 20 cm, cannot be bent to form an integer sided right angle triangle, and other lengths allow more than one solution to be found; for example, using 120 cm it is possible to form exactly three different integer sided right angle triangles.
+I generate triangles with Euclid's formula, a = 2mn, b = m² − n², c = m² + n² for m > n ≥ 1, swap a and b so the smaller leg comes first, and record perimeters in a dict `d` from perimeter to triangle count.
 
-- 120 cm: (30,40,50), (20,48,52), (24,45,51)
+Rather than restricting (m, n) to coprime pairs of opposite parity, I handle duplicates with a second dict, `done`, of every triangle already counted. When a new triangle appears, I add 1 to the count of every multiple of its perimeter up to L and mark each scaled copy (k·a, k·b, k·c) as done:
 
-Given that L is the length of the wire, for how many values of L ≤ 1,500,000 can exactly one integer sided right angle triangle be formed?
+```python
+if (a,b,c) in done:
+  n += 1
+  continue
 
-## Approach
+pro = nSum
+ct = 1
+while(pro <= L):
+  d[pro] += 1
+  done[(ct*a,ct*b,ct*c)] = 1
+  pro += nSum
+  ct += 1
+```
 
-The solution involves:
-1. Using Euclid's formula to generate Pythagorean triples: a=m²-n², b=2mn, c=m²+n²
-2. Generating all primitive triples and their multiples up to L=1,500,000
-3. Counting how many triangles have each perimeter
-4. Counting perimeters with exactly one triangle
-5. Using conditions: m>n, gcd(m,n)=1, m and n not both odd
+This avoids double counting because Euclid's formula produces every primitive triple, and every non-primitive triple it produces (m and n both odd, or sharing a factor) is a multiple of a primitive one with a smaller m. Since m only increases, the primitive triple always comes first and has already marked its multiples.
+
+The outer loop stops once the smallest perimeter for m (n = 1, giving 2m² + 2m) passes L, and the inner loop stops once 2m(m + n) passes L. At the end I count the perimeters with exactly one triangle.

@@ -5,6 +5,13 @@
       "firebase.json",
       "**/.*"
     ],
+    "redirects": [
+      { "source": "/projects", "destination": "/work", "type": 301 },
+      { "source": "/projects/", "destination": "/work", "type": 301 },
+      { "source": "/saber.pdf", "destination": "/papers/saber.pdf", "type": 301 },
+      { "source": "/spam.pdf", "destination": "/papers/spam.pdf", "type": 301 },
+      { "source": "/gc.pdf", "destination": "/papers/gc.pdf", "type": 301 }
+    ],
     "headers": [
       {
         "source": "**",

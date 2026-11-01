@@ -7,26 +7,23 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler55.java'
 ---
 
-## Problem Statement
+## The problem
 
-If we take 47, reverse and add, 47 + 74 = 121, which is palindromic.
+Repeatedly reversing a number's digits and adding the result to it usually produces a palindrome eventually. Count the numbers below ten thousand that don't reach one within 50 iterations.
 
-Not all numbers produce palindromes so quickly. For example,
+## My solution
 
-349 + 943 = 1292,
-1292 + 2921 = 4213
-4213 + 3124 = 7337
+Direct simulation with `BigInteger`, since the values pick up digits with each iteration and quickly outgrow a `long`. For each starting number, the code reverses the decimal string, adds it, and checks whether the sum is a palindrome, up to 50 times. Numbers that never produce one are counted.
 
-That is, 349 took three iterations to arrive at a palindrome.
+```java
+for(int i = 0; i < 50; i++) {
+  reverse = reverse(regular.toString());
+  regular = regular.add(reverse);
 
-Although no one has proved it yet, it is thought that some numbers, like 196, never produce a palindrome. A number that never forms a palindrome through the reverse and add process is called a Lychrel number. Due to the theoretical nature of these numbers, and for the purpose of this problem, we shall assume that a number is Lychrel until proven otherwise. In addition you are given that for every number below ten-thousand, it will either (i) become a palindrome in less than fifty iterations, or, (ii) no one, with all the computing power that exists, has managed so far to map it to a palindrome.
+  if(palindrome(regular.toString()))
+    continue outer;
+}
+count++;
+```
 
-How many Lychrel numbers are there below ten-thousand?
-
-## Approach
-
-The solution involves:
-1. For each number below 10,000, applying the reverse and add process
-2. Checking if a palindrome is produced within 50 iterations
-3. Using BigInteger to handle large numbers that may result from iterations
-4. Counting numbers that don't produce palindromes within the limit
+The palindrome check only runs after an addition, so a starting number that is already a palindrome still has to produce a new one, which is what the problem asks for.

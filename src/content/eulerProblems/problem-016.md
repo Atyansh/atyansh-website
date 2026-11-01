@@ -7,26 +7,21 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler16.java'
 ---
 
-## Problem Statement
+## The problem
 
-2^15 = 32768 and the sum of its digits is 3 + 2 + 7 + 6 + 8 = 26.
+Find the sum of the decimal digits of 2¹⁰⁰⁰.
 
-What is the sum of the digits of the number 2^1000?
+## My solution
 
-## Approach
+2¹⁰⁰⁰ has 302 digits, far beyond any primitive type, so I let `BigInteger` compute it, convert it to a string, and add up the characters:
 
-Since 2^1000 is a very large number that exceeds the capacity of standard integer types, we need to use arbitrary-precision arithmetic.
+```java
+BigInteger b = new BigInteger("2");
+b = b.pow(1000);
 
-**Method 1: Using BigInteger**
-- Use Java's BigInteger class to calculate 2^1000
-- Convert the result to a string
-- Iterate through each character (digit)
-- Sum all the digits
+String s = b.toString();
+for(int i = 0; i < length; i++)
+  sum += (s.charAt(i) - 48);
+```
 
-**Method 2: Manual calculation**
-- Implement multiplication by 2 using an array to store digits
-- Start with 1 and multiply by 2 a thousand times
-- Handle carries during multiplication
-- Sum all the digits in the final array
-
-The BigInteger approach is simpler and less error-prone, making it the preferred solution for this problem.
+Subtracting 48 (the code for '0') turns each digit character into its value. The work is all in `BigInteger.pow` and `toString`, both of which are instant at this size.

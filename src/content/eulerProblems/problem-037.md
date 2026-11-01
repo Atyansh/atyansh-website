@@ -7,19 +7,15 @@ solutionLanguage: 'Python'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler37.py'
 ---
 
-## Problem Statement
+## The problem
 
-The number 3797 has an interesting property. Being prime itself, it is possible to continuously remove digits from left to right, and remain prime at each stage: 3797, 797, 97, and 7. Similarly we can work from right to left: 3797, 379, 37, and 3.
+Some primes stay prime as you remove digits one at a time from the left, and also from the right. There are only eleven of them (2, 3, 5 and 7 don't count); find their sum.
 
-Find the sum of the only eleven primes that are both truncatable from left to right and right to left.
+## My solution
 
-NOTE: 2, 3, 5, and 7 are not considered to be truncatable primes.
+This one is in Python 2. I walk the odd numbers upward from 11 and, for each prime, check both truncation directions. The problem says there are exactly eleven, so the loop stops once it has found them all.
 
-## Approach
+- **Right truncation:** repeatedly divide by 10 (integer division in Python 2) and test each shorter number. This loop also counts the digits in `rev`.
+- **Left truncation:** remove the leading digit with `num - (num / 10**(rev-1)) * 10**(rev-1)`, which is `num % 10**(rev-1)`, and test what remains.
 
-The solution involves:
-1. Generating prime numbers systematically
-2. For each prime (excluding single-digit primes), checking all left truncations
-3. Checking all right truncations
-4. Verifying that all truncations are prime
-5. Summing the eleven primes that satisfy both conditions
+`isPrime` is trial division by odd numbers up to √n and returns False for 1, so a truncation that ends in a bare 1 is rejected.

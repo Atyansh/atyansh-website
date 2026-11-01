@@ -7,26 +7,25 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler27.java'
 ---
 
-## Problem Statement
+## The problem
 
-Euler discovered the remarkable quadratic formula:
+Among quadratics n² + an + b with |a| < 1000 and |b| ≤ 1000, find the one that gives the longest run of primes for n = 0, 1, 2, …, and report the product a × b.
 
-n² + n + 41
+## My solution
 
-It turns out that the formula will produce 40 primes for the consecutive integer values 0 ≤ n ≤ 39. However, when n = 40, 40² + 40 + 41 = 40(40 + 1) + 41 is divisible by 41, and certainly when n = 41, 41² + 41 + 41 is clearly divisible by 41.
+Brute force over the coefficients, with one pruning step: at n = 0 the quadratic is just b, so b has to be prime. I loop a from −999 to 999 and b over the odd numbers from 3 to 999, which rules out negative b, even b and b = 1000 without testing them. b = 2 can be skipped too: n = 2 then gives 2a + 6, which is even and equals 2 only when a = −2, and in that case n = 1 gives 1. So with b = 2 the run never gets past n = 1.
 
-The incredible formula n² - 79n + 1601 was discovered, which produces 80 primes for the consecutive values 0 ≤ n ≤ 79. The product of the coefficients, -79 and 1601, is -126479.
+For each (a, b) I count primes for consecutive n until the first composite:
 
-Considering quadratics of the form:
+```java
+prime = b;
+length = n = 0;
 
-n² + an + b, where |a| < 1000 and |b| ≤ 1000
+while(isPrime(prime)) {
+  length++;
+  n++;
+  prime = n*n + a*n + b;
+}
+```
 
-Find the product of the coefficients, a and b, for the quadratic expression that produces the maximum number of primes for consecutive values of n, starting with n = 0.
-
-## Approach
-
-The solution involves:
-1. Testing all combinations of a and b within the given ranges
-2. For each combination, counting consecutive primes starting from n = 0
-3. Using a prime checking function to validate each result
-4. Tracking the coefficients that produce the maximum consecutive primes
+`isPrime` is trial division by odd numbers up to √n, and it returns false for anything below 2, which covers the negative values the quadratic produces when a is negative. That's about a million (a, b) pairs, and most fail within the first couple of terms.

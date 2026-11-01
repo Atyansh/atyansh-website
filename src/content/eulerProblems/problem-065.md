@@ -7,28 +7,18 @@ solutionLanguage: 'Python'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler65.py'
 ---
 
-## Problem Statement
+## The problem
 
-The square root of 2 can be written as an infinite continued fraction. The infinite continued fraction can be written, √2 = [1;(2)], (2) indicates that 2 repeats ad infinitum. In a similar way, √23 = [4;(1,3,1,8)].
+The continued fraction of e is [2; 1, 2, 1, 1, 4, 1, 1, 6, 1, …]. Find the sum of the digits in the numerator of its 100th convergent.
 
-It turns out that the sequence of partial values of continued fractions for square roots provide the best rational approximations. Let us consider the convergents for √2.
+## My solution
 
-Hence the sequence of the first ten convergents for √2 are:
-1, 3/2, 7/5, 17/12, 41/29, 99/70, 239/169, 577/408, 1393/985, 3363/2378, ...
+Instead of the usual forward recurrence for convergents, the code evaluates the truncated continued fraction from the bottom up. The 100th convergent uses a₀ = 2 followed by 99 more terms, which form 33 blocks of (1, 2k, 1) for k = 1 to 33. The current value is held as den/num, and each step replaces it with a + num/den:
 
-What is most surprising is that the important mathematical constant, e = [2; 1,2,1, 1,4,1, 1,6,1 , ... , 1,2k,1, ...].
+```python
+temp = c*den+num
+num = den
+den = temp
+```
 
-The first ten terms in the sequence of convergents for e are:
-2, 3, 8/3, 11/4, 19/7, 87/32, 106/39, 193/71, 1264/465, 1457/536, ...
-
-The sum of digits in the numerator of the 10th convergent is 1+4+5+7=17.
-
-Find the sum of digits in the numerator of the 100th convergent of the continued fraction for e.
-
-## Approach
-
-The solution involves:
-1. Generating the continued fraction coefficients for e: [2; 1,2,1, 1,4,1, 1,6,1, ...]
-2. Computing convergents using the recurrence relation
-3. Using BigInteger to handle large numerators
-4. Extracting and summing the digits of the 100th numerator
+It starts from the innermost term (the final 1), applies the 66 and the 1 before it by hand, then loops 32 times over the remaining (1, c, 1) blocks with c dropping by 2 each time, and finishes by adding a₀ = 2. The digit sum is taken from the final numerator. Each step keeps the fraction in lowest terms (gcd(a·den + num, den) = gcd(num, den)), so no reduction is needed, and Python's integers handle the size. It runs instantly.

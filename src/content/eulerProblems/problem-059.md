@@ -7,23 +7,19 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler59.java'
 ---
 
-## Problem Statement
+## The problem
 
-Each character on a computer is assigned a unique code and the preferred standard is ASCII (American Standard Code for Information Interchange). For example, uppercase A = 65, asterisk (*) = 42, and lowercase k = 107.
+A file contains English text encrypted by XOR with a repeating three-letter lowercase key. Recover the text and add up the ASCII values of its characters.
 
-A modern encryption method is to take a text file, convert the bytes to ASCII, then XOR each byte with a given value, taken from a secret key. The advantage with the XOR function is that using the same encryption key on the cipher text, restores the plain text; for example, 65 XOR 42 = 107, then 107 XOR 42 = 65.
+## My solution
 
-For unbreakable encryption, the key is the same length as the plain text message, and the key is made up of random bytes. The user would keep the encrypted message and the encryption key in different locations, and without both "halves", it is impossible to decrypt the message.
+Brute force over all 26³ = 17,576 keys, with each key byte running from 'a' (97) to 'z' (122). For each key, the code decrypts the whole message and counts how many characters come out as a space (ASCII 32), keeping a running sum of the decrypted values. The key that produces the most spaces wins, and its sum is printed.
 
-Unfortunately, this method is impractical for most users, so the modified method is to use a password as a key. If the password is shorter than the message, which is likely, the key is repeated cyclically throughout the message. The balance for this method is using a sufficiently long password key for security, but short enough to be memorable.
+```java
+tempValue = tokens[x] ^ i;
+tempAnswer += tempValue;
+if(tempValue == 32)
+  temp++;
+```
 
-Your task has been made easy, as the encryption key consists of three lower case characters. Using the provided cipher text file, find the original message, then find the sum of the ASCII values in the original text.
-
-## Approach
-
-The solution involves:
-1. Reading the encrypted ASCII values from the file
-2. Trying all combinations of three lowercase letters (26^3 = 17,576 combinations)
-3. Decrypting with each key by XORing cyclically
-4. Checking if the result contains common English words (like "the", "and")
-5. Summing the ASCII values of the correctly decrypted message
+Spaces make a good score because they are the most common character in English prose, while a wrong key byte only turns a ciphertext byte into a space by coincidence. The ciphertext is processed three bytes at a time, one per key letter. Its 1,201 bytes leave one byte over at the end, which is added to the sum but not scored.

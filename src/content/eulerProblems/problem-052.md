@@ -7,17 +7,24 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler52.java'
 ---
 
-## Problem Statement
+## The problem
 
-It can be seen that the number, 125874, and its double, 251748, contain exactly the same digits, but in a different order.
+Find the smallest positive integer x such that 2x, 3x, 4x, 5x and 6x are all rearrangements of the digits of x.
 
-Find the smallest positive integer, x, such that 2x, 3x, 4x, 5x, and 6x, contain the same digits.
+## My solution
 
-## Approach
+Count up from 1. For each i, the digits of i go into a `TreeSet`, then the code walks the digits of 2i through 6i. `TreeSet.add` returns true only for a digit that wasn't already there, so the first time it succeeds, the multiple uses a digit that i doesn't have, and the search moves on to i + 1.
 
-The solution involves:
-1. Iterating through positive integers starting from 1
-2. For each number, computing its multiples 2x, 3x, 4x, 5x, and 6x
-3. Checking if all six numbers contain the same digits
-4. Sorting digits or using digit frequency to compare
-5. Returning the first number that satisfies the property
+```java
+while(num != 0) {
+  if(digits.add(num % 10)) {
+    i++;
+    continue a;
+  }
+  num /= 10;
+}
+```
+
+## Notes
+
+Since x and 6x need the same number of digits, x has to start with a 1.

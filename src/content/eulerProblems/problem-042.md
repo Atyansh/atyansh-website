@@ -7,21 +7,21 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler42.java'
 ---
 
-## Problem Statement
+## The problem
 
-The nth term of the sequence of triangle numbers is given by, t(n) = n(n+1)/2; so the first ten triangle numbers are:
+Turn each word in a supplied list of about 1,800 English words into a number by adding up its letters' alphabet positions (A = 1, …, Z = 26), and count how many of those numbers are triangle numbers.
 
-1, 3, 6, 10, 15, 21, 28, 36, 45, 55, ...
+## My solution
 
-By converting each letter in a word to a number corresponding to its alphabetical position and adding these values we form a word value. For example, the word value for SKY is 19 + 11 + 25 = 55 = t(10). If the word value is a triangle number then we shall call the word a triangle word.
+The input file ([`Euler42.txt`](https://github.com/atyansh/Project-Euler/blob/master/Euler42.txt)) is a single line of quoted, comma-separated words, so I read the line with a `Scanner`, strip the quotes and split on commas. A word's value is the sum of `ch - 64`, since `'A'` is 65.
 
-Using words.txt, a 16K text file containing nearly two-thousand common English words, how many are triangle words?
+To test whether a value v is triangular, I invert tₙ = n(n + 1)/2 instead of generating a list of triangle numbers. With t = ⌊√(2v)⌋, v is triangular exactly when t(t + 1)/2 = v:
 
-## Approach
+```java
+triangle = (int) Math.sqrt(value*2);
 
-The solution involves:
-1. Reading and parsing the words from the file
-2. Computing the word value for each word
-3. Generating triangle numbers up to a reasonable upper bound
-4. Checking if each word value is a triangle number
-5. Counting all triangle words
+if(((triangle) * (triangle + 1))/2.0 == value)
+  count++;
+```
+
+This works because if v = t(t + 1)/2, then 2v = t² + t lies between t² and (t + 1)², so the floor of its square root is exactly t.

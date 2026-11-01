@@ -7,30 +7,31 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler17.java'
 ---
 
-## Problem Statement
+## The problem
 
-If the numbers 1 to 5 are written out in words: one, two, three, four, five, then there are 3 + 3 + 5 + 4 + 4 = 19 letters used in total.
+Write out every number from 1 to 1000 in British English words ("three hundred and forty-two") and count the letters used, ignoring spaces and hyphens.
 
-If all the numbers from 1 to 1000 (one thousand) inclusive were written out in words, how many letters would be used?
+## My solution
 
-Note: Do not count spaces or hyphens. For example, 342 (three hundred and forty-two) contains 23 letters and 115 (one hundred and fifteen) contains 20 letters. The use of "and" when writing out numbers is in compliance with British usage.
+The program never converts a single number to words. Instead I worked out by hand how many times each of the 30 distinct words appears across all 1000 numbers, and the program just sums letters × occurrences:
 
-## Approach
+```java
+words[0]  = new Euler17("one",      3,  9*10+101);
+words[1]  = new Euler17("two",      3,  9*10+100);
+...
+words[9]  = new Euler17("ten",      3,  10);
+words[19] = new Euler17("twenty",   6,  100);
+words[27] = new Euler17("hundred",  7,  900);
+words[28] = new Euler17("thousand", 8,  1);
+words[29] = new Euler17("and",      3,  99*9);
+```
 
-To count the total letters used:
+The counts come from the structure of the numbers:
 
-1. Create mappings for number words:
-   - Units: one, two, three, ... nine
-   - Teens: ten, eleven, twelve, ... nineteen
-   - Tens: twenty, thirty, forty, ... ninety
-   - Special: hundred, thousand
+- **Units (one–nine):** each appears 9 times in every block of 100 (e.g. 1, 21, 31, …, 91 for "one"; the teens use their own words), and there are 10 such blocks: 9·10. As a hundreds digit, each also starts 100 numbers ("two hundred …"): +100. "One" gets one more for "one thousand".
+- **Ten to nineteen:** once per block of 100, so 10 each.
+- **Twenty–ninety:** ten numbers per block (20–29, …), times 10 blocks: 100 each.
+- **Hundred:** every number from 100 to 999: 900.
+- **And:** every number from 100 to 999 that isn't an exact hundred: 9 · 99.
 
-2. For each number from 1 to 1000, convert it to words following British conventions:
-   - Include "and" between hundreds and tens/units (e.g., "one hundred and twenty")
-   - Do not include "and" when there are only hundreds (e.g., "two hundred")
-
-3. Count the letters in each word representation (excluding spaces and hyphens)
-
-4. Sum all the letter counts
-
-The key is to correctly implement the British number naming convention with the proper use of "and".
+The class doubles as its own record type (`word`, `count`, `freq`). The `word` strings aren't needed for the arithmetic; they're there to make the table readable.

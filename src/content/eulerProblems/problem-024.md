@@ -7,17 +7,29 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler24.java'
 ---
 
-## Problem Statement
+## The problem
 
-A permutation is an ordered arrangement of objects. For example, 3124 is one possible permutation of the digits 1, 2, 3 and 4. If all of the permutations are listed numerically or alphabetically, we call it lexicographic order. The lexicographic permutations of 0, 1 and 2 are:
+List all permutations of the digits 0–9 in lexicographic order and find the millionth one.
 
-012   021   102   120   201   210
+## My solution
 
-What is the millionth lexicographic permutation of the digits 0, 1, 2, 3, 4, 5, 6, 7, 8 and 9?
+I start from `0123456789` (the first permutation) and apply a hand-written next-permutation step 999,999 times.
 
-## Approach
+`next(arr, index)` is recursive. Starting from the last position it moves left while the digits are non-increasing, which skips over the longest descending suffix. At the first position where `arr[index-1] < arr[index]`, it finds the smallest digit in the suffix that is larger than `arr[index-1]`, swaps the two, and sorts the suffix back into ascending order. The swap is done arithmetically on the chars rather than with a temporary:
 
-The solution can be computed efficiently using:
-1. Factorial number system to directly compute the nth permutation
-2. Or generating permutations in lexicographic order until reaching the millionth one
-3. The key insight is that permutations can be grouped by their leading digit
+```java
+if(i2 != Integer.MAX_VALUE) {
+  arr[index-1] += min;
+  arr[i2] -= min;
+}
+...
+Arrays.sort(arr, index, arr.length);
+```
+
+This is the classic next-permutation algorithm. The textbook version reverses the suffix rather than sorting it; both give the same result, since the suffix is in descending order. A million steps of that is trivial.
+
+I later added an `index == 0` base case (the commit message says "Helpful for Euler 49"), so that `next` stops cleanly on the final, fully descending permutation. The same routine ended up powering problems 43, 49, 61, 62 and 68.
+
+## Notes
+
+The millionth permutation can also be computed directly: 9! permutations start with each leading digit, so dividing 999,999 by 9!, 8!, … in turn picks the digits one at a time.

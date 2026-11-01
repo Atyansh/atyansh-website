@@ -7,24 +7,17 @@ solutionLanguage: 'Python'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler53.py'
 ---
 
-## Problem Statement
+## The problem
 
-There are exactly ten ways of selecting three from five, 12345:
+Count how many of the binomial coefficients C(n, r), for 1 ≤ n ≤ 100, are greater than one million.
 
-123, 124, 125, 134, 135, 145, 234, 235, 245, and 345
+## My solution
 
-In combinatorics, we use the notation, C(5,3) = 10.
+Straight from the definition C(n, r) = n! / (r!·(n − r)!), using Python's big integers. A list holds the factorials 1! through 100! (index k − 1 holds k!, filled by a recursive `fact`), and the code goes through every (n, r) with 1 ≤ r ≤ n ≤ 100, counting the coefficients over 10⁶.
 
-In general, C(n,r) = n! / (r!(n-r)!), where r ≤ n, n! = n×(n-1)×...×3×2×1, and 0! = 1.
+```python
+def comb(n, r):
+  return list[n-1]/list[n-r-1]/list[r-1]
+```
 
-It is not until n = 23, that a value exceeds one-million: C(23,10) = 1144066.
-
-How many, not necessarily distinct, values of C(n,r) for 1 ≤ n ≤ 100, are greater than one-million?
-
-## Approach
-
-The solution involves:
-1. Computing binomial coefficients C(n,r) for all valid combinations
-2. Using dynamic programming (Pascal's triangle) for efficient computation
-3. Counting values that exceed one million
-4. Avoiding overflow by checking the threshold early
+It computes all 5,050 values directly, which takes a few hundredths of a second. The file is Python 2, so `/` is integer division and `print count` is a statement.

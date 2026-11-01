@@ -1,38 +1,36 @@
 ---
 title: 'Cosmic Bot'
-description: 'Discord bot for Cosmic Encounter board game players, providing quick access to alien information and game mechanics.'
-technologies: ['Python', 'Discord API', 'Bot Development']
+description: "A Discord bot for our Cosmic Encounter games on Tabletop Simulator: type !alien and a name to pull up that alien's full power sheet."
+technologies: ['Python', 'discord.py']
 featured: false
 startDate: 2020-08-01
 links:
   github: 'https://github.com/atyansh/cosmic-bot'
 ---
 
-# Cosmic Bot
+During the COVID lockdowns, my friends and I played a lot of Cosmic Encounter on Tabletop Simulator, with a Discord group for voice and chat. In Cosmic Encounter every player is an alien with a power that breaks the rules in its own way. Between the base game and its expansions there are nearly 200 of them, so someone was always asking what an alien actually does.
 
-A Discord bot designed for fans of the Cosmic Encounter board game. Provides quick lookup of alien powers and game information directly in Discord channels.
+So I made a bot for our Discord. Type `!alien <name>` and it posts that alien's full sheet mid-game: the power, its history, notes, and the Wild and Super flares.
 
-## About Cosmic Encounter
+```
+!alien ace
+```
 
-Cosmic Encounter is a beloved science fiction-themed board game where players take on the roles of alien species, each with unique powers. With over 50 different alien species and their special abilities, players often need quick references during gameplay.
+## How it works
 
-## Features
+It's deliberately tiny. All 197 alien sheets live in one plain-text file, separated by blank lines. Each sheet starts with a header line like `ACE [M:CD] Wins with One Colony`. At startup the bot splits the file into sheets and indexes each one by the alien's name, so a lookup is a single dictionary hit:
 
-- **Alien Lookup**: Quickly fetch information about specific aliens using the `!alien <alien name>` command
-- **Discord Integration**: Seamless integration with Discord servers for board game communities
-- **Fast Reference**: Get alien powers and abilities without interrupting gameplay
+```python
+aliens = open("alien_scrape.txt", 'r').read().split('\n\n\n')
+for alien in aliens:
+    (key, _) = alien.split('[')
+    alien_dict[key.strip().lower()] = alien
 
-## Use Cases
+@bot.command()
+async def alien(ctx, *args):
+    alien_name = " ".join(args).lower()
+    if alien_name in alien_dict:
+        await ctx.send(alien_dict[alien_name])
+```
 
-- Quick reference during online board game sessions
-- Learning about new alien powers before games
-- Settling disputes about alien abilities
-- Helping new players understand different alien species
-
-## Technical Implementation
-
-Built using Python with Discord API integration. The bot maintains a database of alien information scraped from game resources and responds to user queries in real-time.
-
-## Source Code
-
-View the project on [GitHub](https://github.com/atyansh/cosmic-bot).
+Names are matched case-insensitively, and multi-word names like "Evil Twin" work because the command joins its arguments back together. It's built on discord.py, with the bot token kept in a config file that stays out of git.

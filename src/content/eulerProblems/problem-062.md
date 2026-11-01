@@ -7,16 +7,27 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler62.java'
 ---
 
-## Problem Statement
+## The problem
 
-The cube, 41063625 (345³), can be permuted to produce two other cubes: 56623104 (384³) and 66430125 (405³). In fact, 41063625 is the smallest cube which has exactly three permutations of its digits which are also cube.
+Find the smallest cube for which exactly five of the permutations of its digits are also cubes.
 
-Find the smallest cube for which exactly five permutations of its digits are cube.
+## My solution
 
-## Approach
+This one enumerates permutations. For each base a in a hard-coded range, 5,014 to 6,000, the code takes n = a³ and steps through every distinct rearrangement of its digits that comes after it lexicographically, using the next-permutation routine from my Problem 24 solution. Each rearrangement is tested for being a cube by rounding `Math.pow(x, 1.0/3)` and cubing it back. The cubes found, plus n itself, go into a `TreeSet`, and if it ends up with exactly five members, n is printed.
 
-The solution involves:
-1. Computing cubes sequentially and storing them by their sorted digit signature
-2. Grouping cubes that are permutations of each other
-3. Finding the first cube that has exactly five permutations (including itself)
-4. Using a HashMap with sorted digits as keys to group permutations
+```java
+while(!next.equals(new String(arr))) {
+  next = new String(arr);
+  long permutation = Long.parseLong(next);
+
+  long cbrt = isPerfectCube(permutation);
+
+  if(cbrt > 0) {
+    set.add(permutation);
+  }
+
+  Euler24.next(arr, arr.length - 1);
+}
+```
+
+Generating only the lexicographically later rearrangements means n is always the smallest cube in its group and no rearrangement has a leading zero. The cubes in this range have 12 digits, so each base has a lot of rearrangements to walk through, and the loop prints each base to stderr to show its progress.

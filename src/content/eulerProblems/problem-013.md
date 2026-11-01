@@ -7,25 +7,26 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler13.java'
 ---
 
-## Problem Statement
+## The problem
 
-Work out the first ten digits of the sum of the following one-hundred 50-digit numbers.
+Add up one hundred given 50-digit numbers and report the first ten digits of the total.
 
-(A list of 100 fifty-digit numbers is provided in the problem.)
+## My solution
 
-## Approach
+There are two versions, and both just do exact big-integer addition.
 
-To find the first ten digits of the sum:
+**Java** (`Euler13.java`): a `Scanner` reads `Euler13.txt` token by token with `nextBigInteger()` and adds each value into a running `BigInteger`. The program prints the whole sum, and I read the first ten digits off the output rather than having the code trim it.
 
-**Method 1: Using BigInteger**
-- Use Java's BigInteger class to handle large numbers
-- Parse each 50-digit number as a BigInteger
-- Add all of them together
-- Convert the result to a string and extract the first 10 digits
+```java
+BigInteger b = new BigInteger("0");
+while(scan.hasNext())
+  b = b.add(scan.nextBigInteger());
+```
 
-**Method 2: Optimization**
-- Since we only need the first 10 digits, we can add just the first 11-12 digits of each number
-- Add them all up, handling carries properly
-- Extract the first 10 digits of the sum
+**Python** (`Euler13.py`, Python 2): Python ints are arbitrary precision, so no library is needed. The file is read in fixed 50-character chunks, one per number, with a `read(1)` after each chunk to skip the newline.
 
-The BigInteger approach is simpler and more straightforward, while the optimization approach is more efficient but requires careful handling of carries and edge cases.
+The sum of a hundred 50-digit numbers has at most 52 digits, so either version finishes instantly.
+
+## Notes
+
+Only the leading digits really matter: summing just the leading 11 or 12 digits of each number gives the right first ten digits as long as the carry from the dropped digits can't change them.

@@ -7,28 +7,26 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler26.java'
 ---
 
-## Problem Statement
+## The problem
 
-A unit fraction contains 1 in the numerator. The decimal representation of the unit fractions with denominators 2 to 10 are given:
+Among denominators d < 1000, find the one for which the decimal expansion of 1/d has the longest repeating cycle.
 
-- 1/2 = 0.5
-- 1/3 = 0.(3)
-- 1/4 = 0.25
-- 1/5 = 0.2
-- 1/6 = 0.1(6)
-- 1/7 = 0.(142857)
-- 1/8 = 0.125
-- 1/9 = 0.(1)
-- 1/10 = 0.1
+## My solution
 
-Where 0.1(6) means 0.166666..., and has a 1-digit recurring cycle. It can be seen that 1/7 has a 6-digit recurring cycle.
+Long division with remainder tracking, for every d from 2 to 999. Starting from a remainder of 1, I multiply by 10 until it is at least d, take the remainder mod d, and add it to a `TreeSet`. A remainder of 0 means the decimal terminates, so d is skipped. A remainder already in the set means the digits are about to repeat, and the size of the set is the program's measure of the cycle length.
 
-Find the value of d < 1000 for which 1/d contains the longest recurring cycle in its decimal fraction part.
+```java
+while(true) {
+  while(a - i < 0)
+    a *= 10;
+  if(a % i == 0)
+    continue outer;
+  if(!remainders.add(a%i)) {
+    if(max < remainders.size()) { max = remainders.size(); d = i; }
+    continue outer;
+  }
+  a = a % i;
+}
+```
 
-## Approach
-
-The solution involves:
-1. Implementing long division to find the recurring cycle length
-2. Detecting when a remainder repeats (indicating the start of a cycle)
-3. Testing all denominators d < 1000
-4. Finding the one with the longest recurring cycle
+There are only d − 1 possible non-zero remainders, so each d takes at most d steps and the whole search is under a million set operations.

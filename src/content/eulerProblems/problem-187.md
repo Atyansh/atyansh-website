@@ -7,19 +7,19 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler187.java'
 ---
 
-## Problem Statement
+## The problem
 
-A composite is a number containing at least two prime factors. For example, 15 = 3 × 5; 9 = 3 × 3; 12 = 2 × 2 × 3.
+Count the integers below 10⁸ that are the product of exactly two primes, not necessarily distinct.
 
-There are ten composites below thirty containing precisely two, not necessarily distinct, prime factors: 4, 6, 9, 10, 14, 15, 21, 22, 25, 26.
+## My solution
 
-How many composite integers, n < 10⁸, have precisely two, not necessarily distinct, prime factors?
+Project Euler asks that solutions past problem 100 not be published, so this is only a sketch.
 
-## Approach
+The program doesn't generate primes itself. It reads them from a precomputed file called `primes` (not in the repo) and loads exactly 3,001,134 of them. That's the number of primes up to 5 × 10⁷, which is as large as either factor can be when the other factor is 2.
 
-The solution involves:
-1. Generating all primes up to 10⁸/2 using Sieve of Eratosthenes
-2. Counting semiprimes of the form p × q where p and q are primes
-3. For each prime p, counting primes q where p ≤ q and p × q < 10⁸
-4. Using two pointers or binary search for efficient counting
-5. Semiprimes include both p² (same prime twice) and p × q (different primes)
+Counting each product p·q with p ≤ q exactly once happens in two phases:
+
+1. Among the smallest primes, every pair multiplies to less than the limit. The code finds where that stops being true and counts those pairs and the prime squares with a closed-form formula, with no loop over pairs.
+2. For each larger prime, a second index walks down the prime list to the largest partner that keeps the product within the limit. Everything up to that partner counts. The pointer only ever moves down as the larger prime grows, so this phase is a linear two-pointer sweep.
+
+After loading the file, the work is linear in the number of primes.

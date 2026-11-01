@@ -7,25 +7,27 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler46.java'
 ---
 
-## Problem Statement
+## The problem
 
-It was proposed by Christian Goldbach that every odd composite number can be written as the sum of a prime and twice a square.
+Goldbach guessed that every odd composite number is a prime plus twice a perfect square. Find the smallest odd composite for which that fails.
 
-- 9 = 7 + 2 × 1²
-- 15 = 7 + 2 × 2²
-- 21 = 3 + 2 × 3²
-- 25 = 7 + 2 × 3²
-- 27 = 19 + 2 × 2²
-- 33 = 31 + 2 × 1²
+## My solution
 
-It turns out that the conjecture was false.
+A straight search upward through the odd numbers, starting at 11. Primality is trial division by odd numbers up to √n (enough, since only odd n are ever tested), and every prime found is appended to a list. So when an odd composite n comes up, the list already holds every prime below it.
 
-What is the smallest odd composite that cannot be written as the sum of a prime and twice a square?
+For each prime p in the list, the code steps j = 1, 2, 3, … until p + 2j² reaches or passes n. Landing exactly on n means n fits the conjecture and the search moves on. If no prime works, n is the counterexample and gets printed.
 
-## Approach
+```java
+j = 1;
+sum = prime + 2*j*j;
 
-The solution involves:
-1. Generating odd composite numbers
-2. For each composite, testing if it can be expressed as prime + 2 × square
-3. Using a prime sieve for efficient prime checking
-4. Finding the first composite that cannot be expressed in this form
+while(sum < i) {
+  j++;
+  sum = prime + 2*j*j;
+}
+
+if(sum == i)
+  continue a;
+```
+
+For each composite it can try every smaller prime, each with up to √(n/2) squares, which is quick at the size where the counterexample turns up. (The prime 2 sits in the list too, but 2 + 2j² is always even, so it never matches.)

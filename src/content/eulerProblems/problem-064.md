@@ -7,25 +7,34 @@ solutionLanguage: 'Python'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler64.py'
 ---
 
-## Problem Statement
+## The problem
 
-All square roots are periodic when written as continued fractions and can be written in the form:
+The continued fraction of √N is periodic for every non-square N. Count how many N ≤ 10,000 have a period of odd length.
 
-√N = a₀ + 1/(a₁ + 1/(a₂ + 1/(a₃ + ... )))
+## My solution
 
-For example, √23 = [4;(1,3,1,8)] where (1,3,1,8) repeats. The period is 4.
+The partial quotients come from the standard integer recurrence for √N. Starting from d = 1 and m = a = ⌊√N⌋, each step does:
 
-It can be seen that the sequence is repeating. For conciseness, we use the notation √23 = [4;(1,3,1,8)], to indicate that the block (1,3,1,8) repeats indefinitely.
+- d ← (N − m²) / d
+- a ← ⌊(√N + m) / d⌋
+- m ← a·d − m
 
-Exactly four continued fractions, for N ≤ 13, have an odd period.
+In the code `num` is d, `den` is m and `n` is a. Everything is integer arithmetic except the floor, which uses the floating-point √N (accurate enough at this size).
 
-How many continued fractions for N ≤ 10000 have an odd period?
+To find the period, each state (a, d, m) is stored in a dict until one repeats. The starting state (a₀, 1, a₀) never comes back. Its (d, m) pair does reappear at the end of every period, but with a = 2a₀ instead of a₀, and keying on a as well keeps the two apart. So the dict ends up holding a₀ plus exactly one period, and the period is odd exactly when the dict's size is even:
 
-## Approach
+```python
+while t not in set:
+  set[t] = 1
 
-The solution involves:
-1. Implementing the continued fraction algorithm for square roots
-2. Detecting when the sequence starts repeating (cycle detection)
-3. Computing the period length
-4. Counting numbers with odd period length
-5. Skipping perfect squares which have no period
+  num = (i - (den*den))/num
+  n = int((sq + den) / num)
+  den = n * num - den
+
+  t = (n,(num, den))
+
+if len(set) % 2 == 0:
+  answer += 1
+```
+
+The file is Python 2, where `/` on integers is floor division, and it runs through all N up to 10,000 in well under a second.

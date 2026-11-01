@@ -7,16 +7,22 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler56.java'
 ---
 
-## Problem Statement
+## The problem
 
-A googol (10^100) is a massive number: one followed by one-hundred zeros; 100^100 is almost unimaginably large: one followed by two-hundred zeros. Despite their size, the sum of the digits in each number is only 1.
+Among all numbers aᵇ with a, b < 100, find the largest digit sum.
 
-Considering natural numbers of the form, a^b, where a, b < 100, what is the maximum digital sum?
+## My solution
 
-## Approach
+Brute force over every pair using `BigInteger.pow`, then summing the characters of the decimal string (subtracting 48, the code for '0', from each) and keeping the maximum.
 
-The solution involves:
-1. Iterating through all combinations where a < 100 and b < 100
-2. Computing a^b using BigInteger to handle large numbers
-3. Converting each result to a string and summing its digits
-4. Tracking the maximum digit sum found
+```java
+while(b < 100) {
+  b++;
+  exp = num.pow(b);
+  temp = digitSum(exp.toString());
+  if(temp > sum)
+    sum = temp;
+}
+```
+
+Each loop increments its counter before using it, so a and b run from 2 to 100. That's about 9,800 powers of up to 200 digits each.

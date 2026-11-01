@@ -7,23 +7,36 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler71.java'
 ---
 
-## Problem Statement
+## The problem
 
-Consider the fraction, n/d, where n and d are positive integers. If n<d and HCF(n,d)=1, it is called a reduced proper fraction.
+List every reduced proper fraction n/d with d ≤ 1,000,000 in increasing order. Find the numerator of the fraction that sits immediately to the left of 3/7.
 
-If we list the set of reduced proper fractions for d ≤ 8 in ascending order of size, we get:
+## My solution
 
-1/8, 1/7, 1/6, 1/5, 1/4, 2/7, 1/3, 3/8, 2/5, 3/7, 1/2, 4/7, 3/5, 5/8, 2/3, 5/7, 3/4, 4/5, 5/6, 6/7, 7/8
+For a fixed denominator d, the closest fraction at or below 3/7 has numerator ⌊3d/7⌋. So I loop over every denominator from 8 to 1,000,000, take that numerator, and keep the largest value seen among the candidates that are already in lowest terms:
 
-It can be seen that 2/5 is the fraction immediately to the left of 3/7.
+```java
+for(int i = 8; i <= 1000000; i++) {
+  int j = 3*i/7;
 
-By listing the set of reduced proper fractions for d ≤ 1,000,000 in ascending order of size, find the numerator of the fraction immediately to the left of 3/7.
+  if(hcf(i,j) == 1) {
+    double temp = ((double)j)/i;
+    if(temp > difference) {
+      difference = temp;
+      num = j;
+    }
+  }
+}
+```
 
-## Approach
+`hcf` is a plain Euclidean GCD. A few details make this correct without any special cases:
 
-The solution involves:
-1. Finding the largest fraction n/d < 3/7 where d ≤ 1,000,000
-2. Using the Farey sequence properties or mediant approach
-3. For each denominator d, computing n = floor((3*d - 1) / 7)
-4. Checking if n/d is in lowest terms and closer to 3/7 than previous candidates
-5. Tracking the best fraction found
+- Starting at d = 8 skips 3/7 itself. For later multiples of 7, ⌊3d/7⌋/d equals 3/7 but isn't reduced, so the GCD check drops it. The fraction just below it for those denominators, (3k−1)/7k, is about 1/d away from 3/7, far worse than what large denominators give, so skipping it costs nothing.
+- A candidate that isn't reduced is the same value as a fraction with a smaller denominator, so dropping it loses nothing.
+- The candidates near the top differ from each other by around 10⁻¹², well within `double` precision, so comparing them as doubles is safe.
+
+That's one GCD per denominator, about a million in total.
+
+## Notes
+
+There's a neat shortcut via Farey sequences: the fraction n/d immediately left of a/b satisfies ad − bn = 1, so here 3d − 7n = 1: take the largest d ≤ 1,000,000 with 3d ≡ 1 (mod 7) and n = (3d − 1)/7.

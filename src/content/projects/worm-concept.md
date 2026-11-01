@@ -1,42 +1,32 @@
 ---
 title: 'Worm Concept'
-description: "Visual novel game concept built with Ren'Py, an early-stage interactive storytelling project."
-technologies: ["Ren'Py", 'Python', 'Visual Novel', 'Game Development']
+description: "A short Ren'Py visual novel set in the world of Wildbow's Worm: an original story with branching choices and three endings."
+technologies: ["Ren'Py", 'Python']
 featured: false
 startDate: 2020-03-01
+endDate: 2020-04-09
 links:
   github: 'https://github.com/atyansh/worm_concept'
 ---
 
-# Worm Concept
+*Worm* is Wildbow's web serial about "capes", people who get superpowers from the worst day of their lives. In 2020 I made a short fan visual novel set in its world with Ren'Py. The story is original, written around three of the serial's main characters (Taylor, Lisa and Alec), and full of its world: trigger events, Parahumans Online, Winslow High, Fugly Bob's.
 
-An early-stage visual novel project built using Ren'Py, exploring interactive storytelling and game development.
+## The story
 
-## About Visual Novels
+You play a student at Winslow High who has powers and is keeping them quiet. You're half-listening to a lecture on cape theory when Lisa, who has been quietly scouting the school for capes, leans over and lets you know she's figured you out. How you answer decides the ending:
 
-Visual novels are interactive fiction games that combine static graphics, text-based narrative, and player choices to create branching storylines. Ren'Py is a popular open-source engine specifically designed for creating visual novels.
+```python
+menu:
+    "Tell her you're just a cape nerd":
+        jump nerd
+    "Admit you're a cape":
+        jump cape
+    "Flirt with her":
+        jump flirt
+```
 
-## Project Status
+Play it cool and she lets it go, though she clearly doesn't buy it. Come clean and Lisa takes you to meet Alec and Taylor, and the scene ends with the four of you heading out to dinner. Flirt, and you find out what Taylor does with her bugs.
 
-This is a concept/prototype project currently in early development stages. The repository contains the foundational structure and initial game assets.
+## How it's built
 
-## Development
-
-- **Engine**: Built using Ren'Py, a Python-based visual novel engine
-- **Assets**: Currently using placeholder assets with plans for original artwork
-- **Collaboration**: Open to contributors via Discord community
-
-## Getting Started
-
-To run this project:
-1. Download and install Ren'Py from the official website
-2. Clone the repository
-3. Launch the project folder in Ren'Py
-
-## Technical Details
-
-Ren'Py provides a high-level scripting language for defining characters, dialogue, choices, and branching narratives. The engine handles rendering, audio, and save game functionality, allowing developers to focus on story and content creation.
-
-## Source Code
-
-View the project on [GitHub](https://github.com/atyansh/worm_concept).
+It's a standard Ren'Py project. `definitions.rpy` sets up the characters and their sprites, with a few expressions each for Taylor and Alec. `script.rpy` holds the story and branches. `myscreens.rpy` adds custom screens: an end-card for each of the three endings and a looping video of Taylor dancing that plays over the scene for one beat. There's background music and a school-bell sound effect. I built it for Mac and Android too.

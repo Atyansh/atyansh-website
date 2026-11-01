@@ -7,22 +7,28 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler31.java'
 ---
 
-## Problem Statement
+## The problem
 
-In the United Kingdom the currency is made up of pound (£) and pence (p). There are eight coins in general circulation:
+Count the number of different ways to make £2 (200p) from the eight UK coins: 1p, 2p, 5p, 10p, 20p, 50p, £1 and £2.
 
-1p, 2p, 5p, 10p, 20p, 50p, £1 (100p), and £2 (200p).
+## My solution
 
-It is possible to make £2 in the following way:
+A recursive count. `counter(coins, index, target)` decides how many of `coins[index]` (the largest coin still allowed) to use, then recurses on the remaining amount with only the smaller coins. When only the 1p coin is left there is exactly one way to finish, which is the base case.
 
-1×£1 + 1×50p + 2×20p + 1×5p + 1×2p + 3×1p
+```java
+if(index == 0)
+  return 1;
 
-How many different ways can £2 be made using any number of coins?
+while(sum < target)
+  sum += coins[index];
 
-## Approach
+if(sum == target)
+  count++;
 
-The solution involves:
-1. Using dynamic programming to count coin combinations
-2. Building up the number of ways to make each amount from 1p to 200p
-3. For each coin denomination, updating the ways to make each amount
-4. Classic coin change problem with a counting variation
+while(sum > 0) {
+  sum -= coins[index];
+  count += counter(coins, index - 1, target - sum);
+}
+```
+
+The first loop finds the smallest multiple of the coin that is at least the target. If it lands exactly on the target, that's the "pay entirely in this coin" way, counted directly. The second loop then steps down through every smaller multiple, from the most coins that fit down to zero, and recurses on whatever is left. Every leaf of the recursion is one way of paying, so the work is proportional to the answer, which is small enough to be instant.

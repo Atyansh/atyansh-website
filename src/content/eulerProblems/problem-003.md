@@ -7,19 +7,24 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler3.java'
 ---
 
-## Problem Statement
+## The problem
 
-The prime factors of 13195 are 5, 7, 13 and 29.
+Find the largest prime factor of 600851475143.
 
-What is the largest prime factor of the number 600851475143?
+## My solution
 
-## Approach
+Trial division that divides each factor out as soon as it is found. Every time a divisor `i` divides the remaining number, I divide it out completely and record `i` as the latest factor. When the remaining number reaches 1, the last factor recorded is the largest one.
 
-To find the largest prime factor of a number, we can use trial division starting from the smallest prime factors and working our way up. The key insight is that we only need to check up to the square root of the number, as any factor larger than the square root would have already been found as a complementary factor.
+```java
+while(num > 1) {
+  while(num % i == 0) {
+    num /= i;
+    answer = i;
+  }
+  i += 2;
+}
+```
 
-The algorithm:
-1. Start by dividing the number by 2 repeatedly to remove all factors of 2
-2. Then check odd numbers starting from 3
-3. For each factor found, divide it out completely
-4. Continue until the number becomes 1
-5. The last factor found will be the largest prime factor
+Because factors are removed in increasing order, any `i` that divides the remainder must be prime: all of its own smaller prime factors were already divided out.
+
+600851475143 isn't divisible by 2, 3 or 5, so the search starts at `i = 7` and steps through the odd numbers.

@@ -7,25 +7,19 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler47.java'
 ---
 
-## Problem Statement
+## The problem
 
-The first two consecutive numbers to have two distinct prime factors are:
+Find the first of four consecutive integers that each have four distinct prime factors.
 
-- 14 = 2 × 7
-- 15 = 3 × 5
+## My solution
 
-The first three consecutive numbers to have three distinct prime factors are:
+Brute force with trial division. The search starts at 647, just after the problem's three-number example (644, 645, 646), and checks the window num … num+3 one number at a time. Each number is factored by dividing out all the 2s, then trying odd divisors 3, 5, 7, … and dividing each out completely until nothing is left. The distinct factors go into a `TreeSet`, and its size is the count.
 
-- 644 = 2² × 7 × 23
-- 645 = 3 × 5 × 43
-- 646 = 2 × 17 × 19
+The one shortcut is how the window moves after a failure. If num+i has fewer than four distinct factors, no window containing it can work, so the next window starts at num+i+1 instead of num+1:
 
-Find the first four consecutive integers to have four distinct prime factors each. What is the first of these numbers?
-
-## Approach
-
-The solution involves:
-1. Computing the number of distinct prime factors for each integer
-2. Checking consecutive integers for the required property
-3. Using efficient prime factorization
-4. Finding the first occurrence of four consecutive integers with four distinct prime factors each
+```java
+if(primes.size() < 4) {
+  num = num + i + 1;
+  continue a;
+}
+```

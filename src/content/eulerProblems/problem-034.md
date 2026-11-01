@@ -7,18 +7,22 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler34.java'
 ---
 
-## Problem Statement
+## The problem
 
-145 is a curious number, as 1! + 4! + 5! = 1 + 24 + 120 = 145.
+Find the sum of all numbers that equal the sum of the factorials of their digits (1 and 2 don't count, since they aren't sums).
 
-Find the sum of all numbers which are equal to the sum of the factorial of their digits.
+## My solution
 
-Note: As 1! = 1 and 2! = 2 are not sums they are not included.
+I precompute factorials in a small lookup table, then loop over 3 … 999,999, peeling off digits with `% 10`, summing their table entries and comparing the total with the number:
 
-## Approach
+```java
+while(num != 0) {
+  curious += fact[num % 10];
+  num /= 10;
+}
 
-The solution involves:
-1. Determining an upper bound for the search (7 × 9! = 2,540,160)
-2. For each number, computing the sum of factorials of its digits
-3. Checking if the sum equals the original number
-4. Summing all such numbers (excluding 1 and 2)
+if(curious == i)
+  sum += curious;
+```
+
+Starting at 3 excludes 1 and 2. With the lookup table, each check is just a handful of array lookups, so the million iterations run quickly.

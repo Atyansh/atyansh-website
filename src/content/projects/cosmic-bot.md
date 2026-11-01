@@ -1,6 +1,6 @@
 ---
 title: 'Cosmic Bot'
-description: "A Discord bot for our Cosmic Encounter nights on Tabletop Simulator: type !alien and a name to pull up that alien's full power sheet."
+description: "A Discord bot for our Cosmic Encounter games on Tabletop Simulator: type !alien and a name to pull up that alien's full power sheet."
 technologies: ['Python', 'discord.py']
 featured: false
 startDate: 2020-08-01

@@ -23,8 +23,4 @@ if(travel.left != null)
   }
 ```
 
-Once moves can go left and up, there's no simple DP order over the grid, and this is where a general shortest-path search becomes necessary. My version isn't Dijkstra: there's no priority queue, so a cell can be processed several times as cheaper paths reach it. It's queue-based Bellman–Ford (SPFA). With positive cell values it still converges to the exact shortest distances, and the answer is the bottom-right node's distance.
-
-## Notes
-
-Dijkstra with a priority queue would process each of the 6,400 cells exactly once. The queue version gets the same answer by possibly reprocessing some cells.
+Once moves can go left and up, there's no simple DP order over the grid, and this is where a general shortest-path search becomes necessary. It's queue-based Bellman–Ford (SPFA): a cell goes back on the queue whenever a cheaper path reaches it. With positive cell values it converges to the exact shortest distances, and the answer is the bottom-right node's distance.

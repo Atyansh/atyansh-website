@@ -25,7 +25,3 @@ for(int i = 5; i <= 12000; i++)
 The endpoints take care of themselves. ⌊d/3⌋+1 never reaches 1/3, and when d is even the numerator d/2 gives 1/2, which fails the GCD test because gcd(d, d/2) = d/2 > 1. The loop starts at 5 because denominators 2 to 4 have nothing strictly between 1/3 and 1/2 (2/5 is the first such fraction).
 
 Each denominator has about d/6 numerators to check, so this is roughly 12,000²/12 ≈ 12 million GCD calls.
-
-## Notes
-
-Going through the Farey sequence with the next-term recurrence would visit only the fractions that are actually counted, and would need no GCDs.

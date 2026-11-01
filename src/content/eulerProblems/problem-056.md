@@ -25,4 +25,4 @@ while(b < 100) {
 }
 ```
 
-Because each loop increments before using its counter, a and b actually run from 2 to 100 inclusive. Skipping 1 is safe (1ᵇ has digit sum 1, and a¹ has at most two digits), and including 100 is harmless (100ᵇ has digit sum 1). That's about 9,800 powers of up to 200 digits each.
+Each loop increments its counter before using it, so a and b run from 2 to 100. That's about 9,800 powers of up to 200 digits each.

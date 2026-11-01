@@ -32,8 +32,6 @@ while(num != 0) {
 }
 ```
 
-That's about a million boxed `Integer`s in a linked list plus one array copy: wasteful in memory, but fast enough.
-
 ## Notes
 
-The digit at position k can be found without generating anything: skip the 9 digits of one-digit numbers, the 180 of two-digit numbers and so on until k falls inside a block, then index into the right number.
+The digit at position k can also be found without generating anything: skip the 9 digits of one-digit numbers, the 180 of two-digit numbers and so on until k falls inside a block, then index into the right number.

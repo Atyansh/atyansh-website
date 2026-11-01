@@ -30,8 +30,4 @@ for(int i = 0; i < size; i++) {
 
 Anything that fails the check is added to the total. The loop stops at 28122, which is fine because 28123 itself is a sum of two abundant numbers.
 
-This is the slow part of the program. The `break` only leaves the inner loop, so for a number that is *not* representable the scan touches nearly every pair. Modelling the loop in Python, that comes to about 3.7 × 10⁸ pair sums across the ~1,500 non-representable numbers. `abundantSum` also copies the whole linked list into a fresh array on every call.
-
-## Notes
-
-The usual faster approach inverts the check: add every pair of the ~7,000 abundant numbers once, mark the sums in a boolean array, and total the unmarked indices.
+Most of the running time goes into the numbers that aren't representable, since for those the check has to look at nearly every pair before it can rule them out.

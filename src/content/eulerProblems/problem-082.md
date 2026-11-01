@@ -26,8 +26,4 @@ for(int i = 0; i < length; i++) {
 
 Distances aren't reset between runs. Each run starts from what earlier runs found and can only lower it, so after the last run every cell holds its cheapest distance from any left-column start. Reseeding a start cell with its own value never raises it, because any path into that cell from another start costs more than the cell alone. The answer is the smallest distance in the right column.
 
-As in 81, this is Bellman–Ford with a work queue (SPFA), not the column-by-column DP that's commonly used here. It's correct because all the values are positive.
-
-## Notes
-
-Putting all 80 left-column cells on the queue at once would give the same result in a single multi-source run.
+As in 81, this is Bellman–Ford with a work queue (SPFA), and it converges to the true shortest distances because all the values are positive.

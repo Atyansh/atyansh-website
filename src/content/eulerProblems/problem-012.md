@@ -33,6 +33,4 @@ For odd `i` that don't divide `n`, `freq` is 0 and the count is multiplied by 1,
 
 ## Notes
 
-- There is no √n cutoff, so the loop keeps going until `i` reaches the largest prime factor. Since T(k) = k(k+1)/2, that factor can be as large as about k, so each count costs O(k) and the whole search is roughly quadratic in the index. It's still fast enough at this size.
-- The loop condition is `value < 500`, so it would also stop on a triangle number with exactly 500 divisors, which the problem doesn't allow. No triangle number before the answer has exactly 500, so the result is correct anyway.
-- The usual speed-up uses the fact that k and k+1 are coprime: count the divisors of k and k+1 separately (after halving the even one) and multiply.
+Triangle numbers have a nice structure for this: T(k) = k(k+1)/2, and k and k+1 share no factors, so the divisor count of T(k) is the product of the divisor counts of k and k+1 (after halving whichever one is even).

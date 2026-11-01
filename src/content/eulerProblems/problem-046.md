@@ -30,4 +30,4 @@ if(sum == i)
   continue a;
 ```
 
-This is brute force: for each composite it can try every smaller prime, each with up to √(n/2) squares. The counterexample is small enough that it doesn't matter. (The prime 2 sits in the list too, but 2 + 2j² is always even, so it never matches.)
+For each composite it can try every smaller prime, each with up to √(n/2) squares, which is quick at the size where the counterexample turns up. (The prime 2 sits in the list too, but 2 + 2j² is always even, so it never matches.)

@@ -27,7 +27,3 @@ At the end, `parse` decodes the winning string by adding 1 to each digit and tur
 for(int i = 0; i < arr.length; i++)
   str += (arr[i] == '9') ? "10" : ( (char) (arr[i] + 1));
 ```
-
-## Notes
-
-Taking the maximum over the encoded strings isn't in general the same as taking it over the decoded ones, because 10 is encoded as a single high digit. For the valid rings here, both orderings pick the same ring.

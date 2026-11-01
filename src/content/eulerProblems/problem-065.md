@@ -21,4 +21,4 @@ num = den
 den = temp
 ```
 
-It starts from the innermost term (the final 1), applies the 66 and the 1 before it by hand, then loops 32 times over the remaining (1, c, 1) blocks with c dropping by 2 each time, and finishes by adding a₀ = 2. The digit sum is taken from the final numerator. Each step keeps the fraction in lowest terms (gcd(a·den + num, den) = gcd(num, den)), so no reduction is needed, and Python's integers handle the size. The hard-coded 66 and 32 tie the script to the 100th convergent specifically. It runs instantly.
+It starts from the innermost term (the final 1), applies the 66 and the 1 before it by hand, then loops 32 times over the remaining (1, c, 1) blocks with c dropping by 2 each time, and finishes by adding a₀ = 2. The digit sum is taken from the final numerator. Each step keeps the fraction in lowest terms (gcd(a·den + num, den) = gcd(num, den)), so no reduction is needed, and Python's integers handle the size. It runs instantly.

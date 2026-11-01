@@ -30,4 +30,4 @@ outer:while(a != 1000) {
 }
 ```
 
-The labeled `break outer` stops both loops as soon as the triple is found. The bounds don't enforce a < b < c, but that doesn't matter because only one triple exists and the product is the same in any order. The worst case is about 500,000 checks (O(n²) in the sum); the search finds the triple partway through and stops.
+The labeled `break outer` stops both loops as soon as the triple is found. Since only one triple exists and the product is the same in any order, the loops don't need to keep a < b < c. The worst case is about 500,000 checks (O(n²) in the sum); the search finds the triple partway through and stops.

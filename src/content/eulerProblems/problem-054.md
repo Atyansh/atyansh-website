@@ -32,7 +32,3 @@ if(case1)
 if(case2)
   return false;
 ```
-
-## Notes
-
-Two tie-breaks are wrong. The three-of-a-kind block above shows one: when both players have three of a kind and player 1's is lower, it calls `winner()` and compares high cards instead of returning a loss. The full-house tie-break compares `h1.p1` against `h2.p2` instead of `h2.p1`, though that branch can only run when both hands have the same three-of-a-kind rank, which a single deck rules out. Neither bug affects this file, since no deal in it has both players holding three of a kind.

@@ -33,9 +33,3 @@ for(Integer factor : map.keySet()) {
 ```
 
 The running total goes into a `long`. Each φ(d) fits in an `int`, and there's a sanity check that throws if one ever comes out negative.
-
-The expensive part is the factoring. The trial division doesn't stop at √d. It keeps going until the remaining cofactor is 1, so a prime d means trying every odd number up to d. Summed over all d, that comes to roughly 3 × 10¹⁰ trial divisions.
-
-## Notes
-
-A totient sieve does the whole range in about O(N log log N): start with φ[i] = i, and for each prime p subtract φ[m]/p from every multiple m of p.

@@ -13,7 +13,7 @@ Repeatedly replace a number with the sum of the squares of its digits. Every cha
 
 ## My solution
 
-Pure brute force, with no caching. For each start from 1 to 9,999,999, I follow the chain while recording every value in a fresh `TreeSet`. The loop stops when `add` returns false, meaning a value repeated. If 89 showed up along the way, the start is counted:
+Brute force. For each start from 1 to 9,999,999, I follow the chain while recording every value in a fresh `TreeSet`. The loop stops when `add` returns false, meaning a value repeated. If 89 showed up along the way, the start is counted:
 
 ```java
 while(chain.add(num)) {
@@ -29,8 +29,8 @@ while(chain.add(num)) {
 }
 ```
 
-Since 89 can only be added to the set once, each start is counted at most once. Chains reaching 1 stop when 1 repeats, and chains reaching 89 go around the 89 → 145 → … → 89 cycle once and stop. That's ten million chains of up to about 20 values, each building its own `TreeSet`, so it's slow but simple.
+Since 89 can only be added to the set once, each start is counted at most once. Chains reaching 1 stop when 1 repeats, and chains reaching 89 go around the 89 → 145 → … → 89 cycle once and stop. That's ten million chains of up to about 20 values each.
 
 ## Notes
 
-The obvious speedup: after one step, every start below 10⁷ is at most 7 × 9² = 567. Working out where each of 1 to 567 ends up first turns every start into a single digit-square sum plus a table lookup.
+The numbers collapse fast: after a single step, every start below 10⁷ is at most 7 × 9² = 567, so all ten million chains funnel into the chains of those 567 values.

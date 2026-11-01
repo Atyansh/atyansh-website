@@ -32,7 +32,3 @@ while(sum > 0) {
 ```
 
 The first loop finds the smallest multiple of the coin that is at least the target. If it lands exactly on the target, that's the "pay entirely in this coin" way, counted directly. The second loop then steps down through every smaller multiple, from the most coins that fit down to zero, and recurses on whatever is left. Every leaf of the recursion is one way of paying, so the work is proportional to the answer, which is small enough to be instant.
-
-## Notes
-
-The standard alternative is the coin-change DP, `ways[x] += ways[x − coin]` for each coin in turn, which needs 8 × 200 updates.

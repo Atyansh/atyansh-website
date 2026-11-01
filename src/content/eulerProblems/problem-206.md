@@ -19,8 +19,4 @@ It's a brute-force search in Python 2. The square ends in 0, so the number ends 
 
 For each candidate, I square it and peel off digits from the right two at a time with integer division by 100, checking that the fixed positions read 9, 8, 7, …, 1 and that nothing remains above the leading 1. The first match is printed.
 
-That's tens of millions of squarings in pure Python. Converted to Python 3 (integer division and `print`), it takes about 14 seconds.
-
-## Notes
-
-The search could be cut much further: for the square to end in 9 followed by 00, the number has to end in 30 or 70, which is a fifth of the multiples of 10 the loop tries.
+That's tens of millions of squarings in pure Python.

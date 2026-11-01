@@ -27,8 +27,3 @@ if(pairSet(primes, set, num, offset + 1))
 ```
 
 Each concatenation test builds the string, parses it as a `long` (at most ten digits here), and runs trial division by odd numbers up to its square root.
-
-## Notes
-
-- Two parts of this are assumptions rather than guarantees. Nothing in the code justifies the cap of 1,230 primes, and the search returns the *first* complete set it reaches, not the one with the smallest sum. Both happen to work out: over these primes, the first set found is also the minimum-sum set.
-- Each level's loop starts at index `offset` instead of just past the prime chosen at the previous level, so the search visits the same sets many times in different orders. A prime can't pair with itself (the concatenation pp is divisible by p), so duplicates get rejected, but starting each level after the previous pick would cut most of the redundant work.

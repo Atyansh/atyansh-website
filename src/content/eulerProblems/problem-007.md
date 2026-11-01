@@ -26,6 +26,4 @@ while(n != 10001) {
 System.out.println(i - 2);
 ```
 
-`isPrime` divides by 3, 5, 7, … up to ⌊√n⌋ and returns false on the first hit. Because `i` is bumped by 2 after the 10,001st prime is counted, the program prints `i - 2`.
-
-The test divides by every odd number, not just by primes, and nothing is stored between calls. For 10,001 primes that is still fast.
+`isPrime` divides by 3, 5, 7, … up to ⌊√n⌋ and returns false on the first hit. Because `i` is bumped by 2 after the 10,001st prime is counted, the program prints `i - 2`. For 10,001 primes this runs quickly.

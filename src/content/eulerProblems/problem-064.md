@@ -37,4 +37,4 @@ if len(set) % 2 == 0:
   answer += 1
 ```
 
-The file is Python 2 (it relies on `/` being integer division). Ported to Python 3 it takes about 0.2 seconds for all N up to 10,000.
+The file is Python 2, where `/` on integers is floor division, and it runs through all N up to 10,000 in well under a second.

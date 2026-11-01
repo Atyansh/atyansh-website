@@ -23,7 +23,3 @@ if(primes.size() < 4) {
   continue a;
 }
 ```
-
-## Notes
-
-The factoring loop keeps going until the remaining cofactor is 1 rather than stopping at its square root, so a number with a large prime factor costs time proportional to that factor. A sieve that counts distinct prime factors for every number up to a bound would avoid factoring altogether.

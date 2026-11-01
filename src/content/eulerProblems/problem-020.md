@@ -24,6 +24,6 @@ for(int i = 0; i < 100; i++) {
 }
 ```
 
-**Python (`Euler20.py`, Python 2)** uses native big integers and a recursive factorial with base case `n <= 2: return n`, then sums `int(a)` over the digits of `str(n)`. (That base case would make `fact(0)` return 0, but it is only ever called with 100.)
+**Python (`Euler20.py`, Python 2)** uses native big integers and a recursive factorial with base case `n <= 2: return n`, then sums `int(a)` over the digits of `str(n)`.
 
 Both do about a hundred big-number multiplications, which is instant.

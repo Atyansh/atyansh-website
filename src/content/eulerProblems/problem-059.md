@@ -23,7 +23,3 @@ if(tempValue == 32)
 ```
 
 Spaces make a good score because they are the most common character in English prose, while a wrong key byte only turns a ciphertext byte into a space by coincidence. The ciphertext is processed three bytes at a time, one per key letter. Its 1,201 bytes leave one byte over at the end, which is added to the sum but not scored.
-
-## Notes
-
-Each key letter only affects every third byte, so the three letters could be scored independently: 3 × 26 trial decryptions instead of 26³.

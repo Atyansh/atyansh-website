@@ -28,4 +28,4 @@ That is only a few thousand pairs, so it runs instantly.
 
 Comparing doubles with `==` is safe here: IEEE division is correctly rounded, so two fractions with the same exact value always produce the same double.
 
-Stopping the denominator at 98 is also safe: cancelling a 9 from x/99 only preserves the value when x = 99.
+The denominator only goes up to 98, which loses nothing: cancelling a 9 from x/99 only preserves the value when x = 99.

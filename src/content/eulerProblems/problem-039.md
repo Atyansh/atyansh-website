@@ -28,8 +28,4 @@ for(int a = 1; a < p-1; a++) {
 }
 ```
 
-The sides aren't ordered, so each triangle is counted six times, once for every arrangement of its three (always distinct) side lengths. For p = 120, where the problem lists three triangles, the code counts 18. A constant factor doesn't change which p wins, so the result is still right. Summing p²/2 over all perimeters gives about 1.7 × 10⁸ inner iterations.
-
-## Notes
-
-Requiring a < b < c, skipping odd p (a Pythagorean triple always has an even perimeter), or solving for b directly given p and a would each cut the work substantially.
+The sides aren't ordered, so each triangle shows up once for every arrangement of its three (always distinct) side lengths, six times in all. That multiplies every perimeter's count by the same factor, so the perimeter with the highest count is still the one with the most triangles. Summing p²/2 over all perimeters gives about 1.7 × 10⁸ inner iterations.

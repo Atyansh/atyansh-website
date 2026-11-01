@@ -27,8 +27,8 @@ for(int i = 0; i < length-4; i++) {
 }
 ```
 
-Each window is multiplied from scratch, which is fine for 996 windows.
+Each window is multiplied from scratch, which is instant for 996 windows.
 
 ## Notes
 
-My code multiplies **five** adjacent digits. The problem as it reads on Project Euler today asks for thirteen, so this program solves the older version of the problem rather than the current one. For thirteen digits, the five hard-coded terms would become an inner loop, and the product would need a `long` (9¹³ is far beyond `int` range).
+My code multiplies five adjacent digits, which is what the problem asked for when I solved it. Project Euler later changed it to thirteen.

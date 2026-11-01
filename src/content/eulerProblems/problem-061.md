@@ -28,7 +28,3 @@ for(int c : polygons[indices[2]-48]) {
 ```
 
 The prefix check prunes heavily, since each set has only around one number per two-digit prefix on average.
-
-## Notes
-
-The ordering loop calls `next` before its first check, so the identity ordering 0-1-2-3-4-5 is never tried. That's harmless: a cycle has no fixed starting point, and its rotation 1-2-3-4-5-0 is tried. For the same reason, fixing the first type would cut the 720 orderings to 120. The code also doesn't check that the six numbers are distinct (every hexagonal number is also triangular), but the only cycle in this data uses six different numbers.

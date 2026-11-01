@@ -13,7 +13,7 @@ Among quadratics n² + an + b with |a| < 1000 and |b| ≤ 1000, find the one tha
 
 ## My solution
 
-Brute force over the coefficients, with one pruning step: at n = 0 the quadratic is just b, so b has to be prime. I loop a from −999 to 999 and b over the odd numbers from 3 to 999, which rules out negative b, even b and b = 1000 without testing them. Skipping b = 2 is also safe: n = 2 then gives 2a + 6, which is even and equals 2 only when a = −2, and in that case n = 1 gives 1. So with b = 2 the run never gets past n = 1.
+Brute force over the coefficients, with one pruning step: at n = 0 the quadratic is just b, so b has to be prime. I loop a from −999 to 999 and b over the odd numbers from 3 to 999, which rules out negative b, even b and b = 1000 without testing them. b = 2 can be skipped too: n = 2 then gives 2a + 6, which is even and equals 2 only when a = −2, and in that case n = 1 gives 1. So with b = 2 the run never gets past n = 1.
 
 For each (a, b) I count primes for consecutive n until the first composite:
 

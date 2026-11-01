@@ -13,7 +13,7 @@ Take a prime, pick some of its digit positions, and fill all of them with the sa
 
 ## My solution
 
-The search walks odd numbers upward from 5. For each prime, `calculate` tries every non-empty subset of digit positions, encoded as a bitmask from 1 to 2ᴸ − 1 (L is the number of digits). For each mask it writes each digit 0–9 into the masked positions, skips results with a leading zero, and counts how many are prime by trial division. It returns the best count over all masks, and the main loop stops at the first prime where that count is 8. Any mask that reaches 8 is also printed to stderr as a binary "pivot" pattern.
+The search walks odd numbers upward from 5. For each prime, `calculate` tries every non-empty subset of digit positions, encoded as a bitmask from 1 to 2ᴸ − 1 (L is the number of digits). For each mask it writes each digit 0–9 into the masked positions, skips results with a leading zero, and counts how many are prime by trial division. It returns the best count over all masks, and the main loop stops at the first prime where that count is 8. Any mask that reaches 8 is printed to stderr as a binary "pivot" pattern, which shows which digit positions make up the family.
 
 ```java
 for(char ch = '0'; ch <= '9'; ch++) {
@@ -27,8 +27,4 @@ for(char ch = '0'; ch <= '9'; ch++) {
 }
 ```
 
-That's 2ᴸ × 10 primality tests per prime (640 for a six-digit number), which is brute force but fine at this size.
-
-## Notes
-
-The code never checks that the masked positions held the same digit to begin with, so a prime can match an eight-prime pattern without being a member of that family. That's what happens here: the first prime to hit 8 has different digits in the masked positions, so the number printed on stdout is not in its own family and is not the answer. The answer is the smallest member of the family described by the stderr pivot pattern. Requiring the masked digits to be equal before counting would fix this.
+That's 2ᴸ × 10 primality tests per prime (640 for a six-digit number), which is quick at this size.

@@ -35,10 +35,4 @@ for j in range(0, 99):
   n = int(str(n)+"00")
 ```
 
-The root is kept as a string. Multiplying by 10 and adding k, or "bringing down" two zeros, is done by string concatenation followed by `int(...)`. The comparison is a strict `<` where the textbook rule is `≤`, but that never matters here: the remainder can only hit zero when the root is exact, which doesn't happen for non-squares. One integer digit plus 99 decimal digits makes the 100 digits that get summed. The loop is `range(2, 100)`, which skips 1 and 100, but both are perfect squares anyway.
-
-It's Python 2. Under Python 3 it takes about 0.08 seconds.
-
-## Notes
-
-A shorter route is `math.isqrt(i * 10**198)`, which gives the same 100 digits directly as an integer.
+The root is kept as a string. Multiplying by 10 and adding k, or "bringing down" two zeros, is done by string concatenation followed by `int(...)`. One integer digit plus 99 decimal digits makes the 100 digits that get summed. Looping over 2 to 99 and skipping the perfect squares covers every irrational root among the first hundred numbers, since 1 and 100 are squares themselves.

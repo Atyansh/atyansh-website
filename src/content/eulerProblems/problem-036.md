@@ -17,4 +17,4 @@ Plain brute force. For every i below a million I build the decimal string with `
 
 ## Notes
 
-Only odd numbers can be binary palindromes (the leading bit is 1, so the last must be too). Going further, there are fewer than 2,000 decimal palindromes below a million, and generating just those and testing them in binary would skip almost all of the loop.
+Only odd numbers can be binary palindromes: the leading bit is always 1, so the last bit must be too.

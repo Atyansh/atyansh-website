@@ -13,7 +13,7 @@ Add up all the primes below two million.
 
 ## My solution
 
-Trial division, not a sieve. The sum starts at 2, then every odd number from 3 up to 1,999,999 is tested and added if it is prime:
+Trial division. The sum starts at 2, then every odd number from 3 up to 1,999,999 is tested and added if it is prime:
 
 ```java
 public static boolean isPrime(long n) {
@@ -25,10 +25,6 @@ public static boolean isPrime(long n) {
 }
 ```
 
-`isPrime` only tries odd divisors up to √n. It has no check for even inputs; that's fine because the caller only passes odd numbers. The sum is a `long` because it doesn't fit in an `int`.
+`isPrime` only tries odd divisors up to √n, and the caller only ever passes it odd numbers. The sum is a `long` because it doesn't fit in an `int`.
 
-Each test costs at most about √n / 2 ≈ 700 divisions, and composites usually fail much sooner, so roughly a million candidates is still manageable.
-
-## Notes
-
-A Sieve of Eratosthenes (O(n log log n) with a 2-million-entry boolean array) is the standard faster approach for "all primes below N".
+Each test costs at most about √n / 2 ≈ 700 divisions, and composites usually fail much sooner, so roughly a million candidates is manageable.

@@ -27,8 +27,6 @@ else
   spiral[row][++col] = i++;
 ```
 
-I ported the loop to Python and it reproduces the 5 × 5 example from the problem.
-
 ## Notes
 
-The grid isn't needed. The corners of the ring with odd side s are s², s² − (s − 1), s² − 2(s − 1) and s² − 3(s − 1), so the diagonal sum is a 500-step loop over the rings (or a closed-form cubic in the grid size).
+The corners of the ring with odd side s are s², s² − (s − 1), s² − 2(s − 1) and s² − 3(s − 1), so the diagonal sum can also be written as a sum over the rings (or a closed-form cubic in the grid size). My Problem 58 solution uses that corner pattern to walk a much larger spiral without building it.

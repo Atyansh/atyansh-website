@@ -27,6 +27,4 @@ while(num > 1) {
 
 Because factors are removed in increasing order, any `i` that divides the remainder must be prime: all of its own smaller prime factors were already divided out.
 
-## Notes
-
-Two shortcuts in the code only work because of this particular input. The search starts at `i = 7` and steps over odd numbers, skipping 2, 3 and 5; that's safe only because 600851475143 isn't divisible by any of them. There is also no √n cutoff, so the loop runs until `i` reaches the largest prime factor itself. That is fast here because all the prime factors are small, but on a number with a large prime factor (or a large prime) it would take about n/2 iterations.
+600851475143 isn't divisible by 2, 3 or 5, so the search starts at `i = 7` and steps through the odd numbers.

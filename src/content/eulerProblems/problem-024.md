@@ -26,9 +26,9 @@ if(i2 != Integer.MAX_VALUE) {
 Arrays.sort(arr, index, arr.length);
 ```
 
-This is the classic next-permutation algorithm, except that it sorts the suffix where the textbook version reverses it (the suffix is at most 10 chars, so it doesn't matter). A million steps of that is trivial.
+This is the classic next-permutation algorithm. The textbook version reverses the suffix rather than sorting it; both give the same result, since the suffix is in descending order. A million steps of that is trivial.
 
-The `index == 0` base case was added in a later commit ("Helpful for Euler 49"), so calling `next` on the final, fully descending permutation returns instead of reading `arr[-1]`. Problem 43 also reuses `Euler24.next`.
+I later added an `index == 0` base case (the commit message says "Helpful for Euler 49"), so that `next` stops cleanly on the final, fully descending permutation. The same routine ended up powering problems 43, 49, 61, 62 and 68.
 
 ## Notes
 

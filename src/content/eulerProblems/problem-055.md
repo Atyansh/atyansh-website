@@ -27,7 +27,3 @@ count++;
 ```
 
 The palindrome check only runs after an addition, so a starting number that is already a palindrome still has to produce a new one, which is what the problem asks for.
-
-## Notes
-
-The loop covers 12 through 10,000 rather than 1 through 9,999. Neither end changes anything: 1 to 11 all reach a palindrome within two steps, and 10,000 + 00001 = 10,001 is a palindrome too.

@@ -29,4 +29,4 @@ Fibonacci numbers grow exponentially, so only a few dozen terms are generated be
 
 ## Notes
 
-Every third Fibonacci number is even (the parity pattern is odd, odd, even), so the even terms satisfy E(n) = 4·E(n−1) + E(n−2) and could be generated directly. My code doesn't use that; it just tests each term.
+Every third Fibonacci number is even (the parity pattern is odd, odd, even), and the even terms follow a recurrence of their own: E(n) = 4·E(n−1) + E(n−2).

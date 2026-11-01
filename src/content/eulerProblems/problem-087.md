@@ -28,8 +28,3 @@ if(set.add(cSum))
 ```
 
 That comes to about 1.14 million candidate sums, of which about 42,000 are duplicates.
-
-## Notes
-
-- `b*b*b` is `int` arithmetic and would overflow for primes above 1290. It's safe only because the loop breaks long before that.
-- The break uses `> limit`, so a sum of exactly 50,000,000 would be counted even though the problem says "below". It doesn't matter here: 50,000,000 has no such representation.

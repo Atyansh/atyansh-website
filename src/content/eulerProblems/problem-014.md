@@ -13,7 +13,7 @@ The Collatz map halves an even number and sends an odd number n to 3n + 1. Find 
 
 ## My solution
 
-Brute force with no caching. For every start from 3 to 999,999, `chain` follows the sequence all the way to 1 and counts the terms, and `main` keeps the start with the longest chain:
+Brute force. For every start from 3 to 999,999, `chain` follows the sequence all the way to 1 and counts the terms, and `main` keeps the start with the longest chain:
 
 ```java
 public static int chain(long n) {
@@ -31,8 +31,4 @@ public static int chain(long n) {
 
 The parameter is a `long` on purpose. Some starting values below one million climb past 2³¹ − 1 before coming back down, so an `int` would overflow and corrupt those chains. Starting at 3 skips 1 and 2, which can't be the answer.
 
-Chains below a million average on the order of a hundred steps, so the total is around 10⁸ simple operations: slow by Project Euler standards, but it finishes.
-
-## Notes
-
-The standard speed-up is memoization: store the chain length for every start below the limit, and stop walking as soon as the sequence drops to a value whose length is already known. My code recomputes every chain from scratch.
+Chains below a million average on the order of a hundred steps, so the total is around 10⁸ simple operations.

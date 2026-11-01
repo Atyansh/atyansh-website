@@ -13,7 +13,7 @@ Take an integer, multiply it by 1, 2, …, n for some n > 1, and concatenate the
 
 ## My solution
 
-For each base i below 10,000 I append i × 1, i × 2, … to a string while feeding each product's digits into a `TreeSet`, and abandon i as soon as a digit is 0 or repeats. If the loop reaches 9 digits without a failure, the string is 1–9 pandigital (it can't run past 9 digits without repeating one), so I parse it and keep the maximum.
+For each base i below 10,000 I append i × 1, i × 2, … to a string while feeding each product's digits into a `TreeSet`, and move on to the next i as soon as a digit is 0 or repeats. If the loop reaches 9 digits without a failure, the string is 1–9 pandigital (it can't run past 9 digits without repeating one), so I parse it and keep the maximum.
 
 ```java
 while(num != 0) {
@@ -26,5 +26,3 @@ while(num != 0) {
 ```
 
 The bound of 10,000 is exact, and it also takes care of n > 1 automatically. A 5-digit base gives at least 5 + 5 = 10 digits after two products, so the base has at most 4 digits, and a base with at most 4 digits needs at least two products to reach 9 digits.
-
-The program also prints each base that sets a new maximum before printing the result, a leftover from debugging.

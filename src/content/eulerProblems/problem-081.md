@@ -13,7 +13,7 @@ In an 80×80 grid of numbers, find the smallest possible sum along a path from t
 
 ## My solution
 
-I treat the grid as a graph and run a queue-based shortest-path search, not the usual row-by-row DP. Each cell becomes a `Node` with its value, links to the cell below (`touch1`) and to the right (`touch2`), and a `distance` that starts at `Long.MAX_VALUE`. The top-left node's distance is set to its own value and it's put on a FIFO queue. Then I repeatedly take a node off the queue and relax both neighbours, putting a neighbour back on the queue whenever its distance improves:
+I treat the grid as a graph and run a queue-based shortest-path search. Each cell becomes a `Node` with its value, links to the cell below (`touch1`) and to the right (`touch2`), and a `distance` that starts at `Long.MAX_VALUE`. The top-left node's distance is set to its own value and it's put on a FIFO queue. Then I repeatedly take a node off the queue and relax both neighbours, putting a neighbour back on the queue whenever its distance improves:
 
 ```java
 if(travel.touch1 != null)
@@ -29,4 +29,4 @@ The input file in the repo is the whole matrix on one comma-separated line, so a
 
 ## Notes
 
-With only right and down moves, the grid is a DAG, and a single pass computing min(above, left) + value at each cell gives the same answer with each cell visited once. The queue approach pays off in problems 82 and 83, where I reused it with more neighbour links.
+Writing a general shortest-path search here, rather than something specific to right and down moves, paid off in problems 82 and 83: I reused the same code there with more neighbour links.

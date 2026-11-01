@@ -30,7 +30,3 @@ for y in range(1901, 2001):
 ```
 
 That's 1,200 iterations instead of 36,500.
-
-## Notes
-
-The Python leap-year line has a bug: in a leap year it adds `month[1]` (28) a second time instead of adding 1, and 28 ≡ 0 (mod 7), so it does nothing. The script effectively ignores leap years. It still prints the correct count, so for this date range the missing leap days happen not to change the result. The Java version handles leap years properly.

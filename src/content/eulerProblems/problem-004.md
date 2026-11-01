@@ -26,4 +26,4 @@ return true;
 
 ## Notes
 
-Counting down doesn't help on its own here, because the first palindrome found isn't necessarily the largest. The code handles that correctly by tracking a running maximum instead of stopping early. Restricting the inner loop to `j ≤ i` and breaking once `i·j` drops below the current maximum would cut the work a lot.
+Counting down from 999 doesn't guarantee that the first palindrome found is the largest, since a product with a small second factor can come before one with two factors in the 900s. That's why the code keeps a running maximum over every product.

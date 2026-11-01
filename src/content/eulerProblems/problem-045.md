@@ -24,8 +24,8 @@ for(int i = 285; i < size; i++) {
 }
 ```
 
-A million terms is far more than needed: the match is found well within the first million triangle numbers, which are all much smaller than the largest entries in the two sets. Most of the cost is memory, around two million boxed `Long`s in red-black trees.
+A million terms gives plenty of room: the match turns up well within the first million triangle numbers, and those are all much smaller than the largest entries in the two sets.
 
 ## Notes
 
-Every hexagonal number is triangular (Hₙ = T₂ₙ₋₁), so the triangle condition is free. Stepping through hexagonal numbers and testing each for pentagonality with the inverse formula n = (1 + √(1 + 24x))/6 needs no tables at all.
+Every hexagonal number is also triangular (Hₙ = T₂ₙ₋₁), so in practice the search is for numbers that are both pentagonal and hexagonal.

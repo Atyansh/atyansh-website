@@ -13,7 +13,7 @@ Write out every number from 1 to 1000 in British English words ("three hundred a
 
 ## My solution
 
-My code never converts a single number to words. Instead I worked out by hand how many times each of the 30 distinct words appears across all 1000 numbers, and the program just sums letters × occurrences:
+The program never converts a single number to words. Instead I worked out by hand how many times each of the 30 distinct words appears across all 1000 numbers, and the program just sums letters × occurrences:
 
 ```java
 words[0]  = new Euler17("one",      3,  9*10+101);
@@ -34,8 +34,4 @@ The counts come from the structure of the numbers:
 - **Hundred:** every number from 100 to 999: 900.
 - **And:** every number from 100 to 999 that isn't an exact hundred: 9 · 99.
 
-The weighted total matches what you get from converting each number to words directly, so the hand counts hold up.
-
-## Notes
-
-The class doubles as its own record type (`word`, `count`, `freq`), and the `word` strings are never used by the computation; they're there to make the table readable. `main` also declares `and` and `numAnd` variables that are left over and unused.
+The class doubles as its own record type (`word`, `count`, `freq`). The `word` strings aren't needed for the arithmetic; they're there to make the table readable.

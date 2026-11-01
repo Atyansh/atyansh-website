@@ -23,10 +23,8 @@ while(c / (10**999) == 0):
   n += 1
 ```
 
-In Python 2 (which this is written for, given `print n`), `/` on integers is floor division, so `c / 10**999 == 0` means `c < 10⁹⁹⁹`, i.e. `c` still has fewer than 1000 digits. That's a few thousand big-integer additions and finishes instantly.
+This is Python 2, where `/` on integers is floor division, so `c / 10**999 == 0` means `c < 10⁹⁹⁹`, i.e. `c` still has fewer than 1000 digits. That's a few thousand big-integer additions and finishes instantly.
 
 ## Notes
-
-This only works under Python 2. Under Python 3, `/` is true division, and `c / 10**999` underflows to `0.0` for any `c` below roughly 10⁶⁷⁵. I checked: the loop then stops at a 676-digit number and reports the wrong index. Using `//` fixes it.
 
 Since Fₙ ≈ φⁿ/√5, the index can also be computed directly with logarithms.

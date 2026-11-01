@@ -23,8 +23,4 @@ for(int i = 0; i < 7; i++) {
 }
 ```
 
-There's no pruning: every permutation is generated and checked, and the checks just fail fast (about half of all permutations fail the first window, which needs d₄ to be even).
-
-## Notes
-
-Building the number from right to left instead, starting from three-digit multiples of 17 and prepending one digit at a time while checking the next prime, shrinks the search to a small number of candidates.
+Every permutation is generated and checked, and most are ruled out quickly: about half fail the very first window, which needs d₄ to be even.

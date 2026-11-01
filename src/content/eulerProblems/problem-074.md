@@ -13,7 +13,7 @@ Repeatedly replace a number with the sum of the factorials of its digits. Every 
 
 ## My solution
 
-Straight simulation with no caching. For every start from 1 to 999,999, I keep a `HashSet` of the values seen so far and step the chain until the next value is already in the set. The set's size is then the number of non-repeating terms:
+Straight simulation. For every start from 1 to 999,999, I keep a `HashSet` of the values seen so far and step the chain until the next value is already in the set. The set's size is then the number of non-repeating terms:
 
 ```java
 while(!set.contains(value)) {
@@ -38,4 +38,4 @@ The problem statement guarantees that no chain from a start below one million is
 
 ## Notes
 
-Most chains share their tails, so memoizing chain lengths would cut out most of the work. The next term also doesn't depend on digit order, so all rearrangements of a start's digits share every term after the first.
+The next term doesn't depend on digit order, so all rearrangements of a start's digits share every term after the first.

@@ -27,9 +27,3 @@ if(pent.contains(sum) && pent.contains(diff))
 ```
 
 That's about 5 × 10⁷ pairs, with a logarithmic set lookup for each one that isn't skipped.
-
-The limit of 10,000 is a guess, and it constrains more than it seems to. The set only holds pentagonal numbers up to P₁₀₀₀₀, so a pair whose sum is a larger pentagonal number is never found; the search really covers pairs with Pᵢ + Pⱼ ≤ P₁₀₀₀₀. It also doesn't prove the D it finds is the global minimum, since pentagonal numbers beyond the table can be much closer together than that. The guess happened to be large enough to find the pair.
-
-## Notes
-
-Since the difference only grows as j increases for a fixed i, `continue` could be `break`. The `pentagon()` helper at the bottom of the file is never called.

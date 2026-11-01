@@ -21,4 +21,4 @@ A 4-digit number has at most 24 rearrangements, so each prime costs at most a fe
 
 ## Notes
 
-The routine detects the last permutation because `Euler24.next` leaves the array unchanged once it's in descending order. I added that `index == 0` base case to the Problem 24 code specifically for this problem (the commit message says "Helpful for Euler 49"). The file also still contains an unused `uniqueDigits` helper; an earlier version filtered primes with it, and that call was removed in a later "Cleaned up Euler49" commit.
+The routine detects the last permutation because `Euler24.next` leaves the array unchanged once it's in descending order. I added that `index == 0` base case to the Problem 24 code specifically for this problem (the commit message says "Helpful for Euler 49").

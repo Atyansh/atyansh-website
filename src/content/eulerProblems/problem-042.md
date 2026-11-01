@@ -25,5 +25,3 @@ if(((triangle) * (triangle + 1))/2.0 == value)
 ```
 
 This works because if v = t(t + 1)/2, then 2v = t² + t lies between t² and (t + 1)², so the floor of its square root is exactly t.
-
-The file is opened by relative path, so the program has to be run from the repository directory.

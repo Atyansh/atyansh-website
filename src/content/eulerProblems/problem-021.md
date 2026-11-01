@@ -30,8 +30,4 @@ if(sum2 == i && sum1 != i)
 
 The `sum1 != i` check excludes perfect numbers like 6 and 28, where d(n) = n. Each number is checked on its own, so both members of a pair get added when the loop reaches each of them.
 
-The outer loop starts at 100 rather than 2, which is safe because the smallest amicable pair is 220 and 284. Divisor sums are found by trial division up to n/2, so the total work is roughly quadratic in the limit, around 40 million modulo operations, which is fine at this size.
-
-## Notes
-
-Trial division only up to √n, adding both j and n/j for each divisor found, would make each d(n) far cheaper. A sieve that adds each j to all its multiples would compute every d(n) below the limit in O(n log n).
+The outer loop starts at 100, since the smallest amicable pair is 220 and 284. Divisor sums are found by trial division up to n/2, around 40 million modulo operations in total, which runs fine at this size.

@@ -39,4 +39,4 @@ That's one GCD per denominator, about a million in total.
 
 ## Notes
 
-The loop isn't really needed. In a Farey sequence, the fraction n/d immediately left of a/b satisfies ad − bn = 1, so here 3d − 7n = 1: take the largest d ≤ 1,000,000 with 3d ≡ 1 (mod 7) and n = (3d − 1)/7.
+There's a neat shortcut via Farey sequences: the fraction n/d immediately left of a/b satisfies ad − bn = 1, so here 3d − 7n = 1: take the largest d ≤ 1,000,000 with 3d ≡ 1 (mod 7) and n = (3d − 1)/7.

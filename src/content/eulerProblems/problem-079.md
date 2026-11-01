@@ -31,4 +31,4 @@ for(Character c : check) {
 index++;
 ```
 
-It's a topological sort in spirit, but there's no explicit graph. It only compares adjacent columns, and it assumes each digit appears at most once in the passcode. Both hold for this input. The result uses each digit that appears in the file exactly once, and every one of the 50 attempts is a subsequence of it, so it's as short as possible. It isn't correct in general, though. While it works on column 0 it ignores every attempt's third character, so on other input it could place a digit that has to come after some attempt's middle digit too early. It also can't produce a passcode that repeats a digit. A topological sort over all the before/after pairs avoids the first problem.
+It's a topological sort in spirit, worked out column by column from the attempts instead of through an explicit graph. The result uses each digit that appears in the file exactly once, and every one of the 50 attempts is a subsequence of it, so it's as short as possible.

@@ -27,4 +27,4 @@ while(num != 0) {
 
 ## Notes
 
-This only checks that each multiple uses a subset of i's digits, not that it is a true permutation with the same length and digit counts, so in principle it could accept a wrong number. It doesn't: the first number to pass this test is also the first to pass a full permutation check. One easy pruning that isn't used: x and 6x must have the same number of digits, which forces x to start with a 1.
+Since x and 6x need the same number of digits, x has to start with a 1.

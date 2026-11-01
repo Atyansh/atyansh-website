@@ -25,4 +25,4 @@ Under ten thousand big-integer exponentiations and set insertions, so it's quick
 
 ## Notes
 
-Big integers aren't strictly needed: duplicates only come from perfect powers, so writing each a as rᵏ with r minimal and storing the pair (r, k·b) gives the same count with small integers.
+Duplicates only come from perfect powers, so writing each a as rᵏ with r minimal and storing the pair (r, k·b) gives the same count with small integers.

@@ -30,8 +30,4 @@ while(!next.equals(new String(arr))) {
 }
 ```
 
-Generating only the lexicographically later rearrangements means n is always the smallest cube in its group and no rearrangement has a leading zero. The cost is the weak spot. The cubes in this range have 12 digits, and a 12-digit number can have hundreds of millions of distinct rearrangements (12! ≈ 4.8 × 10⁸ when no digit repeats). My commit message for this solution says it "took ridiculously long to compute, find a better solution". The loop prints each base to stderr as a progress indicator. The code doesn't explain the starting value of 5,014, and no cube below it is checked.
-
-## Notes
-
-The better solution is to skip permutations entirely: sort each cube's digits into a key, group cubes by key in a hash map while counting upward, and stop at the first key that collects five cubes (after finishing that digit length, to make sure no sixth joins it). That needs one cube per base up to about 10,000, instead of up to hundreds of millions of rearrangements for every base.
+Generating only the lexicographically later rearrangements means n is always the smallest cube in its group and no rearrangement has a leading zero. The cubes in this range have 12 digits, so each base has a lot of rearrangements to walk through, and the loop prints each base to stderr to show its progress.

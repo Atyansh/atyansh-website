@@ -32,4 +32,4 @@ Including the subtractive pairs as their own tokens is what makes the greedy out
 
 ## Notes
 
-Since only the length matters, the conversion can be skipped: replacing DCCCC, CCCC, LXXXX, XXXX, VIIII and IIII with two-character placeholders and comparing lengths gives the same count.
+There's also a neat shortcut, since only the length matters: replacing DCCCC, CCCC, LXXXX, XXXX, VIIII and IIII with two-character placeholders and comparing lengths gives the same count.

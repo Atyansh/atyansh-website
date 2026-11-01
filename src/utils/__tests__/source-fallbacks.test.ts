@@ -2,6 +2,13 @@
 // failure over it (the build-cache bucket keeps whatever .cache holds).
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
+// The featured playlist, pinned so the tests don't depend on site.config.ts
+const FEATURED = 'Featured';
+vi.mock('../../site.config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../site.config')>();
+  return { ...actual, siteConfig: { ...actual.siteConfig, spotify: { featuredPlaylists: ['Featured'] } } };
+});
+
 const mockReadFile = vi.fn();
 const mockWriteFile = vi.fn();
 
@@ -160,7 +167,7 @@ describe('Spotify', () => {
       if (url.includes('/me/top/tracks')) return json({ items: [track('t1'), track('t2')] });
       if (url.includes('/me/top/artists')) return json({ items: [{ id: 'a', name: 'Artist', genres: ['rock'], images: [], external_urls: { spotify: 'x' }, followers: { total: 9 } }] });
       if (url.includes('/me/albums')) return json({ items: [{ album: { id: 'al', name: 'Album', artists: [], images: [], release_date: '2020', external_urls: { spotify: 'x' }, tracks: { items: [track('t9')] } } }] });
-      if (url.includes('/me/playlists')) return json({ items: [{ id: 'p1', name: 'Focus', images: null, tracks: { total: 2 }, external_urls: { spotify: 'x' }, public: true, owner: { id: 'me' } }, null] });
+      if (url.includes('/me/playlists')) return json({ items: [{ id: 'p1', name: FEATURED, images: null, tracks: { total: 2 }, external_urls: { spotify: 'x' }, public: true, owner: { id: 'me' } }, null] });
       if (url.includes('/me/player/recently-played')) return json({ items: [{ track: track('t3'), played_at: '2026-10-30T00:00:00Z' }] });
       if (url.includes('/playlists/p1/tracks')) return json({ items: [{ track: track('t4') }, { track: null }], next: null });
       return new Response('not found', { status: 404 });
@@ -190,7 +197,7 @@ describe('Spotify', () => {
       timestamp: 1,
       topTracks: { short: [], medium: [], long: [] },
       topArtists: { short: [], medium: [], long: [] },
-      savedAlbums: [], playlists: [], featuredPlaylists: [{ id: 'p1', name: 'Focus', images: [], tracks: { total: 1 }, external_urls: { spotify: 'x' }, public: true, allTracks: [track('kept')] }], recentlyPlayed: [],
+      savedAlbums: [], playlists: [], featuredPlaylists: [{ id: 'p1', name: FEATURED, images: [], tracks: { total: 1 }, external_urls: { spotify: 'x' }, public: true, allTracks: [track('kept')] }], recentlyPlayed: [],
     } });
     vi.stubGlobal('fetch', spotifyApi({ '/playlists/p1/tracks': () => new Response('', { status: 502 }) }));
     const { getSpotifyData } = await load<typeof import('../spotify')>('../spotify', env);

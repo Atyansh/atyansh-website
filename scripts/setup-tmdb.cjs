@@ -19,6 +19,13 @@
  */
 
 const { loadEnv, validateEnvVars, openBrowser, printTokenSuccess } = require('./oauth-helpers.cjs');
+const { loadSiteModules } = require('./site-config.cjs');
+
+/** The site's host name, from src/site.config.ts */
+function siteHost() {
+  const modules = loadSiteModules();
+  return modules ? new URL(modules.siteConfig.url).host : 'my website';
+}
 
 loadEnv();
 
@@ -112,7 +119,7 @@ async function findOrCreateList(accessToken, accountId) {
       name: LIST_NAME,
       iso_639_1: 'en',
       public: true,
-      description: 'TV shows I have watched (displayed on atyansh.com/tv)',
+      description: `TV shows I have watched (displayed on ${siteHost()}/tv)`,
     },
   });
   console.log(`✓ Created list "${LIST_NAME}" (id ${created.id})`);

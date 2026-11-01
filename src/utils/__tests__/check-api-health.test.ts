@@ -8,6 +8,8 @@ const require = createRequire(import.meta.url);
 const {
   APIs,
   DISCORD_LIMITS,
+  selectAPIs,
+  monitorName,
   checkAPIHealth,
   buildDiscordPayload,
   buildPlainTextMessage,
@@ -15,7 +17,11 @@ const {
   sendDiscordNotification,
 } = require('../../../scripts/check-api-health.cjs');
 
+import { INTEGRATIONS } from '../../integrations';
+import { siteConfig } from '../../site.config';
+
 const api = (name: string) => APIs.find((a: any) => a.name === name);
+const names = (list: { name: string }[]) => list.map(a => a.name).sort();
 const DAY = 24 * 60 * 60 * 1000;
 
 const healthySpotify = {
@@ -221,5 +227,84 @@ describe('sendDiscordNotification', () => {
         : new Response('nope', { status: 500 })
     ));
     expect(await sendDiscordNotification(allFailing())).toBe(false);
+  });
+});
+
+describe('integration registry', () => {
+  it('claims every health-check entry exactly once, and names only real entries', () => {
+    const claimed = INTEGRATIONS.flatMap(i => i.healthChecks.map(h => h.name));
+    expect([...claimed].sort()).toEqual(names(APIs));
+    expect(new Set(claimed).size).toBe(claimed.length);
+  });
+});
+
+describe('selectAPIs (disabled integrations are skipped, not alerted)', () => {
+  const allOn = Object.fromEntries(INTEGRATIONS.map(i => [i.id, true]));
+  const modules = (toggles = allOn) => ({
+    siteConfig: { ...siteConfig, integrations: toggles },
+    integrations: require('../../integrations.ts'),
+  });
+
+  it('skips every entry when no integration keys are set (a fresh fork)', () => {
+    const { active, skipped } = selectAPIs(APIs, { env: {}, modules: modules() });
+    expect(active).toEqual([]);
+    expect(names(skipped)).toEqual(names(APIs));
+  });
+
+  it('checks only the enabled integration', () => {
+    const { active } = selectAPIs(APIs, { env: { LETTERBOXD_USERNAME: 'someone' }, modules: modules() });
+    expect(names(active)).toEqual(['Letterboxd']);
+  });
+
+  it('skips an integration toggled off even when its keys are set', () => {
+    const env = { LETTERBOXD_USERNAME: 'someone', STEAM_API_KEY: 'k', STEAM_ID: '1' };
+    const { active, skipped } = selectAPIs(APIs, { env, modules: modules({ ...allOn, steam: false }) });
+    expect(names(active)).toEqual(['Letterboxd']);
+    expect(skipped.map((s: any) => s.name)).toContain('Steam');
+  });
+
+  it('checks the Kaya logged-in entry only when KAYA_REFRESH_TOKEN is set', () => {
+    expect(names(selectAPIs(APIs, { env: { KAYA_USERNAME: 'climber' }, modules: modules() }).active)).toEqual(['Kaya (Climbing)']);
+    expect(names(selectAPIs(APIs, { env: { KAYA_USERNAME: 'climber', KAYA_REFRESH_TOKEN: 't' }, modules: modules() }).active))
+      .toEqual(['Kaya (Climbing)', 'Kaya (Logged-in)']);
+  });
+
+  it('checks IGDB only alongside a games platform', () => {
+    const igdb = { IGDB_CLIENT_ID: 'i', IGDB_CLIENT_SECRET: 's' };
+    expect(names(selectAPIs(APIs, { env: igdb, modules: modules() }).active)).toEqual([]);
+    expect(names(selectAPIs(APIs, { env: { ...igdb, EXOPHASE_USERNAME: 'u' }, modules: modules() }).active))
+      .toEqual(['IGDB (Game Covers)', 'Nintendo Switch']);
+  });
+
+  it('checks every toggled-on integration when the keys could not be read', () => {
+    const { active, skipped } = selectAPIs(APIs, { env: {}, envKnown: false, modules: modules({ ...allOn, spotify: false }) });
+    expect(names(skipped)).toEqual(['Spotify']);
+    expect(active).toHaveLength(APIs.length - 1);
+  });
+
+  it('checks everything when the registry cannot be loaded', () => {
+    expect(selectAPIs(APIs, { env: {}, modules: null }).active).toEqual(APIs);
+  });
+
+  it('a skipped integration never reaches the report as a failure', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'health-'));
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const { active } = selectAPIs(APIs, { env: { LETTERBOXD_USERNAME: 'someone' }, modules: modules() });
+      writeFileSync(path.join(dir, 'letterboxd-data.json'), JSON.stringify({ movies: [{}], timestamp: Date.now() }));
+      const results = await checkAPIHealth(dir, active);
+      expect(results.failed).toEqual([]);
+      expect(names(results.healthy)).toEqual(['Letterboxd']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      vi.restoreAllMocks();
+    }
+  });
+});
+
+describe('monitorName', () => {
+  it('comes from site.config.ts', () => {
+    expect(monitorName()).toBe(`${siteConfig.shortName} Website Monitor`);
+    expect(monitorName(null)).toBe('Website Monitor');
   });
 });

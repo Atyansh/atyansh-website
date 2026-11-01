@@ -1,4 +1,5 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import MediaCard from '../components/MediaCard';
 import BaseCarousel from '../components/BaseCarousel';
@@ -47,7 +48,7 @@ const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.nam
 ---
 
 <BaseLayout
-  title="Music - Atyansh Jaiswal"
+  title={pageTitle('Music')}
   description="Music and podcasts I'm listening to"
 >
   <div class="max-w-7xl mx-auto">

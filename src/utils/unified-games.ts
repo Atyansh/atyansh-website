@@ -51,16 +51,24 @@ export interface AllGamesResult {
   nintendoStats: NintendoStats | null;
 }
 
+/** Which sources to use; a disabled one is never fetched (not even from cache) */
+export type GameSources = Record<Platform | 'igdb', boolean>;
+
+const ALL_SOURCES: GameSources = { steam: true, psn: true, nintendo: true, igdb: true };
+
 /**
- * Combine games from all platforms into a unified list with IGDB cover art.
+ * Combine games from the enabled platforms into a unified list with IGDB
+ * cover art (when IGDB is enabled; otherwise cards use their fallbacks).
  * Returns games + per-platform stats in a single call to avoid double-fetching.
  */
-export async function getAllGames(): Promise<AllGamesResult> {
+export async function getAllGames(sources: GameSources = ALL_SOURCES): Promise<AllGamesResult> {
   const [steamStats, psnData, nintendoStats] = await Promise.all([
-    getSteamStats(),
-    getPSNData(),
-    getNintendoStats(),
+    sources.steam ? getSteamStats() : null,
+    sources.psn ? getPSNData() : null,
+    sources.nintendo ? getNintendoStats() : null,
   ]);
+  const getCover = (name: string, platform: Platform) =>
+    sources.igdb ? getIGDBCoverUrl(name, platform) : Promise.resolve(null);
 
   const unifiedGames: UnifiedGame[] = [];
 
@@ -72,7 +80,7 @@ export async function getAllGames(): Promise<AllGamesResult> {
     );
     const steamGames = await Promise.all(
       filteredSteamGames.map(async (game: SteamGame): Promise<UnifiedGame> => {
-        const igdbCover = await getIGDBCoverUrl(game.name, 'steam');
+        const igdbCover = await getCover(game.name, 'steam');
         return {
           id: `steam-${game.appid}`,
           name: game.name,
@@ -99,7 +107,7 @@ export async function getAllGames(): Promise<AllGamesResult> {
     );
     const psnUnified = await Promise.all(
       filteredPsnGames.map(async (game: PSNGame): Promise<UnifiedGame> => {
-        const igdbCover = await getIGDBCoverUrl(game.name, 'psn');
+        const igdbCover = await getCover(game.name, 'psn');
         return {
           id: `psn-${game.titleId}`,
           name: game.name,
@@ -134,7 +142,7 @@ export async function getAllGames(): Promise<AllGamesResult> {
     );
     const nintendoUnified = await Promise.all(
       filteredNintendoGames.map(async (game: NintendoGame): Promise<UnifiedGame> => {
-        const igdbCover = await getIGDBCoverUrl(game.name, 'nintendo');
+        const igdbCover = await getCover(game.name, 'nintendo');
         return {
           id: `nintendo-${game.titleId}`,
           name: game.name,
@@ -153,7 +161,7 @@ export async function getAllGames(): Promise<AllGamesResult> {
   }
 
   // Flush IGDB cache once after all covers are fetched
-  await flushIGDBCache();
+  if (sources.igdb) await flushIGDBCache();
 
   log.info(`Total games with IGDB covers: ${unifiedGames.filter(g => g.image).length}/${unifiedGames.length}`);
   return {

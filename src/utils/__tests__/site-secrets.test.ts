@@ -9,6 +9,7 @@ const {
   readSecrets,
   writeSecrets,
   KEEP_VERSIONS,
+  resolveProjectId,
 } = require('../../../scripts/site-secrets.cjs');
 
 /** In-memory stand-in for Secret Manager's SITE_SECRETS */
@@ -116,5 +117,24 @@ describe('writeSecrets', () => {
     const store = fakeStore({ A: '1', TMDB_READ_TOKEN: 'x' });
     await writeSecrets({}, { removals: ['TMDB_READ_TOKEN'], store, log: quiet });
     expect(store.latestValues()).toEqual({ A: '1' });
+  });
+});
+
+describe('resolveProjectId', () => {
+  const noGcloud = () => null;
+
+  it('prefers SITE_GCP_PROJECT, then the standard Google Cloud variables', () => {
+    expect(resolveProjectId({ env: { SITE_GCP_PROJECT: 'a', GOOGLE_CLOUD_PROJECT: 'b' }, gcloud: noGcloud })).toBe('a');
+    expect(resolveProjectId({ env: { GOOGLE_CLOUD_PROJECT: 'b', GCP_PROJECT: 'c' }, gcloud: noGcloud })).toBe('b');
+    expect(resolveProjectId({ env: { GCP_PROJECT: 'c' }, gcloud: noGcloud })).toBe('c');
+  });
+
+  it('falls back to the gcloud CLI config', () => {
+    expect(resolveProjectId({ env: {}, gcloud: () => 'from-gcloud' })).toBe('from-gcloud');
+    expect(resolveProjectId({ env: { GOOGLE_CLOUD_PROJECT: ' ' }, gcloud: () => 'from-gcloud' })).toBe('from-gcloud');
+  });
+
+  it('fails with a message saying how to set it', () => {
+    expect(() => resolveProjectId({ env: {}, gcloud: noGcloud })).toThrow(/SITE_GCP_PROJECT.*gcloud config set project/);
   });
 });

@@ -4,6 +4,7 @@
 import { fetchWithRetry } from './retry';
 import { FileCache } from './cache';
 import { createLogger } from './logger';
+import { siteConfig } from '../site.config';
 
 const SPOTIFY_CLIENT_ID = import.meta.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = import.meta.env.SPOTIFY_CLIENT_SECRET;
@@ -474,7 +475,7 @@ export async function getSpotifyData(): Promise<SpotifyData | null> {
     ]);
 
     // Find featured playlists and fetch their tracks in parallel
-    const featuredPlaylistNames = ['Songs I actually listen to', 'Focus'];
+    const featuredPlaylistNames = siteConfig.spotify.featuredPlaylists;
     const featuredPlaylistResults = await Promise.all(
       featuredPlaylistNames.map(async (playlistName): Promise<SpotifyPlaylistWithTracks | null> => {
         const playlist = playlists.find(p => p.name === playlistName);

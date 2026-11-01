@@ -6,8 +6,15 @@
  * Runs after the build to check which API integrations succeeded/failed.
  * Sends a Discord DM (via bot) if any APIs have expired credentials.
  *
+ * Only enabled integrations are checked (src/integrations.ts: toggle on in
+ * src/site.config.ts AND required keys set). Disabled ones are reported as
+ * skipped, never as failures, so a fork without e.g. Spotify gets no alerts
+ * about it. Keys are looked up in process.env (.env locally) and, in Cloud
+ * Build, in SITE_SECRETS, since this step doesn't get the build's env.
+ *
  * Usage:
- *   node scripts/check-api-health.cjs
+ *   node scripts/check-api-health.cjs                # report + DM on failure
+ *   node scripts/check-api-health.cjs --report-only  # report, never DM
  *
  * Environment Variables (for Discord notifications):
  *   DISCORD_BOT_TOKEN - Discord bot token (for sending DMs)
@@ -17,6 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs');
+const { loadSiteModules } = require('./site-config.cjs');
 
 const CACHE_DIR = path.join(process.cwd(), '.cache');
 // cloudbuild.yaml's build and test steps don't stop the build when they fail:
@@ -171,6 +179,35 @@ const APIs = [
   },
 ];
 
+/** "<shortName> Website Monitor" (src/site.config.ts) */
+function monitorName(modules = loadSiteModules()) {
+  return modules ? `${modules.siteConfig.shortName} Website Monitor` : 'Website Monitor';
+}
+
+/**
+ * Split the API entries into the ones to check and the ones to skip because
+ * their integration is disabled (src/integrations.ts). Pure.
+ *
+ * `env` is where to look for keys; `envKnown: false` means it couldn't be
+ * read (SITE_SECRETS unreachable in Cloud Build), so only the site.config
+ * toggles count and every toggled-on integration is checked, as before the
+ * registry. Without the registry (`modules` null) everything is checked.
+ */
+function selectAPIs(apis, { env = process.env, envKnown = true, modules = loadSiteModules() } = {}) {
+  if (!modules) return { active: apis, skipped: [] };
+  const lookup = envKnown ? env : new Proxy({}, { get: () => 'unknown' });
+  const active = [];
+  const skipped = [];
+  for (const api of apis) {
+    if (modules.integrations.isHealthCheckEnabled(api.name, lookup, modules.siteConfig.integrations)) {
+      active.push(api);
+    } else {
+      skipped.push({ name: api.name, reason: 'Integration disabled (site.config.ts toggle off or env keys not set)' });
+    }
+  }
+  return { active, skipped };
+}
+
 /**
  * Check health of all APIs
  */
@@ -282,7 +319,7 @@ async function checkAPIHealth(cacheDir = CACHE_DIR, apis = APIs) {
  */
 function generateReport(results) {
   const total = results.healthy.length + results.failed.length;
-  const healthPercentage = Math.round((results.healthy.length / total) * 100);
+  const healthPercentage = total > 0 ? Math.round((results.healthy.length / total) * 100) : 100;
 
   let report = '';
   report += '═══════════════════════════════════════════════\n';
@@ -329,6 +366,10 @@ function generateReport(results) {
       });
       report += '\n';
     }
+  }
+
+  if (results.skipped && results.skipped.length > 0) {
+    report += `⏭️  Skipped: ${results.skipped.map(s => s.name).join(', ')}\n\n`;
   }
 
   if (results.healthy.length > 0) {
@@ -407,7 +448,7 @@ function buildDiscordPayload(results) {
     description: `Health Score: **${results.healthy.length}/${total} APIs (${healthPercentage}%)**`,
     fields: [],
     timestamp: new Date(results.timestamp || Date.now()).toISOString(),
-    footer: { text: 'Atyansh Website Monitor' },
+    footer: { text: monitorName() },
   };
 
   const failureFields = [
@@ -534,30 +575,40 @@ async function sendDiscordNotification(results) {
 }
 
 /**
- * Main function
+ * The keys this step can see. In Cloud Build that means reading SITE_SECRETS
+ * directly rather than relying on the build step's .env.refresh (the alert
+ * matters most when that step failed); its Discord credentials are copied
+ * into process.env unless `reportOnly`. Locally it's process.env (.env).
+ * @returns {Promise<{ env: object, envKnown: boolean }>}
  */
-/**
- * In Cloud Build, read the Discord credentials from SITE_SECRETS directly
- * rather than relying on the build step's .env.refresh: the alert matters
- * most when that step failed.
- */
-async function loadDiscordCredentials() {
-  if (!isCloudBuild() || (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_USER_ID)) return;
+async function loadEnvForCheck({ reportOnly = false } = {}) {
+  if (!isCloudBuild()) return { env: process.env, envKnown: true };
   try {
     const { values } = await readSecrets();
-    for (const key of ['DISCORD_BOT_TOKEN', 'DISCORD_USER_ID']) {
-      if (values[key]) process.env[key] = values[key];
+    if (!reportOnly) {
+      for (const key of ['DISCORD_BOT_TOKEN', 'DISCORD_USER_ID']) {
+        if (values[key] && !process.env[key]) process.env[key] = values[key];
+      }
     }
+    return { env: { ...values, ...process.env }, envKnown: true };
   } catch (error) {
-    console.log(`⚠️  Could not read Discord credentials from ${SECRET_NAME}: ${error.message}`);
+    console.log(`⚠️  Could not read ${SECRET_NAME}: ${error.message} (checking every integration toggled on in site.config.ts)`);
+    return { env: process.env, envKnown: false };
   }
 }
 
+/**
+ * Main function
+ */
 async function main() {
-  console.log('Starting API health check...\n');
-  await loadDiscordCredentials();
+  const reportOnly = process.argv.includes('--report-only');
+  console.log(`Starting API health check${reportOnly ? ' (report only)' : ''}...\n`);
+  const { env, envKnown } = await loadEnvForCheck({ reportOnly });
 
-  const results = await checkAPIHealth();
+  const { active, skipped } = selectAPIs(APIs, { env, envKnown });
+  for (const { name } of skipped) console.log(`⏭️  ${name}: skipped (integration disabled)`);
+  const results = await checkAPIHealth(CACHE_DIR, active);
+  results.skipped.push(...skipped);
   results.buildFailures = readBuildFailures();
   const report = generateReport(results);
 
@@ -574,7 +625,9 @@ async function main() {
   }
 
   // Send Discord DM if the build or any API failed
-  if (results.failed.length > 0 || results.buildFailures.length > 0) {
+  if (reportOnly) {
+    console.log('Report only: no notification sent\n');
+  } else if (results.failed.length > 0 || results.buildFailures.length > 0) {
     console.log('⚠️  Detected failures, sending notification...\n');
     await sendDiscordNotification(results);
   } else {
@@ -602,6 +655,8 @@ if (require.main === module) {
 module.exports = {
   APIs,
   DISCORD_LIMITS,
+  selectAPIs,
+  monitorName,
   checkAPIHealth,
   buildDiscordPayload,
   buildPlainTextMessage,

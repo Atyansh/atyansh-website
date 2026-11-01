@@ -1,30 +1,38 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import TVFilter from '../components/TVFilter';
 import StatGrid from '../components/StatGrid.astro';
+import LoadError from '../components/LoadError.astro';
+import { formatCalendarDate, maybeDate } from '../components/formatDate';
 import { getTmdbTVData } from '../utils/tmdb';
 
 // Fetch TV data from TMDB at build time
 const tvData = await getTmdbTVData();
 
 // Map shows to the format expected by the UI
-let shows = [];
-if (tvData && tvData.shows.length > 0) {
-  shows = tvData.shows.map(show => ({
+type Detail = { label: string; value: string };
+const details = (...rows: Array<[string, string | number | undefined | false]>): Detail[] =>
+  rows.filter(([, v]) => v !== undefined && v !== false && v !== '').map(([label, value]) => ({ label, value: String(value) }));
+
+// Card details formatted at build time (TMDB air dates are calendar dates)
+const shows = (tvData?.shows ?? []).map(show => ({
     data: {
       title: show.title,
       year: show.year,
       posterImage: show.posterImage,
       firstAiredAt: show.firstAiredAt,
       rating: show.rating,
-      link: show.link,
+      details: details(
+        ['First aired', maybeDate(show.firstAiredAt) && formatCalendarDate(show.firstAiredAt!, { year: 'numeric', month: 'short', day: 'numeric' })],
+        ['Rating', show.rating ? `${show.rating}/10` : undefined],
+      ),
     }
   }));
-}
 ---
 
 <BaseLayout
-  title="TV Shows - Atyansh Jaiswal"
+  title={pageTitle('TV Shows')}
   description="TV shows I've watched"
 >
   <div class="max-w-7xl mx-auto">
@@ -56,16 +64,12 @@ if (tvData && tvData.shows.length > 0) {
     )}
 
     {shows.length === 0 && (
-      <div class="text-center py-12">
-        <p class="text-lg" style="color: var(--text-secondary);">
-          Couldn't load TV show data right now — check back soon.
-        </p>
-      </div>
+      <LoadError thing="TV show" />
     )}
 
     {/* Attribution (required by TMDB API terms) */}
     <div class="text-center mt-8 text-sm" style="color: var(--text-secondary);">
-      Data from <a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline" style="color: var(--accent);" title="This website uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.">TMDB</a>
+      Data from TMDB. This website uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.
     </div>
   </div>
 </BaseLayout>

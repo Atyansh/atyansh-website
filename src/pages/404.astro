@@ -1,11 +1,23 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import AnimatedCard from '../components/AnimatedCard';
+import AnimatedCard from '../components/AnimatedCard.astro';
+import { enabledPages } from '../integrations';
+
+// Integration pages are linked only when they exist (src/integrations.ts)
+const enabledRoutes = new Set(enabledPages().map(page => page.route));
+const helpfulLinks = [
+  { href: '/work', label: 'Work' },
+  { href: '/projects', label: 'Projects' },
+  { href: '/papers', label: 'Papers' },
+  { href: '/books', label: 'Books', integration: true },
+  { href: '/climbing', label: 'Climbing', integration: true },
+  { href: '/pgp', label: 'PGP Key' },
+].filter(link => !link.integration || enabledRoutes.has(link.href));
 ---
 
 <BaseLayout title="404 - Page Not Found" description="This page does not exist">
   <div class="max-w-3xl mx-auto text-center py-20">
-    <AnimatedCard client:load delay={0}>
+    <AnimatedCard delay={0}>
       <div class="py-12">
         <h1 class="text-9xl font-bold mb-4" style="color: var(--accent);">404</h1>
         <h2 class="text-3xl font-bold mb-6" style="color: var(--text-primary);">
@@ -42,15 +54,12 @@ import AnimatedCard from '../components/AnimatedCard';
             Looking for something specific? Here are some helpful links:
           </p>
           <div class="flex flex-wrap gap-3 justify-center">
-            <a href="/work" class="text-sm hover:underline" style="color: var(--accent);">Work Experience</a>
-            <span style="color: var(--text-secondary);">•</span>
-            <a href="/projects" class="text-sm hover:underline" style="color: var(--accent);">Projects</a>
-            <span style="color: var(--text-secondary);">•</span>
-            <a href="/papers" class="text-sm hover:underline" style="color: var(--accent);">Papers</a>
-            <span style="color: var(--text-secondary);">•</span>
-            <a href="/interests" class="text-sm hover:underline" style="color: var(--accent);">Interests</a>
-            <span style="color: var(--text-secondary);">•</span>
-            <a href="/pgp" class="text-sm hover:underline" style="color: var(--accent);">PGP Key</a>
+            {helpfulLinks.map((link, index) => (
+              <Fragment>
+                {index > 0 && <span style="color: var(--text-secondary);">•</span>}
+                <a href={link.href} class="text-sm hover:underline" style="color: var(--accent);">{link.label}</a>
+              </Fragment>
+            ))}
           </div>
         </div>
       </div>

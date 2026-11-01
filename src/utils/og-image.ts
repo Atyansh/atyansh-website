@@ -2,8 +2,9 @@ import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { siteConfig } from '../site.config';
 
-// The avatar and fonts are committed (src/assets/og) rather than fetched at
+// The avatar (replace src/assets/og/avatar.png when forking) and fonts are committed (src/assets/og) rather than fetched at
 // build time: a failed fetch used to render a broken image, or ship the
 // endpoint's error text as og-image.png. Builds run from the repo root.
 const ASSET_DIR = path.join(process.cwd(), 'src', 'assets', 'og');
@@ -83,7 +84,7 @@ export async function generateOGImage(): Promise<Buffer> {
                       color: '#f1f5f9',
                       textAlign: 'center',
                     },
-                    children: 'Atyansh Jaiswal',
+                    children: siteConfig.author.name,
                   },
                 },
                 // Title/Role
@@ -96,7 +97,7 @@ export async function generateOGImage(): Promise<Buffer> {
                       color: '#2563eb',
                       textAlign: 'center',
                     },
-                    children: 'Software Engineer',
+                    children: siteConfig.author.jobTitle,
                   },
                 },
                 // Website
@@ -109,7 +110,7 @@ export async function generateOGImage(): Promise<Buffer> {
                       textAlign: 'center',
                       marginTop: '20px',
                     },
-                    children: 'atyansh.com',
+                    children: new URL(siteConfig.url).hostname,
                   },
                 },
               ],

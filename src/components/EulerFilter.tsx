@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import MediaFilterGrid, { type MediaFilterGridConfig } from './MediaFilterGrid';
 import ErrorBoundary from './ErrorBoundary';
 
@@ -59,14 +58,13 @@ function EulerFilterInner({ problems }: EulerFilterProps) {
       getImage: () => '',
     },
     renderItem: (problem) => (
-      <motion.a
+      <a
         href={`/euler/${problem.problemNumber}`}
-        className="block p-6 rounded-lg shadow-md border"
+        className="hover-lift block p-6 rounded-lg shadow-md border"
         style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}
-        whileHover={{ scale: 1.02, y: -5 }}
       >
         <div className="flex items-start justify-between mb-3">
-          <span className="text-sm font-bold px-3 py-1 rounded-full" style={{ backgroundColor: 'var(--accent)', color: 'white' }}>
+          <span className="text-sm font-bold px-3 py-1 rounded-full" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}>
             #{problem.problemNumber}
           </span>
           {problem.difficulty && (
@@ -88,7 +86,7 @@ function EulerFilterInner({ problems }: EulerFilterProps) {
             </span>
           </div>
         )}
-      </motion.a>
+      </a>
     ),
     gridClassName: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6',
     filterColumnClass: 'lg:grid-cols-4',

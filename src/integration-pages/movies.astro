@@ -1,17 +1,22 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import MoviesFilter from '../components/MoviesFilter';
 import StatGrid from '../components/StatGrid.astro';
+import LoadError from '../components/LoadError.astro';
+import { formatCalendarDate, maybeDate } from '../components/formatDate';
 import { getLetterboxdData } from '../utils/letterboxd';
 
 // Fetch Letterboxd data at build time
 const letterboxdData = await getLetterboxdData();
 
 // Use Letterboxd data if available
-let movies = [];
-if (letterboxdData && letterboxdData.movies.length > 0) {
-  // Map Letterboxd movies to the format expected by the UI
-  movies = letterboxdData.movies.map(movie => ({
+type Detail = { label: string; value: string };
+const details = (...rows: Array<[string, string | number | undefined | false]>): Detail[] =>
+  rows.filter(([, v]) => v !== undefined && v !== false && v !== '').map(([label, value]) => ({ label, value: String(value) }));
+
+// Card details formatted at build time (Letterboxd diary dates are calendar dates)
+const movies = (letterboxdData?.movies ?? []).map(movie => ({
     data: {
       title: movie.title,
       year: movie.year,
@@ -19,17 +24,21 @@ if (letterboxdData && letterboxdData.movies.length > 0) {
       director: movie.director,
       posterImage: movie.posterImage,
       rating: movie.rating,
-      watchedDate: movie.watchedDate,
-      reviewText: movie.reviewText,
-      link: movie.link,
       rewatch: movie.rewatch,
+      details: details(
+        ['Director', movie.director],
+        // the card subtitle is the director, or the year when there's no director
+        ['Year', movie.director ? movie.year : undefined],
+        ['Watched', maybeDate(movie.watchedDate) && formatCalendarDate(movie.watchedDate!, { year: 'numeric', month: 'short', day: 'numeric' })],
+        ['Rewatch', movie.rewatch && 'Yes'],
+        ['Rating', movie.rating ? `${movie.rating}/5` : undefined],
+      ),
     }
   }));
-}
 ---
 
 <BaseLayout
-  title="Movies - Atyansh Jaiswal"
+  title={pageTitle('Movies')}
   description="Movies I've watched"
 >
   <div class="max-w-7xl mx-auto">
@@ -50,7 +59,8 @@ if (letterboxdData && letterboxdData.movies.length > 0) {
           </span>
         </div>
 
-        <MoviesFilter client:load movies={movies} />
+        {/* Only the fields the filter grid uses go into the island's props */}
+        <MoviesFilter client:load movies={movies.map(({ data: { rewatch, ...data } }) => ({ data }))} />
 
         <StatGrid title="Viewing Stats" stats={[
           { value: movies.length, label: 'Total Films' },
@@ -62,11 +72,7 @@ if (letterboxdData && letterboxdData.movies.length > 0) {
     )}
 
     {movies.length === 0 && (
-      <div class="text-center py-12">
-        <p class="text-lg" style="color: var(--text-secondary);">
-          Couldn't load movie data right now — check back soon.
-        </p>
-      </div>
+      <LoadError thing="movie" />
     )}
   </div>
 </BaseLayout>

@@ -1,7 +1,10 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import BooksFilter from '../components/BooksFilter';
 import StatGrid from '../components/StatGrid.astro';
+import LoadError from '../components/LoadError.astro';
+import { formatSiteDate, maybeDate } from '../components/formatDate';
 import { getGoodreadsData } from '../utils/goodreads';
 
 // Fetch Goodreads data at build time
@@ -9,6 +12,13 @@ const goodreadsData = await getGoodreadsData();
 
 // No Goodreads data at all (fetch failed and no last-known-good copy) shows
 // an error message below rather than a placeholder library
+type Detail = { label: string; value: string };
+const details = (...rows: Array<[string, string | number | undefined | false]>): Detail[] =>
+  rows.filter(([, v]) => v !== undefined && v !== false && v !== '').map(([label, value]) => ({ label, value: String(value) }));
+const STATUS_LABELS: Record<string, string> = { reading: 'Currently reading', finished: 'Finished', 'want-to-read': 'Want to read' };
+
+// Card details are formatted here at build time. Goodreads publication dates
+// are year-only (Jan 1, site time zone); "read" dates are timestamps (local day).
 const books = (goodreadsData?.books ?? []).map(book => ({
   data: {
     title: book.title,
@@ -16,14 +26,19 @@ const books = (goodreadsData?.books ?? []).map(book => ({
     coverImage: book.coverImage,
     rating: book.rating,
     status: book.status,
-    dateRead: book.dateRead,
     publishedDate: book.publishedDate,
+    details: details(
+      ['Status', STATUS_LABELS[book.status] ?? book.status],
+      ['Published', maybeDate(book.publishedDate) && formatSiteDate(book.publishedDate!, { year: 'numeric' })],
+      ['Read', book.status === 'finished' && maybeDate(book.dateRead) && formatSiteDate(book.dateRead!)],
+      ['Rating', book.rating ? `${book.rating}/5` : undefined],
+    ),
   }
 }));
 ---
 
 <BaseLayout
-  title="Books - Atyansh Jaiswal"
+  title={pageTitle('Books')}
   description="Books I'm reading and have read"
 >
   <div class="max-w-7xl mx-auto">
@@ -56,11 +71,7 @@ const books = (goodreadsData?.books ?? []).map(book => ({
     )}
 
     {books.length === 0 && (
-      <div class="text-center py-12">
-        <p class="text-lg" style="color: var(--text-secondary);">
-          Couldn't load book data right now — check back soon.
-        </p>
-      </div>
+      <LoadError thing="book" />
     )}
   </div>
 </BaseLayout>

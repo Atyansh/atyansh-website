@@ -5,9 +5,11 @@ interface ShowData {
   title: string;
   year: number;
   posterImage: string;
-  firstAiredAt?: Date;
+  firstAiredAt?: Date | string;
+  /** 1–10 */
   rating?: number;
-  link: string;
+  /** Extra facts for the expanded card, formatted in tv.astro */
+  details?: Array<{ label: string; value: string }>;
 }
 
 interface Show {
@@ -81,9 +83,12 @@ const config: MediaFilterGridConfig<Show> = {
     getSubtitle: (s) => s.data.year ? `${s.data.year}` : '',
     getImage: (s) => s.data.posterImage,
     getRating: (s) => s.data.rating ? s.data.rating / 2 : undefined,
+    getRatingLabel: (s) => s.data.rating ? `${s.data.rating} out of 10` : undefined,
+    getDetails: (s) => s.data.details,
   },
   filterColumnClass: 'lg:grid-cols-4',
   itemNounPlural: 'shows',
+  viewerLabel: 'Show details',
 };
 
 function TVFilterInner({ shows }: TVFilterProps) {

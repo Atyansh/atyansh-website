@@ -3,7 +3,10 @@ import '../styles/global.css';
 import ThemeSwitcher from '../components/ThemeSwitcher.astro';
 import AudioToggle from '../components/AudioToggle.astro';
 import StructuredData from '../components/StructuredData.astro';
-import { ViewTransitions } from 'astro:transitions';
+import ImageWarmup from '../components/ImageWarmup.astro';
+import { ClientRouter } from 'astro:transitions';
+import { siteConfig } from '../site.config';
+import { enabledPages } from '../integrations';
 
 interface Props {
   title: string;
@@ -14,7 +17,7 @@ interface Props {
   structuredData?: Record<string, any>;
 }
 
-const { title, description = "Software Engineer | Personal Website", image, type = "website", structuredDataType = "website", structuredData = {} } = Astro.props;
+const { title, description = siteConfig.description, image, type = "website", structuredDataType = "website", structuredData = {} } = Astro.props;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
 // Generate OG image URL
@@ -24,12 +27,19 @@ if (image) {
 } else {
   // Generate dynamic OG image
   const ogParams = new URLSearchParams({
-    title: title.replace(' - Atyansh Jaiswal', '').replace(' - Blog', '').replace(' - Project', ''),
+    title: title.replace(` - ${siteConfig.name}`, '').replace(' - Blog', '').replace(' - Project', ''),
     description: description,
     type: type === 'article' ? 'blog' : 'default',
   });
   ogImageURL = new URL(`/og-image.png?${ogParams.toString()}`, Astro.site);
 }
+
+// Integration pages (src/integrations.ts) appear in the nav only when enabled
+const integrationPages = enabledPages();
+const mediaPages = integrationPages.filter(page => page.navGroup === 'media');
+const mainPages = integrationPages.filter(page => page.navGroup === 'main');
+const { twitterHandle } = siteConfig.author;
+const goatcounterEndpoint = siteConfig.analytics.goatcounter;
 ---
 
 <!DOCTYPE html>
@@ -39,13 +49,8 @@ if (image) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
-    <meta name="author" content="Atyansh Jaiswal" />
+    <meta name="author" content={siteConfig.author.name} />
     <link rel="canonical" href={canonicalURL} />
-
-    <!-- Security headers -->
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-    <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=()" />
 
     <!-- OpenGraph tags -->
     <meta property="og:title" content={title} />
@@ -55,12 +60,12 @@ if (image) {
     <meta property="og:image" content={ogImageURL} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:site_name" content="Atyansh Jaiswal" />
+    <meta property="og:site_name" content={siteConfig.name} />
 
     <!-- Twitter Card tags -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@AtyanshJ" />
-    <meta name="twitter:creator" content="@AtyanshJ" />
+    {twitterHandle && <meta name="twitter:site" content={twitterHandle} />}
+    {twitterHandle && <meta name="twitter:creator" content={twitterHandle} />}
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageURL} />
@@ -69,7 +74,7 @@ if (image) {
     <title>{title}</title>
 
     <!-- View Transitions for smooth page navigation -->
-    <ViewTransitions />
+    <ClientRouter />
 
     <script is:inline>
       // Ambient audio is a hidden feature revealed by visiting any page with
@@ -99,37 +104,22 @@ if (image) {
     </script>
 
     <script is:inline>
-      // Run FIRST to set theme before ANY rendering
+      // Apply the saved theme before first paint so non-default themes don't
+      // flash the default palette. Must stay inline (not a deferred module).
       (function() {
-        const theme = localStorage.getItem('theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const isDark = theme === 'dark' || (!theme && prefersDark);
-
-        if (isDark) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+        var theme = 'minimal-technical';
+        try { theme = localStorage.getItem('theme') || theme; } catch (e) {}
+        document.documentElement.setAttribute('data-theme', theme);
       })();
     </script>
 
     <script>
-      // Persist theme and data-theme across view transitions
+      // View Transitions replace <html> attributes with the incoming page's
+      // static ones; carry the saved theme over before the swap paints.
       document.addEventListener('astro:before-swap', (e) => {
-        // Preserve dark mode class
-        const theme = localStorage.getItem('theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const isDark = theme === 'dark' || (!theme && prefersDark);
-
-        if (isDark) {
-          e.newDocument.documentElement.classList.add('dark');
-        } else {
-          e.newDocument.documentElement.classList.remove('dark');
-        }
-
-        // Preserve data-theme attribute
-        const savedTheme = localStorage.getItem('theme') || 'minimal-technical';
-        e.newDocument.documentElement.setAttribute('data-theme', savedTheme);
+        let theme = 'minimal-technical';
+        try { theme = localStorage.getItem('theme') || theme; } catch {}
+        e.newDocument.documentElement.setAttribute('data-theme', theme);
       });
 
       // Suppress harmless WebSocket closed errors during View Transitions (dev only)
@@ -142,18 +132,22 @@ if (image) {
       }
     </script>
 
+    {/* Emitted only when siteConfig.analytics.goatcounter is set */}
     <!-- GoatCounter analytics: cookieless page-view counting (no consent
          banner needed). no_onload disables its automatic counting; the
          astro:page-load listener below counts BOTH the initial load and every
          View Transitions navigation, which count.js can't see on its own.
-         count.js ignores localhost, so dev traffic never pollutes stats. -->
-    <script
+         count.js ignores localhost, so dev traffic never pollutes stats.
+         count.js is a vendored copy (public/goatcounter/count.js) so no
+         third-party script runs; it only sends the hit to the endpoint below
+         (sendBeacon, falling back to an <img> pixel). -->
+    {goatcounterEndpoint && <script
       is:inline
-      data-goatcounter="https://atyansh.goatcounter.com/count"
+      data-goatcounter={goatcounterEndpoint}
       data-goatcounter-settings='{"no_onload": true}'
       async
-      src="https://gc.zgo.at/count.js"></script>
-    <script is:inline>
+      src="/goatcounter/count.js"></script>}
+    {goatcounterEndpoint && <script is:inline>
       document.addEventListener('astro:page-load', function () {
         // count.js loads async and may not be ready on the first page-load
         // event — retry briefly instead of dropping the first page view.
@@ -168,7 +162,7 @@ if (image) {
           }
         })();
       });
-    </script>
+    </script>}
 
     <!-- Structured Data -->
     <StructuredData type={structuredDataType} data={structuredData} />
@@ -186,8 +180,8 @@ if (image) {
     <header class="header-no-backdrop shadow-sm border-b" style="background-color: var(--bg-card); border-color: var(--border);" role="banner">
       <nav class="container mx-auto px-4 py-4" role="navigation" aria-label="Main navigation">
         <div class="flex items-center justify-between">
-          <a href="/" class="accent-link text-2xl font-bold transition-colors rounded whitespace-nowrap" style="color: var(--accent); outline-color: var(--accent);" aria-label="Atyansh Jaiswal - Home">
-            Atyansh Jaiswal
+          <a href="/" class="accent-link text-2xl font-bold transition-colors rounded whitespace-nowrap" style="color: var(--accent); outline-color: var(--accent);" aria-label={`${siteConfig.name} - Home`}>
+            {siteConfig.name}
           </a>
 
           <!-- Desktop Navigation -->
@@ -197,7 +191,7 @@ if (image) {
               <li><a href="/work" class="nav-link transition-colors rounded px-2 py-1" aria-label="Navigate to projects page">Projects</a></li>
 
               <!-- Media Dropdown -->
-              <li class="nav-dropdown relative">
+              {mediaPages.length > 0 && <li class="nav-dropdown relative">
                 <button class="nav-dropdown-trigger transition-colors rounded px-2 py-1 flex items-center gap-1" aria-expanded="false" aria-haspopup="true">
                   Media
                   <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,16 +199,15 @@ if (image) {
                   </svg>
                 </button>
                 <ul class="nav-dropdown-menu absolute left-0 top-full mt-1 py-2 rounded-lg shadow-lg border min-w-[140px] opacity-0 invisible transition-all duration-200 z-50" style="background-color: var(--bg-primary); border-color: var(--border);">
-                  <li><a href="/books" class="nav-link block px-4 py-2 transition-colors">Books</a></li>
-                  <li><a href="/music" class="nav-link block px-4 py-2 transition-colors">Music</a></li>
-                  <li><a href="/movies" class="nav-link block px-4 py-2 transition-colors">Movies</a></li>
-                  <li><a href="/tv" class="nav-link block px-4 py-2 transition-colors">TV</a></li>
-                  <li><a href="/anime" class="nav-link block px-4 py-2 transition-colors">Anime</a></li>
+                  {mediaPages.map(page => (
+                    <li><a href={page.route} class="nav-link block px-4 py-2 transition-colors">{page.navLabel}</a></li>
+                  ))}
                 </ul>
-              </li>
+              </li>}
 
-              <li><a href="/games" class="nav-link transition-colors rounded px-2 py-1" aria-label="Navigate to games page">Games</a></li>
-              <li><a href="/climbing" class="nav-link transition-colors rounded px-2 py-1" aria-label="Navigate to climbing page">Climbing</a></li>
+              {mainPages.map(page => (
+                <li><a href={page.route} class="nav-link transition-colors rounded px-2 py-1" aria-label={page.navAriaLabel}>{page.navLabel}</a></li>
+              ))}
               <li><a href="/pets" class="nav-link transition-colors rounded px-2 py-1" aria-label="Navigate to pets page">Pets</a></li>
               <li><a href="/blog" class="nav-link transition-colors rounded px-2 py-1" aria-label="Navigate to blog">Blog</a></li>
             </ul>
@@ -224,8 +217,8 @@ if (image) {
           <div class="flex items-center gap-4">
             <span class="audio-gated"><AudioToggle /></span>
             <ThemeSwitcher />
-            <button id="mobile-menu-button" class="p-2 lg:hidden" aria-label="Toggle menu">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button id="mobile-menu-button" type="button" class="p-2 lg:hidden" aria-label="Menu" aria-expanded="false" aria-controls="mobile-menu">
+              <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
               </svg>
             </button>
@@ -238,16 +231,16 @@ if (image) {
             <li><a href="/" class="nav-link block transition-colors rounded px-2 py-2" aria-label="Navigate to home page">Home</a></li>
             <li><a href="/work" class="nav-link block transition-colors rounded px-2 py-2" aria-label="Navigate to projects page">Projects</a></li>
             <!-- Media section -->
-            <li class="pt-2 pb-1 px-2 text-xs uppercase tracking-wider" style="color: var(--text-secondary);">Media</li>
-            <li><a href="/books" class="nav-link block transition-colors rounded px-4 py-2" aria-label="Navigate to books page">Books</a></li>
-            <li><a href="/music" class="nav-link block transition-colors rounded px-4 py-2" aria-label="Navigate to music page">Music</a></li>
-            <li><a href="/movies" class="nav-link block transition-colors rounded px-4 py-2" aria-label="Navigate to movies page">Movies</a></li>
-            <li><a href="/tv" class="nav-link block transition-colors rounded px-4 py-2" aria-label="Navigate to TV shows page">TV</a></li>
-            <li><a href="/anime" class="nav-link block transition-colors rounded px-4 py-2" aria-label="Navigate to anime page">Anime</a></li>
+            {mediaPages.length > 0 && <li class="pt-2 pb-1 px-2 text-xs uppercase tracking-wider" style="color: var(--text-secondary);">Media</li>}
+            {mediaPages.map(page => (
+              <li><a href={page.route} class="nav-link block transition-colors rounded px-4 py-2" aria-label={page.navAriaLabel}>{page.navLabel}</a></li>
+            ))}
             <!-- Other pages -->
-            <li class="pt-2"><a href="/games" class="nav-link block transition-colors rounded px-2 py-2" aria-label="Navigate to games page">Games</a></li>
-            <li><a href="/climbing" class="nav-link block transition-colors rounded px-2 py-2" aria-label="Navigate to climbing page">Climbing</a></li>
-            <li><a href="/pets" class="nav-link block transition-colors rounded px-2 py-2" aria-label="Navigate to pets page">Pets</a></li>
+            {/* the first one after the Media section gets a gap */}
+            {mainPages.map((page, index) => (
+              <li class={index === 0 && mediaPages.length > 0 ? 'pt-2' : undefined}><a href={page.route} class="nav-link block transition-colors rounded px-2 py-2" aria-label={page.navAriaLabel}>{page.navLabel}</a></li>
+            ))}
+            <li class={mainPages.length === 0 && mediaPages.length > 0 ? 'pt-2' : undefined}><a href="/pets" class="nav-link block transition-colors rounded px-2 py-2" aria-label="Navigate to pets page">Pets</a></li>
             <li><a href="/blog" class="nav-link block transition-colors rounded px-2 py-2" aria-label="Navigate to blog">Blog</a></li>
           </ul>
         </div>
@@ -268,7 +261,8 @@ if (image) {
 
         if (button && mobileMenu) {
           button.addEventListener('click', () => {
-            mobileMenu.classList.toggle('hidden');
+            const isHidden = mobileMenu.classList.toggle('hidden');
+            button.setAttribute('aria-expanded', String(!isHidden));
           }, { signal });
         }
 
@@ -276,8 +270,8 @@ if (image) {
         const dropdowns = document.querySelectorAll('.nav-dropdown');
 
         dropdowns.forEach(dropdown => {
-          const trigger = dropdown.querySelector('.nav-dropdown-trigger');
-          const menu = dropdown.querySelector('.nav-dropdown-menu');
+          const trigger = dropdown.querySelector<HTMLElement>('.nav-dropdown-trigger');
+          const menu = dropdown.querySelector<HTMLElement>('.nav-dropdown-menu');
           const arrow = trigger?.querySelector('svg');
 
           if (!trigger || !menu) return;
@@ -317,7 +311,7 @@ if (image) {
           }, { signal });
 
           // Keyboard navigation
-          trigger.addEventListener('keydown', (e) => {
+          trigger.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               const isVisible = menu.classList.contains('visible');
@@ -344,7 +338,7 @@ if (image) {
             document.querySelectorAll('.nav-dropdown-trigger').forEach(trigger => {
               trigger.setAttribute('aria-expanded', 'false');
               const arrow = trigger.querySelector('svg');
-              if (arrow) (arrow as HTMLElement).style.transform = '';
+              if (arrow) arrow.style.transform = '';
             });
           }
         }, { signal });
@@ -365,10 +359,12 @@ if (image) {
       <div class="container mx-auto px-4">
         <div class="flex justify-center items-center">
           <div class="text-sm" style="color: var(--text-secondary);">
-            &copy; {new Date().getFullYear()} Atyansh Jaiswal
+            &copy; {new Date().getFullYear()} {siteConfig.name}
           </div>
         </div>
       </div>
     </footer>
+
+    <ImageWarmup />
   </body>
 </html>

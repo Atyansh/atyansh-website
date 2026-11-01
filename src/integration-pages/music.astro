@@ -1,7 +1,10 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import MediaCard from '../components/MediaCard';
-import MusicCarousel from '../components/MusicCarousel';
+import BaseCarousel from '../components/BaseCarousel';
+import SpotifyPlayer from '../components/SpotifyPlayer.astro';
+import LoadError from '../components/LoadError.astro';
 import { getSpotifyData, getBestImage } from '../utils/spotify';
 
 // Fetch Spotify data
@@ -40,10 +43,12 @@ const podcastShows = recentPodcasts.length > 0
       ).values()
     )
   : [];
+
+const artistNames = (artists: Array<{ name: string }>) => artists.map(a => a.name).join(', ');
 ---
 
 <BaseLayout
-  title="Music - Atyansh Jaiswal"
+  title={pageTitle('Music')}
   description="Music and podcasts I'm listening to"
 >
   <div class="max-w-7xl mx-auto">
@@ -52,6 +57,17 @@ const podcastShows = recentPodcasts.length > 0
         Music & Podcasts
       </h1>
     </div>
+
+    {/*
+      Everything here is server-rendered HTML. Track tiles are <button>s that
+      play the track's preview in place (SpotifyPlayer.astro: one hidden
+      embed + one delegated click listener); artist, album, playlist and
+      podcast tiles play the same way. Nothing links off-site. The only
+      islands are the playlist carousels' scroll arrows, and their tracks are
+      passed as static slot HTML, not serialized props.
+    */}
+
+    {!spotifyData && <LoadError thing="music" />}
 
     <!-- Music Section -->
     {spotifyData && (
@@ -64,12 +80,41 @@ const podcastShows = recentPodcasts.length > 0
         {/* Featured Playlists */}
         {spotifyData.featuredPlaylists?.map((playlist) => (
           <div class="mb-12 p-6 rounded-lg" style="background-color: var(--bg-secondary);">
-            <MusicCarousel
-              client:load
-              tracks={playlist.allTracks || []}
+            <BaseCarousel
+              client:visible
+              itemCount={(playlist.allTracks || []).length}
+              itemNoun="track"
               title={playlist.name}
-              playlistUrl={playlist.external_urls.spotify}
-            />
+            >
+              <button
+                slot="headerActions"
+                type="button"
+                class="spotify-pill text-sm px-3 py-1 rounded-full hover:opacity-80 transition-all border-2 inline-flex items-center gap-1.5"
+                style="background-color: transparent; color: var(--accent); border-color: var(--accent);"
+                data-spotify-embed={`playlist/${playlist.id}`}
+                data-track-name={playlist.name}
+                data-track-verb="playlist"
+                aria-label={`Play playlist: ${playlist.name}`}
+                aria-pressed="false"
+              >
+                <svg class="spotify-pill-play w-3 h-3" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                <svg class="spotify-pill-pause w-3 h-3" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z" /></svg>
+                Play
+              </button>
+              {/* Carousel covers stay eager: measured lazy loading left
+                  covers blank when paging the carousel on slower links */}
+              {(playlist.allTracks || []).map((track) => (
+                <div class="flex-shrink-0 w-48">
+                  <MediaCard
+                    title={track.name}
+                    subtitle={artistNames(track.artists)}
+                    image={getBestImage(track.album.images) || ''}
+                    spotify={{ type: 'track', id: track.id }}
+                    eager
+                  />
+                </div>
+              ))}
+            </BaseCarousel>
           </div>
         ))}
 
@@ -79,20 +124,13 @@ const podcastShows = recentPodcasts.length > 0
             <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Top Tracks</h3>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {spotifyData.topTracks.short.slice(0, 10).map((track, index) => (
-                <a
-                  href={track.external_urls.spotify}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="group"
-                >
-                  <MediaCard
-                    client:load
-                    title={track.name}
-                    subtitle={track.artists.map(a => a.name).join(', ')}
-                    image={getBestImage(track.album.images)}
-                    delay={index * 0.05}
-                  />
-                </a>
+                <MediaCard
+                  title={track.name}
+                  subtitle={artistNames(track.artists)}
+                  image={getBestImage(track.album.images) || ''}
+                  spotify={{ type: 'track', id: track.id }}
+                  enterDelay={index * 0.05}
+                />
               ))}
             </div>
           </div>
@@ -104,21 +142,14 @@ const podcastShows = recentPodcasts.length > 0
             <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Top Artists</h3>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {spotifyData.topArtists.short.slice(0, 10).map((artist, index) => (
-                <a
-                  href={artist.external_urls.spotify}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="group"
-                >
-                  <MediaCard
-                    client:load
-                    title={artist.name}
-                    subtitle={artist.genres.slice(0, 2).join(', ') || 'Artist'}
-                    image={getBestImage(artist.images)}
-                    tags={artist.genres.slice(0, 2)}
-                    delay={index * 0.05}
-                  />
-                </a>
+                <MediaCard
+                  title={artist.name}
+                  subtitle={artist.genres.slice(0, 2).join(', ') || 'Artist'}
+                  image={getBestImage(artist.images) || ''}
+                  spotify={{ type: 'artist', id: artist.id }}
+                  tags={artist.genres.slice(0, 2)}
+                  enterDelay={index * 0.05}
+                />
               ))}
             </div>
           </div>
@@ -130,20 +161,13 @@ const podcastShows = recentPodcasts.length > 0
             <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Recently Played</h3>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {recentMusic.slice(0, 10).map((item, index) => (
-                <a
-                  href={item.track!.external_urls.spotify}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="group"
-                >
-                  <MediaCard
-                    client:load
-                    title={item.track!.name}
-                    subtitle={item.track!.artists.map(a => a.name).join(', ')}
-                    image={getBestImage(item.track!.album.images)}
-                    delay={index * 0.05}
-                  />
-                </a>
+                <MediaCard
+                  title={item.track!.name}
+                  subtitle={artistNames(item.track!.artists)}
+                  image={getBestImage(item.track!.album.images) || ''}
+                  spotify={{ type: 'track', id: item.track!.id }}
+                  enterDelay={index * 0.05}
+                />
               ))}
             </div>
           </div>
@@ -155,20 +179,13 @@ const podcastShows = recentPodcasts.length > 0
             <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Saved Albums</h3>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
               {spotifyData.savedAlbums.slice(0, 12).map((album, index) => (
-                <a
-                  href={album.external_urls.spotify}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="group"
-                >
-                  <MediaCard
-                    client:load
-                    title={album.name}
-                    subtitle={album.artists.map(a => a.name).join(', ')}
-                    image={getBestImage(album.images)}
-                    delay={index * 0.05}
-                  />
-                </a>
+                <MediaCard
+                  title={album.name}
+                  subtitle={artistNames(album.artists)}
+                  image={getBestImage(album.images) || ''}
+                  spotify={{ type: 'album', id: album.id }}
+                  enterDelay={index * 0.05}
+                />
               ))}
             </div>
           </div>
@@ -204,21 +221,14 @@ const podcastShows = recentPodcasts.length > 0
           <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Recent Episodes</h3>
           <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {recentPodcasts.slice(0, 10).map((item, index) => (
-              <a
-                href={item.episode!.external_urls.spotify}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="group"
-              >
-                <MediaCard
-                  client:load
-                  title={item.episode!.name}
-                  subtitle={item.episode!.show.name}
-                  image={getBestImage(item.episode!.images)}
-                  tags={['Podcast']}
-                  delay={index * 0.05}
-                />
-              </a>
+              <MediaCard
+                title={item.episode!.name}
+                subtitle={item.episode!.show.name}
+                image={getBestImage(item.episode!.images) || ''}
+                spotify={{ type: 'episode', id: item.episode!.id }}
+                tags={['Podcast']}
+                enterDelay={index * 0.05}
+              />
             ))}
           </div>
         </div>
@@ -229,20 +239,25 @@ const podcastShows = recentPodcasts.length > 0
             <h3 class="text-xl font-bold mb-6" style="color: var(--text-primary);">Shows</h3>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
               {podcastShows.map((show, index) => (
-                <div class="group">
-                  <MediaCard
-                    client:load
-                    title={show.name}
-                    subtitle={show.publisher}
-                    image={getBestImage(show.images)}
-                    delay={index * 0.05}
-                  />
-                </div>
+                <MediaCard
+                  title={show.name}
+                  subtitle={show.publisher}
+                  image={getBestImage(show.images) || ''}
+                  spotify={{ type: 'show', id: show.id }}
+                  enterDelay={index * 0.05}
+                />
               ))}
             </div>
           </div>
         )}
       </section>
     )}
+    {spotifyData && (
+      <p class="text-center mt-8 text-xs" style="color: var(--text-secondary);">
+        Previews via Spotify
+      </p>
+    )}
   </div>
+
+  <SpotifyPlayer />
 </BaseLayout>

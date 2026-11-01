@@ -1,4 +1,5 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AnimeFilter from '../components/AnimeFilter';
 import StatGrid from '../components/StatGrid.astro';
@@ -47,7 +48,7 @@ const top10Count = anime.filter(a => a.data.score === 10).length;
 ---
 
 <BaseLayout
-  title="Anime - Atyansh Jaiswal"
+  title={pageTitle('Anime')}
   description="Anime I've watched"
 >
   <div class="max-w-7xl mx-auto">

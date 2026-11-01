@@ -1,6 +1,18 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AnimatedCard from '../components/AnimatedCard.astro';
+import { enabledPages } from '../integrations';
+
+// Integration pages are linked only when they exist (src/integrations.ts)
+const enabledRoutes = new Set(enabledPages().map(page => page.route));
+const helpfulLinks = [
+  { href: '/work', label: 'Work' },
+  { href: '/projects', label: 'Projects' },
+  { href: '/papers', label: 'Papers' },
+  { href: '/books', label: 'Books', integration: true },
+  { href: '/climbing', label: 'Climbing', integration: true },
+  { href: '/pgp', label: 'PGP Key' },
+].filter(link => !link.integration || enabledRoutes.has(link.href));
 ---
 
 <BaseLayout title="404 - Page Not Found" description="This page does not exist">
@@ -42,17 +54,12 @@ import AnimatedCard from '../components/AnimatedCard.astro';
             Looking for something specific? Here are some helpful links:
           </p>
           <div class="flex flex-wrap gap-3 justify-center">
-            <a href="/work" class="text-sm hover:underline" style="color: var(--accent);">Work</a>
-            <span style="color: var(--text-secondary);">•</span>
-            <a href="/projects" class="text-sm hover:underline" style="color: var(--accent);">Projects</a>
-            <span style="color: var(--text-secondary);">•</span>
-            <a href="/papers" class="text-sm hover:underline" style="color: var(--accent);">Papers</a>
-            <span style="color: var(--text-secondary);">•</span>
-            <a href="/books" class="text-sm hover:underline" style="color: var(--accent);">Books</a>
-            <span style="color: var(--text-secondary);">•</span>
-            <a href="/climbing" class="text-sm hover:underline" style="color: var(--accent);">Climbing</a>
-            <span style="color: var(--text-secondary);">•</span>
-            <a href="/pgp" class="text-sm hover:underline" style="color: var(--accent);">PGP Key</a>
+            {helpfulLinks.map((link, index) => (
+              <Fragment>
+                {index > 0 && <span style="color: var(--text-secondary);">•</span>}
+                <a href={link.href} class="text-sm hover:underline" style="color: var(--accent);">{link.label}</a>
+              </Fragment>
+            ))}
           </div>
         </div>
       </div>

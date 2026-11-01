@@ -1,4 +1,5 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
 import AnimatedCard from '../components/AnimatedCard.astro';
@@ -9,7 +10,7 @@ const pets = (await getCollection('pets')).sort((a, b) => a.id.localeCompare(b.i
 ---
 
 <BaseLayout
-  title="Pets - Atyansh Jaiswal"
+  title={pageTitle('Pets')}
   description="Meet my furry friends"
 >
   <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">

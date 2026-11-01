@@ -1,8 +1,9 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import LoadError from '../components/LoadError.astro';
 import PlayButton from '../components/PlayButton';
-import { formatPacificDate } from '../components/formatDate';
+import { formatSiteDate } from '../components/formatDate';
 import { getKayaData, formatHeight, formatApeIndex, getGradeOrdering } from '../utils/kaya';
 
 // Fetch Kaya data at build time
@@ -28,7 +29,7 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
 ---
 
 <BaseLayout
-  title="Climbing - Atyansh Jaiswal"
+  title={pageTitle('Climbing')}
   description="My bouldering stats, grade pyramid, and send videos from Kaya"
 >
   <div class="max-w-7xl mx-auto">
@@ -193,10 +194,10 @@ const maxCount = kayaData?.pyramid.reduce((max, g) => Math.max(max, g.ascent_cou
                   <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {videosByGrade[grade].map((ascent) => {
                       const climbName = ascent.climb.name || ascent.climb.gym?.name || 'Gym Boulder';
-                      // Session timestamps are shown as the Pacific-time date
+                      // Session timestamps are shown as the site-time-zone date
                       // (the build runs in UTC, which would push evening
                       // sessions to the next day)
-                      const sentOn = formatPacificDate(ascent.date);
+                      const sentOn = formatSiteDate(ascent.date);
                       return (
                       <button
                         type="button"

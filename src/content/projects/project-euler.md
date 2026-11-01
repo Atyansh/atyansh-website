@@ -10,7 +10,7 @@ links:
   website: 'https://projecteuler.net'
 ---
 
-[Project Euler](https://projecteuler.net) is a long list of math problems that are meant to be solved with a program: each one has a single numeric answer, and a good solution should run in under a minute. I worked through them in college, between 2014 and 2016, and solved 87, which put me in the top 2% of solvers at the time.
+[Project Euler](https://projecteuler.net) is a long list of math problems that are meant to be solved with a program: each one has a single numeric answer, and a good solution should run in under a minute. I worked through them in college, between 2014 and 2016, and solved 87.
 
 **[Browse all 87 write-ups →](/euler)**
 

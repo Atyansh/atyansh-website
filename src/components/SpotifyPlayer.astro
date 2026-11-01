@@ -21,7 +21,11 @@
 // observed (after playback_started the embed sits paused at 0 and goes quiet
 // for QUIET_MS, or is still not advancing STALL_MS later), or after
 // START_CAP_MS with no playback at all. Once revealed it stays until closed,
-// so nothing flashes.
+// so nothing flashes. Once a preview IS playing, the same embed is revealed
+// as a small player on the tile too (Spotify's own ⏮ ⏭ controls for albums,
+// artists and playlists): only its position and styling change, so playback
+// carries on uninterrupted. Skipping inside it keeps the tile "playing" and
+// the ring follows the new track; ✕ / Esc stop playback.
 //
 // Safari / iOS (WebKit, which every iOS browser uses): audio in a
 // cross-origin iframe needs a tap inside that frame, so the first tap skips
@@ -41,12 +45,15 @@
     z-index: 30;
   }
 
-  /* Off-screen but rendered: a display:none or lazy iframe never loads */
+  /* Off-screen but rendered: a display:none or lazy iframe never loads.
+     Same positioning scheme as the revealed card, so revealing it only
+     changes left/top/width and styling: the iframe is never moved in the
+     DOM or re-created, and playback carries on. */
   .spotify-host.is-hidden {
-    position: fixed;
+    position: absolute;
     left: -10000px;
     top: 0;
-    width: 300px;
+    width: 340px;
   }
 
   /* Revealed: a small player card anchored to the tile (left/top/width set
@@ -202,7 +209,10 @@
   const START_CAP_MS = 8000; // no playback at all this long after the click: reveal
   const QUIET_MS = 2000; // after playback_started: paused at 0 and no updates this long = blocked
   const STALL_MS = 5000; // after playback_started: still not advancing this long = blocked
-  const WIDE_TILE_PX = 210; // the compact embed hides its play button when narrower
+  // Narrowest player card (incl. its 14px of padding + border) at which the
+  // compact embed still shows all its controls: ▶ needs ~210px of embed, and
+  // ⏮ ⏭ ▶ for albums / artists / playlists / shows need ~300px (measured)
+  const minCardWidth = (key: string | null) => (/^(album|artist|playlist|show)\//.test(key ?? '') ? 316 : 224);
 
   type State = 'loading' | 'playing' | 'paused' | 'ready';
 
@@ -287,28 +297,37 @@
   }
 
   /** Place the revealed player on its tile: across the tile's bottom when the
-   *  tile is wide enough for the embed's controls, otherwise as a wider card
-   *  just below it (pointing at it), kept on screen. */
+   *  tile is wide enough for the embed's controls and the card clears the
+   *  tile's play button, otherwise as a card just below the tile (with a
+   *  notch pointing at it), kept on screen. */
   function place(reveal = false) {
     if (!host || !anchor || !isInline()) return;
     const rect = anchor.getBoundingClientRect();
     const viewport = document.documentElement.clientWidth;
     const margin = 12;
-    const over = rect.height > 120 && rect.width >= WIDE_TILE_PX; // (the playlist pill is small)
+    host.style.width = `${Math.max(rect.width - 12, minCardWidth(currentKey))}px`;
+    const height = host.offsetHeight;
+    const button = anchor.querySelector('.play-btn')?.getBoundingClientRect();
+    const overTop = rect.bottom - height - 6;
+    const over =
+      rect.height > 120 && // (the playlist pill is small)
+      rect.width - 12 >= minCardWidth(currentKey) &&
+      (!button || overTop >= button.bottom + 6);
     const width = over ? rect.width - 12 : Math.min(340, viewport - margin * 2);
     const left = Math.min(Math.max(rect.left + rect.width / 2 - width / 2, margin), viewport - margin - width);
     const caret = Math.min(Math.max(rect.left + rect.width / 2 - left, 20), width - 20);
     host.dataset.placement = over ? 'over' : 'below';
     host.style.width = `${width}px`;
     host.style.setProperty('--caret-x', `${caret}px`);
-    const height = host.offsetHeight;
-    const top = over ? rect.bottom - height - 6 : rect.bottom + 10;
+    const top = over ? overTop : rect.bottom + 10;
     host.style.left = `${left + window.scrollX}px`;
     host.style.top = `${top + window.scrollY}px`;
     host.style.transformOrigin = `${caret}px ${over ? '100%' : '0'}`;
-    // Make sure the freshly opened player is on screen
-    if (reveal && top + height > window.innerHeight - margin) {
-      window.scrollBy({ top: top + height - window.innerHeight + margin * 2, behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+    // Safari / iOS: the visitor has to reach the player's ▶, so bring a
+    // freshly opened one on screen. (When it opens on its own because a
+    // preview started, the page never jumps.)
+    if (reveal && needsTapInFrame && top + host.offsetHeight > window.innerHeight - margin) {
+      window.scrollBy({ top: top + host.offsetHeight - window.innerHeight + margin * 2, behavior: reduceMotion.matches ? 'auto' : 'smooth' });
     }
   }
 
@@ -322,16 +341,19 @@
     });
   }
 
-  /** Reveal the embed as a player on the tile so the visitor can press play in it */
+  /** Reveal the embed as a small player on its tile: so the visitor can press
+   *  play in it (Safari / iOS, or blocked autoplay), or, once a preview is
+   *  playing, for Spotify's own controls (⏮ ⏭ in albums, artists, playlists) */
   function showInline() {
     clearTimers();
     if (!host || !iframe || isInline()) return;
     host.classList.replace('is-hidden', 'is-inline');
     iframe.tabIndex = 0;
     iframe.removeAttribute('aria-hidden');
+    const waiting = state !== 'playing';
     setState(state === 'loading' ? 'ready' : state);
-    place(true);
-    announce(`Press play in the Spotify player to hear ${trackName()}`);
+    place(waiting);
+    if (waiting) announce(`Press play in the Spotify player to hear ${trackName()}`);
   }
 
   function stop({ restoreFocus = false } = {}) {
@@ -473,6 +495,8 @@
         announce(`Playing ${trackName()}`);
       }
       if (reduceMotion.matches || !rafId) setProgress(position / duration);
+      // Playing: show the small player on the tile (Spotify's ⏮ ⏭ ▶ controls)
+      if (!isInline()) showInline();
       return;
     }
 

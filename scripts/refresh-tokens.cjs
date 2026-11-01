@@ -183,7 +183,22 @@ function applySetCookies(jar, setCookies) {
 
 const serializeJar = (jar) => [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
 
-/** Status for the "Goodreads (session renewal)" health check */
+/**
+ * When the Amazon login behind a Goodreads cookie header expires, as an ISO
+ * string, or null. Amazon's session-id-time cookie is that expiry in epoch
+ * seconds (with a trailing "l"), and a successful re-sign-in moves it.
+ */
+function goodreadsCookieExpiry(cookieHeader) {
+  const value = parseCookieHeader(cookieHeader || '').get('session-id-time');
+  const seconds = value ? parseInt(value, 10) : NaN;
+  return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : null;
+}
+
+// The cookie this build started with. If a renewal succeeds but saving it
+// fails, this is still the one stored in SITE_SECRETS, so its expiry counts.
+let goodreadsCookieAtStart = null;
+
+/** Status for the "Goodreads (login expiry)" health check */
 function recordGoodreadsSession(fields) {
   try {
     fs.mkdirSync(path.dirname(GOODREADS_SESSION_FILE), { recursive: true });
@@ -206,6 +221,7 @@ function recordGoodreadsSession(fields) {
  */
 async function refreshGoodreads() {
   const cookie = process.env.GOODREADS_COOKIE;
+  goodreadsCookieAtStart = cookie;
   const userId = process.env.GOODREADS_USER_ID;
   if (!cookie || !userId) {
     console.log('  Goodreads: GOODREADS_COOKIE or GOODREADS_USER_ID not set, skipping');
@@ -245,8 +261,12 @@ async function refreshGoodreads() {
     record({ renewed: true, expiresAt: expiresAt.toISOString() });
     return true;
   } catch (error) {
-    console.log(`  ✗ Goodreads session renewal failed: ${error.message}`);
-    record({ renewed: false, error: error.message });
+    // Expected most builds: Amazon only allows the silent re-sign-in for
+    // about an hour after a password login. The current cookie keeps
+    // working until its own expiry, which the health check watches.
+    const expiresAt = goodreadsCookieExpiry(cookie);
+    console.log(`  ✗ Goodreads session renewal failed: ${error.message}${expiresAt ? ` (current login expires ${expiresAt.slice(0, 10)})` : ''}`);
+    record({ renewed: false, error: error.message, expiresAt });
     return null;
   }
 }
@@ -488,7 +508,11 @@ async function saveSecretUpdates() {
     console.log(`  ✗ Could not save to ${SECRET_NAME}: ${error.message}`);
     console.log(`    Not saved: ${keys.join(', ')}`);
     if (keys.includes('GOODREADS_COOKIE')) {
-      recordGoodreadsSession({ renewed: false, error: `renewed, but could not save to ${SECRET_NAME}: ${error.message}` });
+      recordGoodreadsSession({
+        renewed: false,
+        error: `renewed, but could not save to ${SECRET_NAME}: ${error.message}`,
+        expiresAt: goodreadsCookieExpiry(goodreadsCookieAtStart),
+      });
     }
   }
 }
@@ -603,4 +627,5 @@ module.exports = {
   applyEnvUpdates,
   readSecretsWithRetry,
   GOODREADS_SIGNIN_URL,
+  goodreadsCookieExpiry,
 };

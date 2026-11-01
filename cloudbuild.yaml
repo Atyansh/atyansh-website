@@ -72,54 +72,6 @@ steps:
       - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID'  # SITE_SECRETS lives in this build's project
     waitFor: ['install-dependencies', 'restore-build-cache']
 
-  # Save this build's data cache for the next build's fallback. No -d flag:
-  # if a source failed today (no cache file written), the previous good copy
-  # stays in the bucket instead of being deleted.
-  - name: 'gcr.io/cloud-builders/gsutil'
-    entrypoint: bash
-    args:
-      - '-c'
-      - 'gsutil -m rsync -r .cache gs://${PROJECT_ID}_cloudbuild/build-cache || echo "No cache to save"'
-    id: 'save-build-cache'
-    # check-api-health writes .cache/api-health-report.json; don't upload a
-    # half-written copy
-    waitFor: ['build-site', 'check-api-health']
-
-  # Append this build's data to the historical snapshot archive (read by
-  # future stats pages; the build-cache above stays the fallback mechanism).
-  # Every build writes its own timestamped directory
-  # (snapshots/YYYY-MM-DD/HHMMSS/, UTC — this container has no tzdata, and
-  # readers regroup timestamps into local days at read time anyway) — pure
-  # append-only, nothing is ever overwritten, so intra-day builds each
-  # preserve their fetch (e.g. distinct Spotify recently-played windows).
-  # Non-fatal: snapshot problems must never fail the build.
-  - name: 'gcr.io/cloud-builders/gsutil'
-    entrypoint: bash
-    args:
-      - '-c'
-      - |
-        STAMP=$$(date -u "+%F/%H%M%S")
-        mkdir -p /tmp/snap
-        for f in .cache/*.json; do
-          [ -e "$$f" ] || continue
-          gzip -c "$$f" > "/tmp/snap/$$(basename $$f).gz"
-        done
-        gsutil -m cp /tmp/snap/*.gz "gs://${PROJECT_ID}_cloudbuild/snapshots/$$STAMP/" \
-          || echo "WARNING: snapshot upload failed"
-    id: 'save-daily-snapshot'
-    waitFor: ['build-site', 'check-api-health']
-
-  # Check API health and send notifications if any failed
-  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
-    entrypoint: node
-    args: ['scripts/check-api-health.cjs']
-    id: 'check-api-health'
-    env:
-      - 'NODE_ENV=production'
-      - 'CLOUD_BUILD=true'  # reads Discord credentials + which integrations are configured from SITE_SECRETS
-      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
-    waitFor: ['build-site', 'test']
-
   # Unit tests + type-check, in parallel with the build; a failure blocks the
   # deploy below. Runs on a copy of just the sources: the concurrent build
   # writes .cache/, dist/ and a credentials file in the workspace, and
@@ -158,6 +110,54 @@ steps:
       - 'CI=true'
     waitFor: ['install-dependencies']
 
+  # Check API health and send notifications if any failed
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
+    entrypoint: node
+    args: ['scripts/check-api-health.cjs']
+    id: 'check-api-health'
+    env:
+      - 'NODE_ENV=production'
+      - 'CLOUD_BUILD=true'  # reads Discord credentials + which integrations are configured from SITE_SECRETS
+      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
+    waitFor: ['build-site', 'test']
+
+  # Save this build's data cache for the next build's fallback. No -d flag:
+  # if a source failed today (no cache file written), the previous good copy
+  # stays in the bucket instead of being deleted.
+  - name: 'gcr.io/cloud-builders/gsutil'
+    entrypoint: bash
+    args:
+      - '-c'
+      - 'gsutil -m rsync -r .cache gs://${PROJECT_ID}_cloudbuild/build-cache || echo "No cache to save"'
+    id: 'save-build-cache'
+    # check-api-health writes .cache/api-health-report.json; don't upload a
+    # half-written copy
+    waitFor: ['build-site', 'check-api-health']
+
+  # Append this build's data to the historical snapshot archive (read by
+  # future stats pages; the build-cache above stays the fallback mechanism).
+  # Every build writes its own timestamped directory
+  # (snapshots/YYYY-MM-DD/HHMMSS/, UTC — this container has no tzdata, and
+  # readers regroup timestamps into local days at read time anyway) — pure
+  # append-only, nothing is ever overwritten, so intra-day builds each
+  # preserve their fetch (e.g. distinct Spotify recently-played windows).
+  # Non-fatal: snapshot problems must never fail the build.
+  - name: 'gcr.io/cloud-builders/gsutil'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        STAMP=$$(date -u "+%F/%H%M%S")
+        mkdir -p /tmp/snap
+        for f in .cache/*.json; do
+          [ -e "$$f" ] || continue
+          gzip -c "$$f" > "/tmp/snap/$$(basename $$f).gz"
+        done
+        gsutil -m cp /tmp/snap/*.gz "gs://${PROJECT_ID}_cloudbuild/snapshots/$$STAMP/" \
+          || echo "WARNING: snapshot upload failed"
+    id: 'save-daily-snapshot'
+    waitFor: ['build-site', 'check-api-health']
+
   # Deploy to Firebase Hosting (security/cache headers and CDN invalidation
   # are handled by firebase.json + the deploy itself). Gated on the tests.
   # Refuses (and so marks the build FAILED) if the build or test step recorded
@@ -175,6 +175,7 @@ steps:
         npx firebase-tools deploy --only hosting --project $PROJECT_ID --non-interactive
     id: 'deploy-to-firebase'
     waitFor: ['build-site', 'test', 'check-api-health', 'save-build-cache', 'save-daily-snapshot']
+
 
 # No availableSecrets: every credential lives in the single SITE_SECRETS
 # secret, read with the Secret Manager SDK by refresh-tokens.cjs and

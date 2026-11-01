@@ -139,7 +139,7 @@ The repo names no Google Cloud project: Cloud Build's built-in `$PROJECT_ID` sub
 1. Create a Firebase project (it is a Google Cloud project), on the Blaze plan; `gcloud config set project <id>`; point `.firebaserc`'s `default` at it (`npx firebase-tools use --add`).
 2. Enable the Cloud Build, Secret Manager, Cloud Scheduler and Firebase Hosting APIs.
 3. Create the secret: `gcloud secrets create SITE_SECRETS --replication-policy=automatic`, then add your `.env` keys as one JSON object (`node scripts/push-secrets.cjs KEY ...` once the secret has a first version, e.g. `echo '{}' | gcloud secrets versions add SITE_SECRETS --data-file=-`).
-4. Grant the build service account (`<project-number>-compute@developer.gserviceaccount.com`) `roles/secretmanager.secretAccessor` and `roles/secretmanager.secretVersionManager`, plus Firebase Hosting deploy rights.
+4. Grant the build service account (`<project-number>-compute@developer.gserviceaccount.com`) the least-privilege role set in [DEPLOYMENT_GUIDE.md → Service Account Permissions](./DEPLOYMENT_GUIDE.md#service-account-permissions) (secrets, Firebase deploy, logs, image pull, the cache bucket, and the scheduler's trigger rights). A new project's compute account may have `roles/editor` by default; you can remove it once those are granted.
 5. Build the image once: `gcloud builds submit --config=cloudbuild-image.yaml .` (it lands in `gcr.io/<your-project>/node-puppeteer`; keep the dated tag in `cloudbuild.yaml` in step with `_DATE`).
 6. The build caches go to `gs://<your-project>_cloudbuild` (Cloud Build's default staging bucket, created by your first `gcloud builds submit`).
 7. Connect your GitHub repo and create the push + daily triggers ([DEPLOYMENT_GUIDE.md → Automated Builds](./DEPLOYMENT_GUIDE.md#automated-builds) has the commands with `$PROJECT_ID`/`$REPO_OWNER` variables), and attach your domain in the Firebase console.
@@ -360,9 +360,11 @@ MyAnimeList uses OAuth2. Use the included helper script.
 
 **Note:** Goodreads removed shelf RSS feeds in October 2026 and shelf pages now require sign-in, so the build scrapes your signed-in shelf pages (`/review/list/<id>`).
 
-The session rests on Amazon's login cookies, which expire a year after they're issued and which Goodreads never renews. So before every build `scripts/refresh-tokens.cjs` re-signs in silently (Amazon's sign-in without `max_auth_age=0` re-issues the cookies for a still-valid session, no password needed), checks the renewed cookie loads a shelf, and saves it to `SITE_SECRETS`. Each daily build pushes the expiry a year out, so the cookie never expires on its own.
+The session rests on Amazon's login cookies, which expire a year after they're issued and which Goodreads never renews. Before every build `scripts/refresh-tokens.cjs` tries a silent re-sign-in (Amazon's sign-in without `max_auth_age=0` can re-issue the cookies for a still-valid session, no password needed), checks the renewed cookie loads a shelf, and saves it to `SITE_SECRETS`.
 
-You only need to paste a new cookie if the login is killed: changing your Goodreads/Amazon password, "sign out of all devices", or Amazon deciding to ask for the password again. The "Goodreads (session renewal)" health check alerts on the first failed renewal — while the current cookie still works for up to a year — and the site keeps serving the last good books if it ever does stop working.
+**In practice Amazon only allowed the silent re-sign-in for about an hour after a password sign-in** (tested October 2026); after that it asks for the password, so renewal fails and the existing cookie is kept. Expect to paste a fresh cookie about once a year, when the one-year login expires.
+
+You also need a new cookie if the login is killed (changing your Goodreads/Amazon password, or "sign out of all devices"). The "Goodreads" health check alerts when the shelves stop loading, and the site keeps serving the last good books until you paste a new cookie. The "Goodreads (login expiry)" check reads the login's expiry from the cookie (Amazon's `session-id-time`) and alerts only in the last 30 days before it, so a refused silent renewal on its own never sends a DM.
 
 ### 9. TMDB (TV Show Tracking)
 

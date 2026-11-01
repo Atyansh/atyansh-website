@@ -48,25 +48,39 @@ The site is now deployed and accessible at https://atyansh.com
 <project-number>-compute@developer.gserviceaccount.com
 ```
 
-This service account requires two Secret Manager permissions:
+It runs with **least privilege**: no `roles/editor` (removed 2026-10-31, so a compromised build can't create billable resources or touch the rest of the project). These are everything it needs, each verified with a real production build:
 
-| Role | Purpose |
-|------|---------|
-| `roles/secretmanager.secretAccessor` | Read `SITE_SECRETS` during build |
-| `roles/secretmanager.secretVersionManager` | Save auto-refreshed tokens (MAL, IGDB, PSN, Goodreads) and destroy old versions |
+| Role | Granted on | Purpose |
+|------|-----------|---------|
+| `roles/secretmanager.secretAccessor` | project | Read `SITE_SECRETS` |
+| `roles/secretmanager.secretVersionManager` | project | Save renewed tokens and destroy old versions |
+| `roles/firebasehosting.admin` | project | Deploy (live and preview channels) |
+| `roles/serviceusage.serviceUsageConsumer` | project | `firebase-tools` checks the Hosting API is enabled before deploying |
+| `roles/logging.logWriter` | project | Build logs (`CLOUD_LOGGING_ONLY`) |
+| `roles/cloudbuild.builds.editor` | project | Cloud Scheduler runs the daily trigger as this account |
+| `roles/iam.serviceAccountUser` | the service account itself | ...and the trigger runs builds as it |
+| `roles/artifactregistry.reader` | the `gcr.io` repository (`us`) | Pull `node-puppeteer` |
+| `roles/storage.objectAdmin` + `roles/storage.legacyBucketReader` | the `${PROJECT_ID}_cloudbuild` bucket | Restore/save the build cache and snapshots, read build sources |
 
-**If you encounter permission errors**, grant both permissions:
+**To grant them** (e.g. on a fork, or if a permission error appears):
 ```bash
-# Read access (required)
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$BUILD_SA" \
-  --role="roles/secretmanager.secretAccessor"
-
-# Write access for token auto-refresh (required for self-healing)
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$BUILD_SA" \
-  --role="roles/secretmanager.secretVersionManager"
+for role in roles/secretmanager.secretAccessor roles/secretmanager.secretVersionManager \
+            roles/firebasehosting.admin roles/serviceusage.serviceUsageConsumer \
+            roles/logging.logWriter roles/cloudbuild.builds.editor; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$BUILD_SA" --role="$role" --condition=None
+done
+gcloud iam service-accounts add-iam-policy-binding "$BUILD_SA" \
+  --member="serviceAccount:$BUILD_SA" --role=roles/iam.serviceAccountUser
+gcloud artifacts repositories add-iam-policy-binding gcr.io --location=us \
+  --member="serviceAccount:$BUILD_SA" --role=roles/artifactregistry.reader
+for role in roles/storage.objectAdmin roles/storage.legacyBucketReader; do
+  gcloud storage buckets add-iam-policy-binding "gs://${PROJECT_ID}_cloudbuild" \
+    --member="serviceAccount:$BUILD_SA" --role="$role"
+done
 ```
+
+The bucket uses uniform bucket-level access, so object access must come from bucket IAM (above), not per-object ACLs.
 
 ### Custom Docker Image
 
@@ -116,14 +130,13 @@ gcloud projects get-iam-policy "$PROJECT_ID" \
   --filter="bindings.members:$BUILD_SA" \
   --format="value(bindings.role)"
 
-# Should include:
-# - roles/secretmanager.secretAccessor
-# - roles/secretmanager.secretVersionManager
+# Should list exactly the project-level roles in the table under
+# "Service Account Permissions" (and NOT roles/editor)
 ```
 
 ### Option 3: Re-grant Permissions
 
-If either role is missing, re-run the two `add-iam-policy-binding` commands under [Service Account Permissions](#service-account-permissions). There are no per-secret bindings: everything lives in the single `SITE_SECRETS` secret, covered by the project-level roles.
+If a role is missing, re-run the grant commands under [Service Account Permissions](#service-account-permissions). There are no per-secret bindings: everything lives in the single `SITE_SECRETS` secret, covered by the project-level roles.
 
 ### Option 4: Test Build Locally First
 
@@ -285,8 +298,8 @@ URLs like `/music/`, and `*.html`) gets `max-age=3600`.
 The build automatically monitors every **enabled** API integration and sends Discord notifications if any fail. Integrations that are switched off in `src/site.config.ts` or whose required keys aren't in `SITE_SECRETS` are listed as skipped, never alerted (registry: `src/integrations.ts`):
 
 **Monitored APIs:**
-- With API keys (self-healing): Spotify, MyAnimeList, IGDB, Goodreads (`GOODREADS_COOKIE`, re-signed in silently every build)
-- With API keys (manual renewal): Steam, PSN, TMDB, Kaya login (`KAYA_REFRESH_TOKEN`)
+- With API keys (self-healing): Spotify, MyAnimeList, IGDB
+- With API keys (manual renewal): Steam, PSN, TMDB, Kaya login (`KAYA_REFRESH_TOKEN`), Goodreads (`GOODREADS_COOKIE`; a silent re-sign-in is attempted each build but Amazon usually refuses it, so expect a fresh cookie about once a year)
 - Web scraping/public APIs: Letterboxd, Nintendo (Exophase), Kaya (climbing)
 
 **How it works:**
@@ -376,7 +389,7 @@ This script:
 - TV Shows: `TMDB_READ_TOKEN`, `TMDB_ACCESS_TOKEN`, `TMDB_ACCOUNT_OBJECT_ID`, `TMDB_TV_LIST_ID`
 - Web Scraping: `LETTERBOXD_USERNAME`, `GOODREADS_USER_ID`, `KAYA_USERNAME`
 - Kaya login: `KAYA_REFRESH_TOKEN` (from Firefox on a Mac; long-lived, not rotated by builds)
-- Goodreads login: `GOODREADS_COOKIE` (whole Cookie header from a signed-in goodreads.com request; renewed and re-saved by every build, so it only needs re-pasting if the login is killed)
+- Goodreads login: `GOODREADS_COOKIE` (whole Cookie header from a signed-in goodreads.com request; a silent renewal is attempted every build, but expect to re-paste it about once a year, or sooner if the login is killed)
 - Discord Notifications: `DISCORD_BOT_TOKEN`, `DISCORD_USER_ID`
 
 ### Pulling Secrets to Local .env

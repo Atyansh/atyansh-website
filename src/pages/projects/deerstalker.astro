@@ -138,8 +138,8 @@ const weeklyProgress = [
     title: 'Integration',
     mood: 8,
     accomplishments: [
-      'Helped Cindy debug the camera and skybox and merged them in',
-      'Worked with Brian on item spawning in Bullet and integrated Eduardo and Victor\'s mango shooting',
+      'Helped debug the camera and skybox and merged them in',
+      'Worked on item spawning in Bullet and integrated the mango shooting',
       'Bullet\'s kinematic character controller didn\'t work for us, so we turned to a dynamic (rigid-body) one',
     ]
   },
@@ -158,7 +158,7 @@ const weeklyProgress = [
     mood: 8,
     accomplishments: [
       'Wrote the dynamic character controller: ray casts for ground checks, movement relative to the camera',
-      'Merged Victor\'s respawn, equipping, throwing and shooting work and added the client side for it',
+      'Merged the respawn, equipping, throwing and shooting work and added the client side for it',
       'Fixed several server-client bugs that came out of the merge',
     ]
   },
@@ -311,10 +311,10 @@ void Game::loopReset() {
           <p>
             I wrote the server and the networking: the game loop, the protobuf protocol, the Bullet physics world, the character
             controller, all the combat and hat logic, the client's input and message handling, and the FMOD sound engine. By
-            <code>git blame</code>, about 88% of the server code is mine. Timothy Kua built the skeletal animation system and
-            the clouds, Cindy Vu the HUD, text rendering, camera and skybox, and Tiffany Lam modeled, rigged and animated the
-            characters and hats. Victor Alor, Eduardo Ramirez and Brian Choi each wrote server pieces I built on or merged:
-            the first server skeleton and protobuf hookup, the config loader, item drops, respawning and shooting.
+            <code>git blame</code>, about 88% of the server code is mine. The rest of the team built the skeletal animation
+            system, the HUD and text rendering, the camera and skybox, and the art (modeling, rigging and animating the
+            characters and hats), and wrote server pieces I built on or merged: the first server skeleton, the config loader,
+            item drops, respawning and shooting.
           </p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
             <div class="flex items-start gap-3">

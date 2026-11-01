@@ -525,7 +525,7 @@ void Game::loopReset() {
               <span style="color: var(--text-primary);">Framing and latency</span>
             </h3>
             <p class="mb-2" style="color: var(--text-secondary);"><strong>Problem:</strong> The game's many small TCP messages didn't behave until Nagle's algorithm was off, and later the snapshots outgrew the 4-digit length header.</p>
-            <p style="color: var(--text-secondary);"><strong>Fix:</strong> TCP_NODELAY on every server socket, a 6-digit header (Brian found the limit), and a 1 MB receive buffer.</p>
+            <p style="color: var(--text-secondary);"><strong>Fix:</strong> TCP_NODELAY on every server socket, a 6-digit header, and a 1 MB receive buffer.</p>
           </div>
           <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
             <h3 class="text-xl font-bold mb-3 flex items-center gap-2">

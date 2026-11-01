@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs');
+const { applyEnvUpdates } = require('./env-file.cjs');
 
 if (isCloudBuild()) {
   console.log(`Running in Cloud Build, skipping secret sync (refresh-tokens.cjs loads ${SECRET_NAME})`);
@@ -23,31 +24,13 @@ if (isCloudBuild()) {
 
 const ENV_FILE = path.join(process.cwd(), '.env');
 
-/** Single-quote values dotenv would otherwise misread (spaces, #, quotes) */
-function envValue(value) {
-  return /[\s#'"]/.test(value) ? `'${value.replace(/'/g, `'\\''`)}'` : value;
-}
-
 /**
  * Write secrets into .env: replace existing lines in place, append new keys,
  * leave comments and local-only variables untouched.
  */
 function writeEnvFile(secrets) {
-  const lines = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, 'utf-8').split('\n') : [];
-  const written = new Set();
-
-  const updated = lines.map(line => {
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=/);
-    if (!match || secrets[match[1]] === undefined) return line;
-    written.add(match[1]);
-    return `${match[1]}=${envValue(secrets[match[1]])}`;
-  });
-
-  for (const [key, value] of Object.entries(secrets)) {
-    if (!written.has(key)) updated.push(`${key}=${envValue(value)}`);
-  }
-
-  fs.writeFileSync(ENV_FILE, updated.join('\n').replace(/\n*$/, '\n'));
+  const content = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, 'utf-8') : '';
+  fs.writeFileSync(ENV_FILE, applyEnvUpdates(content, secrets));
 }
 
 function readEnvFile() {

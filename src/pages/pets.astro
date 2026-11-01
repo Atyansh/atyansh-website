@@ -1,14 +1,16 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
 import AnimatedCard from '../components/AnimatedCard.astro';
 import PetPhotoCarousel from '../components/PetPhotoCarousel';
 
-const pets = await getCollection('pets');
+// Alphabetical by file name, as on the live site (collection order isn't guaranteed).
+const pets = (await getCollection('pets')).sort((a, b) => a.id.localeCompare(b.id));
 ---
 
 <BaseLayout
-  title="Pets - Atyansh Jaiswal"
+  title={pageTitle('Pets')}
   description="Meet my furry friends"
 >
   <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">

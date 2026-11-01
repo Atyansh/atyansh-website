@@ -1,4 +1,5 @@
 ---
+import { pageTitle } from '../../site.config';
 import { formatCalendarDate } from '../../components/formatDate';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
@@ -7,14 +8,14 @@ const papers = (await getCollection('papers'))
   .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
 ---
 
-<BaseLayout title="Research Papers - Atyansh Jaiswal" description="My published research on security and privacy">
+<BaseLayout title={pageTitle('Research Papers')} description="My published research on security and privacy">
   <div class="max-w-4xl mx-auto">
     <h1 class="text-4xl font-bold mb-8" style="color: var(--text-primary);">Research Papers</h1>
 
     <div class="space-y-6">
       {papers.map((paper) => (
         <a
-          href={`/papers/${paper.slug}`}
+          href={`/papers/${paper.id}`}
           class="block p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow border"
           style="background-color: var(--bg-card); border-color: var(--border);"
         >

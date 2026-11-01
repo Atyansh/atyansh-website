@@ -1,4 +1,5 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import TVFilter from '../components/TVFilter';
 import StatGrid from '../components/StatGrid.astro';
@@ -31,7 +32,7 @@ const shows = (tvData?.shows ?? []).map(show => ({
 ---
 
 <BaseLayout
-  title="TV Shows - Atyansh Jaiswal"
+  title={pageTitle('TV Shows')}
   description="TV shows I've watched"
 >
   <div class="max-w-7xl mx-auto">

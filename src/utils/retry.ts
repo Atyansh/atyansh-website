@@ -80,6 +80,12 @@ export function isTransientError(error: unknown): boolean {
     'is not valid json',
   ];
 
+  // AbortSignal.timeout() rejects with a TimeoutError (a deliberate abort is
+  // an AbortError, which is not retried)
+  if (errorName === 'timeouterror') {
+    return true;
+  }
+
   // Check if error matches any transient pattern
   const allTransientPatterns = [...networkErrors, ...timeoutErrors, ...browserErrors, ...serverErrors];
 
@@ -163,9 +169,15 @@ export async function withRetry<T>(
   throw lastError || new Error('Retry failed');
 }
 
+// A hung connection would otherwise stall the build until Cloud Build's
+// 30-minute timeout kills it
+export const DEFAULT_FETCH_TIMEOUT_MS = 20_000;
+
 /**
  * Wrapper for fetch with retry logic
- * Only retries on transient failures (network errors, 5xx, 429)
+ * Only retries on transient failures (network errors, timeouts, 5xx, 429).
+ * Each attempt times out after DEFAULT_FETCH_TIMEOUT_MS unless the caller
+ * passes its own signal.
  */
 export async function fetchWithRetry(
   url: string,
@@ -173,7 +185,10 @@ export async function fetchWithRetry(
   retryOptions?: RetryOptions
 ): Promise<Response> {
   return withRetry(async () => {
-    const response = await fetch(url, options);
+    const response = await fetch(url, {
+      ...options,
+      signal: options?.signal ?? AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
+    });
 
     // Throw on server errors to trigger retry
     if (response.status >= 500 || response.status === 429) {

@@ -1,21 +1,21 @@
 ---
 import { formatCalendarDate } from '../../components/formatDate';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 import { calculateReadingTime, formatReadingTime } from '../../utils/readingTime';
 
 export async function getStaticPaths() {
   const posts = await getCollection('blog');
   return posts.map((post) => ({
-    params: { slug: post.slug },
+    params: { slug: post.id },
     props: { post },
   }));
 }
 
 const { post } = Astro.props;
-const { Content } = await post.render();
-const readingTime = calculateReadingTime(post.body);
-const postUrl = new URL(`/blog/${post.slug}/`, Astro.site).href;
+const { Content } = await render(post);
+const readingTime = calculateReadingTime(post.body ?? '');
+const postUrl = new URL(`/blog/${post.id}/`, Astro.site).href;
 
 // Article JSON-LD (matches og:type=article) instead of the generic WebSite one
 const articleData = {

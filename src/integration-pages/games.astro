@@ -1,19 +1,34 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import GameCarousel from '../components/GameCarousel';
 import LoadError from '../components/LoadError.astro';
 import type { GameCardData } from '../components/GameCard';
-import { formatPacificDate } from '../components/formatDate';
+import { formatSiteDate } from '../components/formatDate';
 import { getAllGames, getPlatformName, getPlatformColor, type UnifiedGame } from '../utils/unified-games';
 import { getGameCapsuleFallbacks } from '../utils/steam';
+import { enabledIntegrations } from '../integrations';
 
-// Fetch all games and stats from all platforms in a single call
-const { games: allGames, steamStats, psnStats, nintendoStats } = await getAllGames();
+// Fetch all games and stats from the enabled platforms in a single call
+const enabled = enabledIntegrations();
+const sources = {
+  steam: enabled.has('steam'),
+  psn: enabled.has('psn'),
+  nintendo: enabled.has('nintendo'),
+  igdb: enabled.has('igdb'),
+};
+const { games: allGames, steamStats, psnStats, nintendoStats } = await getAllGames(sources);
 
-// Last-played dates are formatted here, at build time, in Pacific time and
+// "Steam, PlayStation, and Nintendo Switch" (only the enabled platforms)
+const platformNames = (['steam', 'psn', 'nintendo'] as const).filter(p => sources[p]).map(getPlatformName);
+const platformList = platformNames.length <= 2
+  ? platformNames.join(' and ')
+  : `${platformNames.slice(0, -1).join(', ')}, and ${platformNames[platformNames.length - 1]}`;
+
+// Last-played dates are formatted here, at build time, in the site time zone and
 // passed to the cards as strings: formatting in the hydrated card would
 // re-run in the visitor's time zone and mismatch the server HTML
-const lastPlayed = (date: number | string) => formatPacificDate(date, { month: 'numeric', day: 'numeric', year: 'numeric' });
+const lastPlayed = (date: number | string) => formatSiteDate(date, { month: 'numeric', day: 'numeric', year: 'numeric' });
 
 function toCardData(game: UnifiedGame): GameCardData {
   const stats: GameCardData['stats'] = [];
@@ -56,12 +71,12 @@ const nintendoGames = allGames.filter(g => g.platform === 'nintendo').map(toCard
 
 // The Steam status is a build-time snapshot (and the Steam cache can be up to
 // a day older than the build), so it is labelled as such rather than "currently"
-const buildDate = formatPacificDate(Date.now());
+const buildDate = formatSiteDate(Date.now());
 ---
 
 <BaseLayout
-  title="Games - Atyansh Jaiswal"
-  description="Games I'm playing across Steam, PlayStation, and Nintendo Switch"
+  title={pageTitle('Games')}
+  description={`Games I'm playing across ${platformList}`}
 >
   <div class="max-w-7xl mx-auto">
     <div class="text-center mb-16">

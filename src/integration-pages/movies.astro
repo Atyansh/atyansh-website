@@ -1,4 +1,5 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import MoviesFilter from '../components/MoviesFilter';
 import StatGrid from '../components/StatGrid.astro';
@@ -37,7 +38,7 @@ const movies = (letterboxdData?.movies ?? []).map(movie => ({
 ---
 
 <BaseLayout
-  title="Movies - Atyansh Jaiswal"
+  title={pageTitle('Movies')}
   description="Movies I've watched"
 >
   <div class="max-w-7xl mx-auto">

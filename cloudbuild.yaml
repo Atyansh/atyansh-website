@@ -1,7 +1,17 @@
+# Project-specific names come from Cloud Build's built-in $PROJECT_ID
+# substitution (the project the build runs in), so a fork needs no edits:
+# the build image gcr.io/$PROJECT_ID/node-puppeteer (cloudbuild-image.yaml),
+# the cache bucket gs://${PROJECT_ID}_cloudbuild (braces: `_cloudbuild` would
+# otherwise read as part of the variable name), the Firebase project, and
+# GOOGLE_CLOUD_PROJECT for the scripts that read SITE_SECRETS. Cloud Build
+# substitutes these everywhere in this file, inside bash scripts too; that's
+# why bash's own variables are written $$VAR.
 steps:
   # Install dependencies
-  # Uses custom image with Chrome deps pre-installed (see Dockerfile.cloudbuild)
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
+  # Uses custom image with Chrome deps pre-installed (see Dockerfile.cloudbuild).
+  # Pinned to an immutable dated tag (cloudbuild-image.yaml builds it); bump
+  # the date here only after the new image has been pushed.
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
     entrypoint: npm
     args: ['ci']
     id: 'install-dependencies'
@@ -17,12 +27,12 @@ steps:
     entrypoint: bash
     args:
       - '-c'
-      - 'mkdir -p .cache-fallback && gsutil -m rsync -r gs://personal-website-334502_cloudbuild/build-cache .cache-fallback || echo "WARNING: could not restore previous build cache"'
+      - 'mkdir -p .cache-fallback && gsutil -m rsync -r gs://${PROJECT_ID}_cloudbuild/build-cache .cache-fallback || echo "WARNING: could not restore previous build cache"'
     id: 'restore-build-cache'
     waitFor: ['-']
 
   # Build the site with environment variables from Secret Manager
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
     entrypoint: bash
     args:
       - '-c'
@@ -42,13 +52,24 @@ steps:
           rm -f .env.refresh
         fi
 
-        # astro build directly, not npm run build: npm's prebuild hook would
-        # run refresh-tokens.cjs a second time
-        npx astro build
+        # npm run build (not npx astro build) so any pre/postbuild hooks run.
+        # It has no prebuild: the secret pull + token refresh live in
+        # `npm run build:fresh` for local use, so the refresh above is the
+        # only one.
+        # A failed build records .ci-failures/build-site (end of its log) and
+        # exits 0 so check-api-health still runs and DMs about it; the deploy
+        # step then refuses to deploy.
+        set -o pipefail
+        mkdir -p .ci-failures
+        if ! npm run build 2>&1 | tee /tmp/build.log; then
+          tail -n 40 /tmp/build.log | sed 's/\x1b\[[0-9;]*m//g' > .ci-failures/build-site
+          echo "Build failed: recorded in .ci-failures/build-site; the deploy will be skipped"
+        fi
     id: 'build-site'
     env:
       - 'NODE_ENV=production'
       - 'CLOUD_BUILD=true'
+      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID'  # SITE_SECRETS lives in this build's project
     waitFor: ['install-dependencies', 'restore-build-cache']
 
   # Save this build's data cache for the next build's fallback. No -d flag:
@@ -58,9 +79,11 @@ steps:
     entrypoint: bash
     args:
       - '-c'
-      - 'gsutil -m rsync -r .cache gs://personal-website-334502_cloudbuild/build-cache || echo "No cache to save"'
+      - 'gsutil -m rsync -r .cache gs://${PROJECT_ID}_cloudbuild/build-cache || echo "No cache to save"'
     id: 'save-build-cache'
-    waitFor: ['build-site']
+    # check-api-health writes .cache/api-health-report.json; don't upload a
+    # half-written copy
+    waitFor: ['build-site', 'check-api-health']
 
   # Append this build's data to the historical snapshot archive (read by
   # future stats pages; the build-cache above stays the fallback mechanism).
@@ -81,28 +104,77 @@ steps:
           [ -e "$$f" ] || continue
           gzip -c "$$f" > "/tmp/snap/$$(basename $$f).gz"
         done
-        gsutil -m cp /tmp/snap/*.gz "gs://personal-website-334502_cloudbuild/snapshots/$$STAMP/" \
+        gsutil -m cp /tmp/snap/*.gz "gs://${PROJECT_ID}_cloudbuild/snapshots/$$STAMP/" \
           || echo "WARNING: snapshot upload failed"
     id: 'save-daily-snapshot'
-    waitFor: ['build-site']
+    waitFor: ['build-site', 'check-api-health']
 
   # Check API health and send notifications if any failed
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
     entrypoint: node
     args: ['scripts/check-api-health.cjs']
     id: 'check-api-health'
     env:
       - 'NODE_ENV=production'
-      - 'CLOUD_BUILD=true'  # reads Discord credentials from SITE_SECRETS
-    waitFor: ['build-site']
+      - 'CLOUD_BUILD=true'  # reads Discord credentials + which integrations are configured from SITE_SECRETS
+      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
+    waitFor: ['build-site', 'test']
 
-  # Deploy to Firebase Hosting (cache headers and CDN invalidation are
-  # handled by firebase.json + the deploy itself)
-  - name: 'gcr.io/personal-website-334502/node-puppeteer:22'
-    entrypoint: npx
-    args: ['firebase-tools', 'deploy', '--only', 'hosting', '--project', 'personal-website-334502', '--non-interactive']
+  # Unit tests + type-check, in parallel with the build; a failure blocks the
+  # deploy below. Runs on a copy of just the sources: the concurrent build
+  # writes .cache/, dist/ and a credentials file in the workspace, and
+  # `astro sync` writes .astro/ and node_modules/.astro/, which the build is
+  # using. The copy's node_modules is a directory of symlinks into the real
+  # one, so the copy's .astro/.vite caches stay private.
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        # A failure records .ci-failures/test (end of its log) and exits 0, like
+        # build-site, so the health check can DM about it before the deploy
+        # step refuses to deploy.
+        set -uo pipefail
+        mkdir -p /workspace/.ci-failures
+        # Chained with && on purpose: bash ignores `set -e` inside an `if`
+        # condition, so a failing vitest would otherwise fall through to the
+        # type-check and the step would pass.
+        CI_DIR=/tmp/ci-check
+        if ! (
+          mkdir -p $$CI_DIR/node_modules &&
+          cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts .env.example firebase.json $$CI_DIR/ &&
+          for entry in node_modules/* node_modules/.bin; do
+            ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry" || exit 1
+          done &&
+          cd $$CI_DIR &&
+          npx vitest run &&
+          npm run typecheck
+        ) 2>&1 | tee /tmp/test.log; then
+          tail -n 40 /tmp/test.log | sed 's/\x1b\[[0-9;]*m//g' > /workspace/.ci-failures/test
+          echo "Tests/type-check failed: recorded in .ci-failures/test; the deploy will be skipped"
+        fi
+    id: 'test'
+    env:
+      - 'CI=true'
+    waitFor: ['install-dependencies']
+
+  # Deploy to Firebase Hosting (security/cache headers and CDN invalidation
+  # are handled by firebase.json + the deploy itself). Gated on the tests.
+  # Refuses (and so marks the build FAILED) if the build or test step recorded
+  # a failure; waits for the health check and cache uploads so failing here
+  # can't cancel them (a failed step stops every step still running).
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        if [ -n "$$(ls -A .ci-failures 2>/dev/null)" ]; then
+          echo "Not deploying: failed step(s): $$(ls .ci-failures | tr '\n' ' ')(the live site keeps the previous deploy)"
+          exit 1
+        fi
+        npx firebase-tools deploy --only hosting --project $PROJECT_ID --non-interactive
     id: 'deploy-to-firebase'
-    waitFor: ['build-site']
+    waitFor: ['build-site', 'test', 'check-api-health', 'save-build-cache', 'save-daily-snapshot']
 
 # No availableSecrets: every credential lives in the single SITE_SECRETS
 # secret, read with the Secret Manager SDK by refresh-tokens.cjs and

@@ -1,0 +1,133 @@
+# Production-equivalent preview: the same image, secrets, token refresh, real
+# API calls and build as cloudbuild.yaml, deployed to a Firebase preview
+# channel instead of the live site. Use it to check a branch before merging.
+#
+# Run from a checkout of the branch to preview:
+#   gcloud builds submit --config=cloudbuild-preview.yaml \
+#     --substitutions=_CHANNEL=my-branch .
+# The URL (https://<project-id>--<channel>-<hash>.web.app) is
+# printed at the end of the log and expires after _EXPIRES.
+#
+# Differences from production, on purpose:
+# - Deploys to a preview channel, never the live site.
+# - Doesn't save .cache to the build-cache bucket or the snapshot archive, so
+#   a preview can't overwrite production's last-known-good data.
+# - Runs the health check with --report-only (it reads SITE_SECRETS to know
+#   which integrations are configured, but sends no DM).
+# Project-specific names use the built-in $PROJECT_ID substitution, as in
+# cloudbuild.yaml.
+# Like production, renewed tokens ARE saved to SITE_SECRETS: providers that
+# rotate refresh tokens may invalidate the old one once it's used, so not
+# saving could break the next production build. Avoid running a preview while
+# a production build is in progress (both would refresh the same tokens).
+substitutions:
+  _CHANNEL: 'preview'
+  _EXPIRES: '7d'
+
+steps:
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
+    entrypoint: npm
+    args: ['ci']
+    id: 'install-dependencies'
+
+  - name: 'gcr.io/cloud-builders/gsutil'
+    entrypoint: bash
+    args:
+      - '-c'
+      - 'mkdir -p .cache-fallback && gsutil -m rsync -r gs://${PROJECT_ID}_cloudbuild/build-cache .cache-fallback || echo "WARNING: could not restore previous build cache"'
+    id: 'restore-build-cache'
+    waitFor: ['-']
+
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        node scripts/refresh-tokens.cjs
+
+        if [ -f .env.refresh ]; then
+          echo "Loading credentials..."
+          set -a
+          source .env.refresh
+          set +a
+          rm -f .env.refresh
+        fi
+
+        # A failed build records .ci-failures/build-site (end of its log) and
+        # exits 0 so check-api-health still runs and DMs about it; the deploy
+        # step then refuses to deploy.
+        set -o pipefail
+        mkdir -p .ci-failures
+        if ! npm run build 2>&1 | tee /tmp/build.log; then
+          tail -n 40 /tmp/build.log | sed 's/\x1b\[[0-9;]*m//g' > .ci-failures/build-site
+          echo "Build failed: recorded in .ci-failures/build-site; the deploy will be skipped"
+        fi
+    id: 'build-site'
+    env:
+      - 'NODE_ENV=production'
+      - 'CLOUD_BUILD=true'
+      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID'  # SITE_SECRETS lives in this build's project
+    waitFor: ['install-dependencies', 'restore-build-cache']
+
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        # A failure records .ci-failures/test (end of its log) and exits 0, like
+        # build-site, so the health check can DM about it before the deploy
+        # step refuses to deploy.
+        set -uo pipefail
+        mkdir -p /workspace/.ci-failures
+        # Chained with && on purpose: bash ignores `set -e` inside an `if`
+        # condition, so a failing vitest would otherwise fall through to the
+        # type-check and the step would pass.
+        CI_DIR=/tmp/ci-check
+        if ! (
+          mkdir -p $$CI_DIR/node_modules &&
+          cp -R src scripts astro.config.mjs package.json tsconfig.json vitest.config.ts .env.example firebase.json $$CI_DIR/ &&
+          for entry in node_modules/* node_modules/.bin; do
+            ln -s "$$PWD/$$entry" "$$CI_DIR/$$entry" || exit 1
+          done &&
+          cd $$CI_DIR &&
+          npx vitest run &&
+          npm run typecheck
+        ) 2>&1 | tee /tmp/test.log; then
+          tail -n 40 /tmp/test.log | sed 's/\x1b\[[0-9;]*m//g' > /workspace/.ci-failures/test
+          echo "Tests/type-check failed: recorded in .ci-failures/test; the deploy will be skipped"
+        fi
+    id: 'test'
+    env:
+      - 'CI=true'
+    waitFor: ['install-dependencies']
+
+  # Report-only: reads SITE_SECRETS (to know which integrations are
+  # configured) but never sends a DM
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
+    entrypoint: node
+    args: ['scripts/check-api-health.cjs', '--report-only']
+    id: 'check-api-health'
+    env:
+      - 'NODE_ENV=production'
+      - 'CLOUD_BUILD=true'
+      - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
+    waitFor: ['build-site', 'test']
+
+  - name: 'gcr.io/$PROJECT_ID/node-puppeteer:22-2026-10-31'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        if [ -n "$$(ls -A .ci-failures 2>/dev/null)" ]; then
+          echo "Not deploying the preview: failed step(s): $$(ls .ci-failures | tr '\n' ' ')"
+          exit 1
+        fi
+        npx firebase-tools hosting:channel:deploy ${_CHANNEL} --expires ${_EXPIRES} --project $PROJECT_ID --non-interactive
+    id: 'deploy-preview'
+    waitFor: ['build-site', 'test', 'check-api-health']
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: 1800s

@@ -13,6 +13,35 @@ export interface FileCacheOptions<T> {
   deserialize?: (data: T) => T; // e.g., reconstruct Date objects from JSON
 }
 
+/**
+ * Whether a freshly fetched list-shaped result is safe to cache over the
+ * previous copy. An empty result, or one that shrank below `minRatio` of the
+ * previous copy, is far more likely a partial fetch (a failed page, an API
+ * hiccup returning []) than real data loss, and caching it would overwrite
+ * the last good copy in the build-cache bucket. Pure.
+ */
+export function shouldPersist<T>(
+  fresh: T,
+  previous: T | null,
+  count: (data: T) => number,
+  minRatio = 0.5
+): { persist: boolean; reason?: string } {
+  const freshCount = count(fresh);
+  if (freshCount === 0) {
+    return { persist: false, reason: 'fresh result is empty' };
+  }
+  let previousCount = 0;
+  try {
+    previousCount = previous ? count(previous) : 0;
+  } catch {
+    // Previous copy from an older schema — nothing to compare against
+  }
+  if (previousCount > 0 && freshCount < previousCount * minRatio) {
+    return { persist: false, reason: `fresh result shrank to ${freshCount} from ${previousCount}` };
+  }
+  return { persist: true };
+}
+
 const CACHE_DIR = '.cache';
 // Cloud builds restore the previous build's cache here (see cloudbuild.yaml).
 // It is only read by getStale() — never treated as fresh.
@@ -111,6 +140,22 @@ export class FileCache<T extends Timestamped> {
       log.error(`${source}: no stale data to fall back to`);
     }
     return stale;
+  }
+
+  /**
+   * set() guarded by shouldPersist(): an empty or sharply shrunken result is
+   * served by the caller but not cached, so the last good copy survives and
+   * the missing fresh cache file trips the post-build health check.
+   * Returns whether the data was cached.
+   */
+  async setIfPlausible(source: string, data: T, count: (data: T) => number): Promise<boolean> {
+    const { persist, reason } = shouldPersist(data, await this.getStale(), count);
+    if (!persist) {
+      log.error(`${source}: ${reason} — serving it but not caching, so the last good copy survives`);
+      return false;
+    }
+    await this.set(data);
+    return true;
   }
 
   async set(data: T): Promise<void> {

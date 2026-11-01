@@ -12,7 +12,7 @@ function wrapInFeed(...items: string[]): string {
 function diaryItem(slug: string, title: string, year: number, filmId = '872871'): string {
   return `
     <title>${title}, ${year} - ★★★★★</title>
-    <link>https://letterboxd.com/atyansh/film/${slug}/</link>
+    <link>https://letterboxd.com/testuser/film/${slug}/</link>
     <letterboxd:filmTitle>${title}</letterboxd:filmTitle>
     <letterboxd:filmYear>${year}</letterboxd:filmYear>
     <description><![CDATA[ <p><img src="https://a.ltrbxd.com/resized/film-poster/8/7/2/8/7/1/${filmId}-${slug}-0-600-0-900-crop.jpg?v=ebe6beb4fc"/></p> ]]></description>
@@ -45,7 +45,7 @@ describe('parseLetterboxdRSS', () => {
   it('skips non-film items like lists', () => {
     const list = `
       <title>My favourite films</title>
-      <link>https://letterboxd.com/atyansh/list/favourites/</link>
+      <link>https://letterboxd.com/testuser/list/favourites/</link>
     `;
     expect(parseLetterboxdRSS(wrapInFeed(list))).toEqual([]);
   });
@@ -79,7 +79,7 @@ describe('mergeIncremental', () => {
   });
 
   it('matches member-scoped and plain film links as the same film', () => {
-    const scoped = { ...movie('troy'), link: 'https://letterboxd.com/atyansh/film/troy/' };
+    const scoped = { ...movie('troy'), link: 'https://letterboxd.com/testuser/film/troy/' };
     expect(mergeIncremental([movie('troy')], [], [scoped])).toHaveLength(1);
   });
 });

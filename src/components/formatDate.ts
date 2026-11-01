@@ -3,21 +3,24 @@
 // to components as strings (formatting in a hydrated component would also
 // re-run in the visitor's time zone and cause hydration mismatches).
 
-/** The site owner's time zone: activity timestamps are shown as the local date they happened on. */
-export const SITE_TIME_ZONE = 'America/Los_Angeles';
+import { siteConfig } from '../site.config';
+
+/** The site owner's time zone (siteConfig.timeZone): activity timestamps are shown as the local date they happened on. */
+export const SITE_TIME_ZONE = siteConfig.timeZone;
 
 type DateInput = Date | string | number;
 
 /**
  * Format a moment in time (a timestamp such as a climbing session or a
- * "last played" time) as its calendar date in Pacific time, so an evening
- * session doesn't show up as the next day.
+ * "last played" time) as its calendar date in the site's time zone, so an
+ * evening session doesn't show up as the next day.
  */
-export function formatPacificDate(
+export function formatSiteDate(
   date: DateInput,
   options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' },
+  timeZone: string = SITE_TIME_ZONE,
 ): string {
-  return new Date(date).toLocaleDateString('en-US', { ...options, timeZone: SITE_TIME_ZONE });
+  return new Date(date).toLocaleDateString('en-US', { ...options, timeZone });
 }
 
 /**
@@ -31,12 +34,13 @@ export function formatCalendarDate(
   return new Date(date).toLocaleDateString('en-US', { ...options, timeZone: 'UTC' });
 }
 
-/** Date and time in Pacific time, e.g. "Oct 31, 10:07 AM PDT". */
-export function formatPacificDateTime(
+/** Date and time in the site's time zone, e.g. "Oct 31, 10:07 AM PDT". */
+export function formatSiteDateTime(
   date: DateInput,
   options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' },
+  timeZone: string = SITE_TIME_ZONE,
 ): string {
-  return new Date(date).toLocaleString('en-US', { ...options, timeZone: SITE_TIME_ZONE });
+  return new Date(date).toLocaleString('en-US', { ...options, timeZone });
 }
 
 /** Like the formatters above, but tolerant of missing/invalid input (returns undefined). */

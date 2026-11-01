@@ -1,8 +1,9 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="PGP Public Key - Atyansh Jaiswal" description="My PGP public key for secure communication">
+<BaseLayout title={pageTitle('PGP Public Key')} description="My PGP public key for secure communication">
   <div class="max-w-4xl mx-auto">
     <h1 class="text-4xl font-bold mb-8" style="color: var(--text-primary);">PGP Public Key</h1>
 

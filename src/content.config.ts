@@ -1,4 +1,6 @@
-import { defineCollection, z } from 'astro:content';
+import { defineCollection } from 'astro:content';
+import { glob } from 'astro/loaders';
+import { z } from 'astro/zod';
 
 // Canonical status type constants — single source of truth
 export const ANIME_STATUSES = ['watching', 'completed', 'on_hold', 'dropped', 'plan_to_watch'] as const;
@@ -7,8 +9,13 @@ export type AnimeStatus = typeof ANIME_STATUSES[number];
 export const BOOK_STATUSES = ['reading', 'finished', 'want-to-read'] as const;
 export type BookStatus = typeof BOOK_STATUSES[number];
 
+// Markdown/MDX entries in src/content/<name>/. Files starting with "_" are
+// skipped (as the legacy collections did), and ids are the slugified file
+// paths, so URLs stay the same as with the old `slug`.
+const entries = (name: string) => glob({ pattern: '**/[^_]*.{md,mdx}', base: `./src/content/${name}` });
+
 const blog = defineCollection({
-  type: 'content',
+  loader: entries('blog'),
   schema: z.object({
     title: z.string(),
     description: z.string(),
@@ -21,15 +28,15 @@ const blog = defineCollection({
 });
 
 const projects = defineCollection({
-  type: 'content',
+  loader: entries('projects'),
   schema: z.object({
     title: z.string(),
     description: z.string(),
     technologies: z.array(z.string()).optional().default([]),
     links: z.object({
-      github: z.string().url().optional(),
-      demo: z.string().url().optional(),
-      website: z.string().url().optional(),
+      github: z.url().optional(),
+      demo: z.url().optional(),
+      website: z.url().optional(),
     }).optional(),
     featured: z.boolean().optional().default(false),
     startDate: z.coerce.date(),
@@ -39,7 +46,7 @@ const projects = defineCollection({
 });
 
 const papers = defineCollection({
-  type: 'content',
+  loader: entries('papers'),
   schema: z.object({
     title: z.string(),
     description: z.string(),
@@ -48,9 +55,9 @@ const papers = defineCollection({
     pubDate: z.coerce.date(),
     links: z.object({
       pdf: z.string().optional(),
-      doi: z.string().url().optional(),
-      arxiv: z.string().url().optional(),
-      github: z.string().url().optional(),
+      doi: z.url().optional(),
+      arxiv: z.url().optional(),
+      github: z.url().optional(),
     }).optional(),
     tags: z.array(z.string()).optional().default([]),
     featured: z.boolean().optional().default(false),
@@ -58,7 +65,7 @@ const papers = defineCollection({
 });
 
 const pets = defineCollection({
-  type: 'content',
+  loader: entries('pets'),
   schema: z.object({
     name: z.string(),
     species: z.string(),
@@ -71,14 +78,14 @@ const pets = defineCollection({
 });
 
 const eulerProblems = defineCollection({
-  type: 'content',
+  loader: entries('eulerProblems'),
   schema: z.object({
     problemNumber: z.number(),
     title: z.string(),
     difficulty: z.number().optional(),
     solved: z.boolean().default(true),
     solutionLanguage: z.string().optional(),
-    githubLink: z.string().url().optional(),
+    githubLink: z.url().optional(),
   }),
 });
 

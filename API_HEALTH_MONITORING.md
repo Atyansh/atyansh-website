@@ -6,6 +6,16 @@ This guide explains how to set up Discord notifications for API health monitorin
 
 The API health monitoring system runs 13 integration checks after each build and sends Discord notifications if any fail:
 
+Only **enabled** integrations are checked: an entry is skipped (listed as
+"Skipped" in the report, never alerted) when its integration is switched off
+in `src/site.config.ts` or its required keys aren't set (in Cloud Build the
+check reads `SITE_SECRETS` to find out; locally `.env`). The "Kaya (Logged-in)"
+check additionally needs `KAYA_REFRESH_TOKEN`. Which entry belongs to which
+integration is in `src/integrations.ts` (`healthChecks`); a test checks every
+entry is claimed exactly once. If `SITE_SECRETS` can't be read, every
+integration toggled on is checked, as before. `--report-only` prints the
+report without sending a DM (the preview build uses it).
+
 **APIs with credentials (can expire):**
 1. Spotify (OAuth refresh token) — top tracks, top artists, playlists and recently played must all be non-empty
 2. MyAnimeList (OAuth access token)
@@ -25,7 +35,7 @@ The API health monitoring system runs 13 integration checks after each build and
 
 1. **Build runs** (`npm run build` in Cloud Build after `refresh-tokens.cjs`; `npm run build` or `npm run build:fresh` locally) - All APIs are called and cache files are created
 2. **Health check runs** (`scripts/check-api-health.cjs`) - Validates cache files
-3. **If failures detected** - Discord notification sent with details and @mention
+3. **If failures detected** - Discord notification sent with details and @mention (footer: "`shortName` Website Monitor" from `src/site.config.ts`)
 
 ### Cache Validation
 

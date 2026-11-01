@@ -86,7 +86,63 @@ npm run dev
 
 Visit `http://localhost:4321` to see your site.
 
-**Note:** Pages requiring API credentials (games, music, movies, etc.) will show placeholder content or errors until configured.
+**Note:** Integration pages (books, music, movies, TV, anime, games, climbing) are only generated, and only linked from the nav, once their keys are configured. See [Forking this site](#forking-this-site).
+
+## Forking this site
+
+Everything specific to one person is either **configuration** (a public file, or env keys) or **content** (files you replace). No code edits are needed to point the site at your own accounts or to switch integrations off.
+
+| What | Where | Public? |
+|---|---|---|
+| Site name/URL, author, avatar, social links, email, Twitter handle, GoatCounter endpoint, display time zone, featured Spotify playlists, integration on/off switches | [`src/site.config.ts`](./src/site.config.ts) | Yes, committed |
+| Credentials **and** account ids/usernames (Steam id, Letterboxd username, …) | `.env` locally; the `SITE_SECRETS` secret in Cloud Build (see [`.env.example`](./.env.example)) | No, never commit |
+| Which integration needs which keys, its page and nav entry, its health checks | [`src/integrations.ts`](./src/integrations.ts) (the registry; no need to edit) | Yes |
+
+### 1. Edit `src/site.config.ts`
+
+Replace every value: `url` (also used as Astro's `site`, for canonical URLs, the sitemap and `robots.txt`), `name`, `shortName`, `description`s, `author` (name, job title, email or `null`, `avatar(size)` URL, employer/school or `null`, `twitterHandle` or `null`), `social` links, `analytics.goatcounter` (your `https://<code>.goatcounter.com/count`, or `null` for no analytics script at all), `timeZone` (IANA name; dates of activity are shown in it), and `spotify.featuredPlaylists` (exact names of your own playlists).
+
+If you change or remove the GoatCounter endpoint, update the `connect-src` origin in `firebase.json`'s two `Content-Security-Policy` headers too (a test fails until they match).
+
+### 2. Choose integrations and set their keys
+
+An integration is **enabled** when its toggle in `site.config.ts` is on **and** its required keys are set at build time. Enabled: its page is built, it appears in the nav (and the 404 page's links), the sitemap lists it, the token refresh and health check cover it. Otherwise none of that exists: no page, no nav entry, no sitemap entry, no fetch, no alert. When an enabled integration fails at runtime the page still renders the last good data (or a "Couldn't load … right now" notice), as before.
+
+| Integration | Page | Required keys | Optional keys | Where to get them | Setup script |
+|---|---|---|---|---|---|
+| Goodreads | `/books` | `GOODREADS_USER_ID`, `GOODREADS_COOKIE` | | User id from your profile URL; Cookie header of a signed-in goodreads.com request | (renewed by `refresh-tokens.cjs`) |
+| Spotify | `/music` | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN` | | App at developer.spotify.com/dashboard | `node scripts/get-spotify-token.cjs` |
+| Letterboxd | `/movies` | `LETTERBOXD_USERNAME` | | Your username (public scraping) | |
+| TMDB | `/tv` | `TMDB_ACCESS_TOKEN`, `TMDB_ACCOUNT_OBJECT_ID`, `TMDB_TV_LIST_ID` | `TMDB_READ_TOKEN` | Read token at themoviedb.org/settings/api | `node scripts/setup-tmdb.cjs` |
+| MyAnimeList | `/anime` | `MAL_CLIENT_ID`, `MAL_ACCESS_TOKEN` | `MAL_CLIENT_SECRET`, `MAL_REFRESH_TOKEN` (auto-refresh) | App at myanimelist.net/apiconfig | `node scripts/get-mal-token.cjs` |
+| Steam | `/games` | `STEAM_API_KEY`, `STEAM_ID` | | steamcommunity.com/dev/apikey; your 64-bit id | |
+| PlayStation | `/games` | `PSN_NPSSO` or `PSN_REFRESH_TOKEN` | `PSN_REFRESH_TOKEN_EXPIRES_AT` | NPSSO from ca.account.sony.com/api/v1/ssocookie | (refresh token minted by `refresh-tokens.cjs`) |
+| Nintendo Switch (Exophase) | `/games` | `EXOPHASE_USERNAME` | | Your Exophase username (public scraping) | |
+| IGDB (game covers) | (enhances `/games`) | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET` | `IGDB_ACCESS_TOKEN` | Twitch app at dev.twitch.tv/console | (token minted by `refresh-tokens.cjs`) |
+| Kaya | `/climbing` | `KAYA_USERNAME` | `KAYA_REFRESH_TOKEN` (lifts the 200-ascent cap) | Your username; token per `.env.example` | |
+| Discord alerts | (none) | `DISCORD_BOT_TOKEN`, `DISCORD_USER_ID` | | See [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) | |
+
+`/games` is built when any of Steam, PlayStation or Nintendo is enabled, and shows only the enabled platforms; IGDB only counts when one of them is on. Per-integration details are under [API Configuration](#api-configuration).
+
+**Disabling an integration:** set its toggle to `false` in `site.config.ts` (keys can stay), or just don't set its keys. To remove it from the code entirely, delete its page in `src/integration-pages/`, its entries in `src/integrations.ts` and the toggle, and its `src/utils/` module.
+
+**Try it locally:** `cp .env.example .env`, delete the groups you don't use, fill in the rest, `npm run build`. The build logs which integration pages it didn't generate.
+
+### 3. Replace the owner's content
+
+These are the original owner's, not configuration: blog posts (`src/content/blog/`), projects (`src/content/projects/`, `src/pages/projects/`), papers (`src/content/papers/`), Project Euler solutions (`src/content/eulerProblems/`), pets (`src/pages/pets.astro`, `public/images/pets/`), the home page bio/experience/education (`src/pages/index.astro`; name, avatar and links there come from config), `public/resume.pdf`, `public/publickey.asc` + `src/pages/pgp.astro`, `public/.well-known/security.txt` and `keybase.txt`, the OG-image avatar `src/assets/og/avatar.png`, and the ambient-audio songs. Remove a nav entry for content you delete in `src/layouts/BaseLayout.astro`.
+
+### 4. Google Cloud + Firebase (only if you want the automated daily builds)
+
+The repo names no Google Cloud project: Cloud Build's built-in `$PROJECT_ID` substitution fills in the build image, bucket and Firebase project, and the scripts find the project from `GOOGLE_CLOUD_PROJECT` (set by the YAML), `SITE_GCP_PROJECT`, or `gcloud config get-value project`.
+
+1. Create a Firebase project (it is a Google Cloud project), on the Blaze plan; `gcloud config set project <id>`; point `.firebaserc`'s `default` at it (`npx firebase-tools use --add`).
+2. Enable the Cloud Build, Secret Manager, Cloud Scheduler and Firebase Hosting APIs.
+3. Create the secret: `gcloud secrets create SITE_SECRETS --replication-policy=automatic`, then add your `.env` keys as one JSON object (`node scripts/push-secrets.cjs KEY ...` once the secret has a first version, e.g. `echo '{}' | gcloud secrets versions add SITE_SECRETS --data-file=-`).
+4. Grant the build service account (`<project-number>-compute@developer.gserviceaccount.com`) `roles/secretmanager.secretAccessor` and `roles/secretmanager.secretVersionManager`, plus Firebase Hosting deploy rights.
+5. Build the image once: `gcloud builds submit --config=cloudbuild-image.yaml .` (it lands in `gcr.io/<your-project>/node-puppeteer`; keep the dated tag in `cloudbuild.yaml` in step with `_DATE`).
+6. The build caches go to `gs://<your-project>_cloudbuild` (Cloud Build's default staging bucket, created by your first `gcloud builds submit`).
+7. Connect your GitHub repo and create the push + daily triggers ([DEPLOYMENT_GUIDE.md → Automated Builds](./DEPLOYMENT_GUIDE.md#automated-builds) has the commands with `$PROJECT_ID`/`$REPO_OWNER` variables), and attach your domain in the Firebase console.
 
 ## API Configuration
 
@@ -448,7 +504,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   ├── favicon.svg
 │   ├── publickey.asc           # Your PGP public key
 │   ├── resume.pdf              # Your resume
-│   ├── robots.txt
 │   ├── .well-known/
 │   │   └── security.txt        # Security contact info
 │   └── images/
@@ -461,6 +516,7 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   ├── refresh-tokens.cjs      # Pre-build token/session refresh, saved to SITE_SECRETS
 │   ├── oauth-helpers.cjs       # Shared helpers for the OAuth scripts
 │   ├── site-secrets.cjs        # Read/write the single SITE_SECRETS secret
+│   ├── site-config.cjs         # Loads src/site.config.ts + src/integrations.ts for the scripts
 │   ├── pull-secrets.cjs        # Sync SITE_SECRETS to .env
 │   ├── push-secrets.cjs        # Push .env values to SITE_SECRETS
 │   └── …                       # Token setup and health-check helpers
@@ -488,19 +544,23 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   │   ├── eulerProblems/     # Project Euler solutions
 │   │   ├── pets/              # Pet profiles
 │   │   └── config.ts          # Content schemas
-│   ├── layouts/
-│   │   └── BaseLayout.astro   # Main layout
-│   ├── pages/                  # Routes
-│   │   ├── index.astro        # Home
-│   │   ├── blog/
-│   │   ├── projects/
+│   ├── site.config.ts          # Public site configuration (fork: edit this)
+│   ├── integrations.ts         # Integration registry: env keys, pages, nav, health checks
+│   ├── integration-pages/      # Media pages, routed by astro.config.mjs only when enabled
 │   │   ├── games.astro
 │   │   ├── music.astro
 │   │   ├── movies.astro
 │   │   ├── tv.astro
 │   │   ├── anime.astro
 │   │   ├── books.astro
-│   │   ├── climbing.astro
+│   │   └── climbing.astro
+│   ├── layouts/
+│   │   └── BaseLayout.astro   # Main layout (nav built from the registry)
+│   ├── pages/                  # Routes
+│   │   ├── index.astro        # Home
+│   │   ├── robots.txt.ts      # robots.txt (sitemap URLs from site.config.ts)
+│   │   ├── blog/
+│   │   ├── projects/
 │   │   └── ...
 │   ├── styles/
 │   │   └── global.css         # Global styles
@@ -533,12 +593,12 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 
 ### Personal Information
 
-1. **Home page**: Edit `src/pages/index.astro`
-   - Update name, bio, and links
+1. **Identity, links, analytics, time zone**: Edit `src/site.config.ts` (see [Forking this site](#forking-this-site))
 
-2. **Navigation**: Edit `src/layouts/BaseLayout.astro`
-   - Customize navigation menu
-   - Update footer links
+2. **Home page content**: Edit `src/pages/index.astro`
+   - Update bio, experience and education (name, avatar and links come from `site.config.ts`)
+
+3. **Navigation**: Integration pages are added to the nav from `src/integrations.ts`; other entries are in `src/layouts/BaseLayout.astro`
 
 3. **Work Experience**: Edit `src/pages/work.astro`
    - Add your work history
@@ -570,13 +630,12 @@ Each content type has a schema defined in `src/content.config.ts`. Follow the ex
 
 ### Disabling Features
 
-To disable specific integrations, simply don't add their API keys to `.env`. The site will gracefully handle missing credentials.
+To disable an integration, set its toggle in `src/site.config.ts` to `false`, or don't set its keys: its page, nav entry, sitemap entry, token refresh and health check all disappear.
 
 To completely remove a feature:
-1. Remove the corresponding page from `src/pages/`
-2. Remove the navigation link from `src/layouts/BaseLayout.astro`
-3. Remove unused utility files from `src/utils/`
-4. Uninstall unused dependencies from `package.json`
+1. Remove its page from `src/integration-pages/` and its entries from `src/integrations.ts` / the toggle in `src/site.config.ts`
+2. Remove unused utility files from `src/utils/`
+3. Uninstall unused dependencies from `package.json`
 
 ## Deployment
 
@@ -589,7 +648,7 @@ This site is deployed to Firebase Hosting (Blaze plan) with automated daily buil
 **Deploying:** Cloud Build is the only deploy path. Push to `master`, or
 re-run it without a new commit:
 ```bash
-gcloud builds triggers run refresh-website-push --branch=master --project personal-website-334502
+gcloud builds triggers run refresh-website-push --branch=master --project "$(gcloud config get-value project)"
 ```
 Don't `firebase deploy` from a laptop: it ships your local `dist/` (untracked
 files included) and skips the tests and health checks.
@@ -603,7 +662,7 @@ See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for full setup instructions.
 
 #### Cloud Build Docker Image
 
-Cloud Build uses a custom Docker image (`gcr.io/personal-website-334502/node-puppeteer`, from `Dockerfile.cloudbuild`: Node pinned to an exact v22 release plus Chrome's shared libraries). `cloudbuild-image.yaml` tags it `:22` (moving) and `:22-YYYY-MM-DD` (immutable); `cloudbuild.yaml` pins the dated tag.
+Cloud Build uses a custom Docker image (`gcr.io/$PROJECT_ID/node-puppeteer`, in the build's own project, from `Dockerfile.cloudbuild`: Node pinned to an exact v22 release plus Chrome's shared libraries). `cloudbuild-image.yaml` tags it `:22` (moving) and `:22-YYYY-MM-DD` (immutable); `cloudbuild.yaml` pins the dated tag.
 
 To roll the image forward (Node security releases, Puppeteer/Chrome dependency changes): bump the Node version in `Dockerfile.cloudbuild` and `_DATE` in `cloudbuild-image.yaml`, then
 ```bash

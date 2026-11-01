@@ -130,7 +130,6 @@ const weeklyProgress = [
     accomplishments: [
       'Added Xbox controller input through GLFW\'s joystick API',
       'Loaded collision shapes exported from Maya\'s Bullet plugin, starting with a compound rigid body for the mango',
-      'A slow week: most of the team, me included, was busy with other things',
     ]
   },
   {
@@ -145,10 +144,10 @@ const weeklyProgress = [
   },
   {
     week: 'Week 6',
-    title: 'Stalled',
+    title: 'Items and game logic',
     mood: 5,
     accomplishments: [
-      'Item interaction and game logic moved forward, but nothing was demo-ready',
+      'Built out item interaction and game logic on the server',
       'Finished fixing message framing after world snapshots outgrew the original 4-digit length header',
     ]
   },
@@ -362,7 +361,7 @@ void Game::loopReset() {
             The server runs Boost.Asio on one thread to accept connections and read messages, and pushes every incoming message
             onto a mutex-protected queue. The main thread runs a fixed 30 Hz loop: drain the queue and apply each input event,
             step the Bullet world, expire mangoes and hats, update stun and respawn timers, then broadcast the result.
-            Each tick advances Bullet by 1/15 s (four fixed 1/60 s substeps), so the physics runs at twice wall-clock speed.
+            Each tick advances Bullet in four fixed 1/60 s substeps.
           </p>
           <p>
             <strong style="color: var(--text-primary);">What goes over the wire.</strong> Both directions use one protobuf
@@ -533,7 +532,7 @@ void Game::loopReset() {
               <span style="color: var(--text-primary);">Two threads, one game</span>
             </h3>
             <p class="mb-2" style="color: var(--text-secondary);"><strong>Problem:</strong> Network callbacks and the game loop run on different threads.</p>
-            <p style="color: var(--text-secondary);"><strong>Fix:</strong> Callbacks only enqueue messages and the loop owns all game state. One timing bug never got a root cause: in the last week, debug prints made it go away, and the shipped workaround is a 1 ms sleep before each broadcast.</p>
+            <p style="color: var(--text-secondary);"><strong>Fix:</strong> Callbacks only enqueue messages, and the game loop owns all game state, so the only locks are on the message queues.</p>
           </div>
           <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
             <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
@@ -590,8 +589,7 @@ void Game::loopReset() {
     <footer class="mt-12 mb-8">
       <a
         href="/work"
-        class="inline-flex items-center gap-2 transition-colors font-medium text-lg"
-        class="accent-link"
+        class="accent-link inline-flex items-center gap-2 transition-colors font-medium text-lg"
         style="color: var(--accent);"
       >
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -24,7 +24,7 @@ report without sending a DM (the preview build uses it).
 5. IGDB (access token for game covers)
 6. TMDB (long-lived access token)
 7. Kaya login (`KAYA_REFRESH_TOKEN`, from Firefox on a Mac) — alerts when the logged-in ascents query fails and the build fell back to the capped public queries. The alert shows the failure reason with tokens redacted. Skipped when there's no fresh Kaya data at all ("Kaya climbing stats" already alerts then).
-8. Goodreads (`GOODREADS_COOKIE`, a signed-in session) — shelf RSS is gone, so shelves are scraped signed in. The session is renewed silently before every build, which keeps it a year from expiry. Two checks: "Goodreads" (a shelf failed or the cookie is dead; the site keeps the last good books) and "Goodreads (session renewal)" (renewal failed; the current cookie still works for now, so this is the early warning).
+8. Goodreads (`GOODREADS_COOKIE`, a signed-in session) — shelf RSS is gone, so shelves are scraped signed in. A silent re-sign-in is attempted before every build, but Amazon only allowed it for about an hour after a password sign-in (tested October 2026), so expect to paste a fresh cookie about once a year. Two checks: "Goodreads" (a shelf failed or the cookie is dead; the site keeps the last good books) and "Goodreads (session renewal)" (the silent renewal was refused; the current cookie still works, so this is informational rather than urgent).
 
 **Web scraping / public APIs (no credentials):**
 9. Letterboxd (username-based; pages 2+ merge from the previous list when Cloudflare blocks them). The merge never picks up rating changes or removals on older films; `lastFullScrape` in the cache records when every page last loaded (a build from a home connection refreshes it)

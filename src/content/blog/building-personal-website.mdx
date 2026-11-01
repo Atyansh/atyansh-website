@@ -31,7 +31,7 @@ The site needed to include:
 
 One of the goals of this project was to let Claude Code make as many decisions as possible. I acted purely as a product owner - reviewing the site, providing feedback on what I wanted, and letting the AI handle the technical decisions. Claude Code researched the options and selected:
 
-- **Astro 5** - Static site generation with islands architecture for interactive components
+- **Astro 7** - Static site generation with islands architecture for interactive components
 - **TypeScript** - Type safety across the entire codebase
 - **React** - For interactive UI components
 - **Tailwind CSS 4** - Utility-first styling with the new CSS-first configuration
@@ -77,7 +77,7 @@ The heart of the site is the activity tracking system. It pulls data from 11+ ex
 
 **Goodreads** tracks reading progress and book reviews. The integration pulls currently reading books and recent reviews.
 
-*Update (October 2026):* Goodreads removed shelf RSS feeds for every user, and shelf pages now require signing in. The build now reads my shelves as a signed-in browser would, using the session cookie from a normal login. That login expires a year after it's issued and Goodreads never renews it, so before each build the site signs in again silently (Amazon's sign-in re-issues a still-valid session without a password) and saves the fresh cookie. A separate health check alerts on the first failed renewal, months before the old cookie would actually stop working.
+*Update (October 2026):* Goodreads removed shelf RSS feeds for every user, and shelf pages now require signing in. The build now reads my shelves as a signed-in browser would, using the session cookie from a normal login. That login expires a year after it's issued and Goodreads never renews it. Before each build the site tries to sign in again silently (Amazon's sign-in can re-issue a still-valid session without a password) and saves the fresh cookie when that works. In practice Amazon only allowed this for about an hour after a password sign-in, so the realistic expectation is pasting a fresh cookie roughly once a year. The books page keeps serving the last good copy if the cookie ever lapses.
 
 ### Fitness Integration
 

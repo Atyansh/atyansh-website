@@ -54,7 +54,7 @@ The site pulls data from 11+ different platforms to display what I'm currently p
 
 One of the key technical challenges was managing OAuth tokens that expire at different intervals (24 hours to 90 days). The solution:
 
-- **Pre-build token refresh** - A script runs before each build to test and refresh expired tokens, using Puppeteer stealth to bypass Cloudflare when needed, and silently re-signs in to Goodreads so its session never expires
+- **Pre-build token refresh** - A script runs before each build to test and refresh expired tokens, using Puppeteer stealth to bypass Cloudflare when needed, and attempts a silent Goodreads re-sign-in (Amazon mostly requires a fresh login about once a year)
 - **Single-secret credential store** - Every credential lives in one JSON secret in Google Cloud Secret Manager; renewed tokens are saved in one validated write per build, with the last three versions kept for rollback
 - **Retry logic** - All API calls include exponential backoff and serialized rate limiting for transient failures
 - **File-based caching** - Generic `FileCache<T>` with 24-hour TTL minimizes redundant API calls across builds
@@ -67,7 +67,7 @@ One of the key technical challenges was managing OAuth tokens that expire at dif
 
 ## Technical Stack
 
-- **Frontend**: Astro 5, React, Tailwind CSS 4, Framer Motion
+- **Frontend**: Astro 7, React, Tailwind CSS 4, Framer Motion
 - **Build**: TypeScript, Node.js 22, Vitest
 - **Infrastructure**: Google Cloud Build (custom Docker image), Secret Manager, Firebase Hosting
 - **Monitoring**: Custom health checks with Discord DM notifications

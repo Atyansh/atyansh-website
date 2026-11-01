@@ -6,34 +6,60 @@
  * Runs after the build to check which API integrations succeeded/failed.
  * Sends a Discord DM (via bot) if any APIs have expired credentials.
  *
+ * Only enabled integrations are checked (src/integrations.ts: toggle on in
+ * src/site.config.ts AND required keys set). Disabled ones are reported as
+ * skipped, never as failures, so a fork without e.g. Spotify gets no alerts
+ * about it. Keys are looked up in process.env (.env locally) and, in Cloud
+ * Build, in SITE_SECRETS, since this step doesn't get the build's env.
+ *
  * Usage:
- *   node scripts/check-api-health.cjs
+ *   node scripts/check-api-health.cjs                # report + DM on failure
+ *   node scripts/check-api-health.cjs --report-only  # report, never DM
  *
  * Environment Variables (for Discord notifications):
  *   DISCORD_BOT_TOKEN - Discord bot token (for sending DMs)
  *   DISCORD_USER_ID - Your Discord user ID (DM recipient)
  */
 
-// Load .env file for local testing (Cloud Build uses Secret Manager)
-try {
-  require('dotenv').config();
-} catch (error) {
-  // dotenv not installed, skip (happens in Cloud Build)
-}
-
 const fs = require('fs');
 const path = require('path');
 const { readSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs');
+const { loadSiteModules } = require('./site-config.cjs');
 
 const CACHE_DIR = path.join(process.cwd(), '.cache');
+// cloudbuild.yaml's build and test steps don't stop the build when they fail:
+// they leave <step-id> here (holding the end of their log) so this script can
+// DM about it, and the deploy step refuses to deploy.
+const BUILD_FAILURES_DIR = path.join(process.cwd(), '.ci-failures');
 const MAX_CACHE_AGE_HOURS = 1; // Only trust cache files created in the last hour (this build)
+
+// Discord rejects (HTTP 400) a message over any of these
+const DISCORD_LIMITS = {
+  fields: 25,
+  fieldName: 256,
+  fieldValue: 1024,
+  embedTotal: 6000, // title + description + field names/values + footer
+  content: 2000,
+};
+
+/** Names of the Spotify lists that came back empty */
+function emptySpotifyLists(data) {
+  const lists = {
+    'top tracks': data.topTracks && data.topTracks.long,
+    'top artists': data.topArtists && data.topArtists.long,
+    'playlists': data.playlists,
+    'recently played': data.recentlyPlayed,
+  };
+  return Object.entries(lists).filter(([, list]) => !Array.isArray(list) || list.length === 0).map(([name]) => name);
+}
 
 // API configuration
 const APIs = [
   {
     name: 'Spotify',
     cacheFile: 'spotify-data.json',
-    checkFn: (data) => data.recentlyPlayed && data.recentlyPlayed.length > 0,
+    checkFn: (data) => emptySpotifyLists(data).length === 0,
+    failReason: (data) => `Cache exists but these lists are empty: ${emptySpotifyLists(data).join(', ')}`,
     renewal: 'Auto-refreshes tokens. If still failing: run node scripts/get-spotify-token.cjs',
     requiresApiKey: true,
     selfHealing: true, // Uses refresh token to get new access token each build
@@ -77,6 +103,9 @@ const APIs = [
         .map(entry => entry.timestamp);
       return timestamps.length > 0 ? Math.max(...timestamps) : 0;
     },
+    // Covers are reused for 7 days (igdb.ts), so a healthy build may look
+    // nothing up. The newest entry going past that means lookups are failing.
+    maxAgeHours: 8 * 24,
     renewal: 'Auto-refreshes tokens. If still failing: check IGDB_CLIENT_ID and IGDB_CLIENT_SECRET',
     requiresApiKey: true,
     selfHealing: true, // Uses client credentials to auto-refresh and persist to Secret Manager
@@ -127,6 +156,8 @@ const APIs = [
     // from the capped public queries, but the token needs attention.
     name: 'Kaya (Logged-in)',
     cacheFile: 'kaya-data.json',
+    // A missing or stale file is "Kaya (Climbing)"'s alert, not this one's
+    onlyWhenFresh: true,
     checkFn: (data) => !data.authError,
     failReason: (data) => `Logged-in fetch failed, fell back to public queries: ${data.authError}`,
     renewal: 'In Firefox on a Mac, sign in at kaya-app.kayaclimb.com, run copy(localStorage.getItem("refresh_token")) in the console, set KAYA_REFRESH_TOKEN in .env, then node scripts/push-secrets.cjs KAYA_REFRESH_TOKEN',
@@ -148,24 +179,59 @@ const APIs = [
   },
 ];
 
+/** "<shortName> Website Monitor" (src/site.config.ts) */
+function monitorName(modules = loadSiteModules()) {
+  return modules ? `${modules.siteConfig.shortName} Website Monitor` : 'Website Monitor';
+}
+
+/**
+ * Split the API entries into the ones to check and the ones to skip because
+ * their integration is disabled (src/integrations.ts). Pure.
+ *
+ * `env` is where to look for keys; `envKnown: false` means it couldn't be
+ * read (SITE_SECRETS unreachable in Cloud Build), so only the site.config
+ * toggles count and every toggled-on integration is checked, as before the
+ * registry. Without the registry (`modules` null) everything is checked.
+ */
+function selectAPIs(apis, { env = process.env, envKnown = true, modules = loadSiteModules() } = {}) {
+  if (!modules) return { active: apis, skipped: [] };
+  const lookup = envKnown ? env : new Proxy({}, { get: () => 'unknown' });
+  const active = [];
+  const skipped = [];
+  for (const api of apis) {
+    if (modules.integrations.isHealthCheckEnabled(api.name, lookup, modules.siteConfig.integrations)) {
+      active.push(api);
+    } else {
+      skipped.push({ name: api.name, reason: 'Integration disabled (site.config.ts toggle off or env keys not set)' });
+    }
+  }
+  return { active, skipped };
+}
+
 /**
  * Check health of all APIs
  */
-async function checkAPIHealth() {
+async function checkAPIHealth(cacheDir = CACHE_DIR, apis = APIs) {
   const results = {
     healthy: [],
     failed: [],
+    skipped: [],
     timestamp: new Date().toISOString(),
   };
 
   console.log('🔍 Checking API health...\n');
 
-  for (const api of APIs) {
-    const cacheFilePath = path.join(CACHE_DIR, api.cacheFile);
+  for (const api of apis) {
+    const cacheFilePath = path.join(cacheDir, api.cacheFile);
 
     try {
       // Check if cache file exists
       if (!fs.existsSync(cacheFilePath)) {
+        if (api.onlyWhenFresh) {
+          results.skipped.push({ name: api.name, reason: 'No fresh cache file (reported by its main entry)' });
+          console.log(`⏭️  ${api.name}: skipped (no fresh cache file)`);
+          continue;
+        }
         const reason = api.requiresApiKey
           ? 'Cache file not found - API credentials may be missing or expired'
           : 'Cache file not found - web scraping may have failed';
@@ -191,7 +257,12 @@ async function checkAPIHealth() {
       const cacheAge = Date.now() - cacheTimestamp;
       const cacheAgeHours = cacheAge / (1000 * 60 * 60);
 
-      if (cacheAgeHours > MAX_CACHE_AGE_HOURS) {
+      if (cacheAgeHours > (api.maxAgeHours ?? MAX_CACHE_AGE_HOURS)) {
+        if (api.onlyWhenFresh) {
+          results.skipped.push({ name: api.name, reason: 'Cache is stale (reported by its main entry)' });
+          console.log(`⏭️  ${api.name}: skipped (stale cache)`);
+          continue;
+        }
         results.failed.push({
           name: api.name,
           reason: `Cache is stale (${Math.round(cacheAgeHours)}h old) - API likely failed but old cache still exists`,
@@ -248,7 +319,7 @@ async function checkAPIHealth() {
  */
 function generateReport(results) {
   const total = results.healthy.length + results.failed.length;
-  const healthPercentage = Math.round((results.healthy.length / total) * 100);
+  const healthPercentage = total > 0 ? Math.round((results.healthy.length / total) * 100) : 100;
 
   let report = '';
   report += '═══════════════════════════════════════════════\n';
@@ -297,6 +368,10 @@ function generateReport(results) {
     }
   }
 
+  if (results.skipped && results.skipped.length > 0) {
+    report += `⏭️  Skipped: ${results.skipped.map(s => s.name).join(', ')}\n\n`;
+  }
+
   if (results.healthy.length > 0) {
     report += '✅ HEALTHY APIs:\n';
     report += '───────────────────────────────────────────────\n';
@@ -315,8 +390,120 @@ function generateReport(results) {
   return report;
 }
 
+function truncate(text, max) {
+  const str = String(text);
+  return str.length <= max ? str : `${str.slice(0, max - 1)}…`;
+}
+
+/** Failures most urgent first, each with its category label */
 /**
- * Send a Discord DM via the bot
+ * Build steps that failed this run, from BUILD_FAILURES_DIR.
+ * @returns {{ step: string, logTail: string }[]}
+ */
+function readBuildFailures(dir = BUILD_FAILURES_DIR) {
+  let files;
+  try {
+    files = fs.readdirSync(dir).filter(f => !f.startsWith('.')).sort();
+  } catch {
+    return [];
+  }
+  return files.map(step => {
+    let logTail = '';
+    try {
+      logTail = fs.readFileSync(path.join(dir, step), 'utf8').trim();
+    } catch {
+      // Marker without a readable log is still a failure
+    }
+    return { step, logTail };
+  });
+}
+
+function orderedFailures(results) {
+  const manual = results.failed.filter(f => f.requiresApiKey && !f.selfHealing);
+  const selfHealing = results.failed.filter(f => f.requiresApiKey && f.selfHealing);
+  const scraping = results.failed.filter(f => !f.requiresApiKey);
+  return [
+    ...manual.map(api => ({ api, label: '🚨 Action required' })),
+    ...selfHealing.map(api => ({ api, label: '⚠️ Self-healing failed' })),
+    ...scraping.map(api => ({ api, label: '❌ Scraping failed' })),
+  ];
+}
+
+/**
+ * The alert as a Discord message: one embed field per failed API, within
+ * Discord's limits (25 fields, 1024 chars per value, 6000 per embed).
+ * Joining every failure into one field used to exceed 1024 on bad days, and
+ * Discord rejected the whole alert. Pure.
+ */
+function buildDiscordPayload(results) {
+  const total = results.healthy.length + results.failed.length;
+  const healthPercentage = total > 0 ? Math.round((results.healthy.length / total) * 100) : 0;
+
+  const buildFailures = results.buildFailures || [];
+  const embed = {
+    title: buildFailures.length > 0
+      ? `🛑 Website build failed (${buildFailures.map(f => f.step).join(', ')}): not deployed`
+      : `⚠️ API Health Alert: ${results.failed.length} API(s) Failed`,
+    color: 0xff4444,
+    description: `Health Score: **${results.healthy.length}/${total} APIs (${healthPercentage}%)**`,
+    fields: [],
+    timestamp: new Date(results.timestamp || Date.now()).toISOString(),
+    footer: { text: monitorName() },
+  };
+
+  const failureFields = [
+    ...buildFailures.map(({ step, logTail }) => ({
+      name: truncate(`🛑 Build step failed: ${step}`, DISCORD_LIMITS.fieldName),
+      // Keep the END of the log: that's where the error is
+      value: truncate(`The live site keeps the previous deploy. Last log lines:\n${logTail ? logTail.slice(-(DISCORD_LIMITS.fieldValue - 80)) : '(no log captured)'}`, DISCORD_LIMITS.fieldValue),
+    })),
+    ...orderedFailures(results).map(({ api, label }) => ({
+      name: truncate(`${label}: ${api.name}`, DISCORD_LIMITS.fieldName),
+      value: truncate(`${api.reason}\nFix: ${api.renewal}`, DISCORD_LIMITS.fieldValue),
+    })),
+  ];
+  const healthyFields = results.healthy.length > 0
+    ? [{ name: '✅ Healthy APIs', value: truncate(results.healthy.map(api => api.name).join(', '), DISCORD_LIMITS.fieldValue) }]
+    : [];
+
+  const fieldsKeeping = (count) => {
+    const fields = failureFields.slice(0, count);
+    if (count < failureFields.length) {
+      fields.push({ name: `…and ${failureFields.length - count} more`, value: 'See the build log for the full report' });
+    }
+    return [...fields, ...healthyFields];
+  };
+  const embedSize = (fields) => embed.title.length + embed.description.length + embed.footer.text.length
+    + fields.reduce((sum, f) => sum + f.name.length + f.value.length, 0);
+
+  // Drop failures from the least urgent end until it fits, with a margin
+  let kept = failureFields.length;
+  while (kept > 0 && (fieldsKeeping(kept).length > DISCORD_LIMITS.fields
+    || embedSize(fieldsKeeping(kept)) > DISCORD_LIMITS.embedTotal - 100)) {
+    kept--;
+  }
+  embed.fields = fieldsKeeping(kept);
+
+  return {
+    content: buildFailures.length > 0 ? 'Website build failed:' : 'API health check detected failures:',
+    embeds: [embed],
+  };
+}
+
+/** The alert as plain text (≤ 2000 chars), for when the embed is rejected. Pure. */
+function buildPlainTextMessage(results) {
+  const total = results.healthy.length + results.failed.length;
+  const lines = [
+    ...(results.buildFailures || []).map(({ step }) => `🛑 Website build failed at ${step}: not deployed (the live site keeps the previous deploy)`),
+    `⚠️ API Health Alert: ${results.failed.length} of ${total} API(s) failed`,
+    ...orderedFailures(results).map(({ api, label }) => truncate(`• ${label}: ${api.name} — ${api.reason}`, 300)),
+    'Full report in the build log.',
+  ];
+  return truncate(lines.join('\n'), DISCORD_LIMITS.content);
+}
+
+/**
+ * Send a Discord DM via the bot. Never throws.
  */
 async function sendDiscordNotification(results) {
   const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -354,77 +541,32 @@ async function sendDiscordNotification(results) {
     return false;
   }
 
-  // Step 2: Build the embed
-  const total = results.healthy.length + results.failed.length;
-  const healthPercentage = Math.round((results.healthy.length / total) * 100);
-
-  const embed = {
-    title: `⚠️ API Health Alert: ${results.failed.length} API(s) Failed`,
-    color: 0xff4444,
-    description: `Health Score: **${results.healthy.length}/${total} APIs (${healthPercentage}%)**`,
-    fields: [],
-    timestamp: new Date().toISOString(),
-    footer: { text: 'Atyansh Website Monitor' },
-  };
-
-  const manualInterventionNeeded = results.failed.filter(f => f.requiresApiKey && !f.selfHealing);
-  const selfHealingFailed = results.failed.filter(f => f.requiresApiKey && f.selfHealing);
-  const scrapingFailures = results.failed.filter(f => !f.requiresApiKey);
-
-  if (manualInterventionNeeded.length > 0) {
-    embed.fields.push({
-      name: '🚨 Manual Intervention Required',
-      value: manualInterventionNeeded.map(api =>
-        `**${api.name}**\n${api.reason}\nFix: ${api.renewal}`
-      ).join('\n\n'),
-    });
-  }
-
-  if (selfHealingFailed.length > 0) {
-    embed.fields.push({
-      name: '⚠️ Self-Healing Failed',
-      value: selfHealingFailed.map(api =>
-        `**${api.name}**\n${api.reason}\nFix: ${api.renewal}`
-      ).join('\n\n'),
-    });
-  }
-
-  if (scrapingFailures.length > 0) {
-    embed.fields.push({
-      name: '❌ Web Scraping Failed',
-      value: scrapingFailures.map(api =>
-        `**${api.name}**\n${api.reason}\nFix: ${api.renewal}`
-      ).join('\n\n'),
-    });
-  }
-
-  if (results.healthy.length > 0) {
-    embed.fields.push({
-      name: '✅ Healthy APIs',
-      value: results.healthy.map(api => api.name).join(', '),
-    });
-  }
-
-  // Step 3: Send the DM
+  // Step 2: Send the DM (the embed, or plain text if that is rejected)
   try {
     console.log('📨 Sending Discord DM...');
 
-    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    const post = (payload) => fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        content: 'API health check detected failures:',
-        embeds: [embed],
-      }),
+      body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Failed to send Discord DM: ${response.status} - ${errorText}`);
+    const response = await post(buildDiscordPayload(results));
+    if (response.ok) {
+      console.log('✅ Discord DM sent successfully');
+      return true;
+    }
+    console.error(`❌ Failed to send Discord DM: ${response.status} - ${await response.text()}`);
+
+    // The embed was rejected (most likely a limit); a plain message still
+    // gets the alert through
+    console.log('📨 Retrying as a plain-text message...');
+    const fallback = await post({ content: buildPlainTextMessage(results) });
+    if (!fallback.ok) {
+      console.error(`❌ Plain-text Discord DM also failed: ${fallback.status} - ${await fallback.text()}`);
       return false;
     }
-
-    console.log('✅ Discord DM sent successfully');
+    console.log('✅ Plain-text Discord DM sent');
     return true;
   } catch (error) {
     console.error(`❌ Failed to send Discord DM: ${error.message}`);
@@ -433,30 +575,41 @@ async function sendDiscordNotification(results) {
 }
 
 /**
- * Main function
+ * The keys this step can see. In Cloud Build that means reading SITE_SECRETS
+ * directly rather than relying on the build step's .env.refresh (the alert
+ * matters most when that step failed); its Discord credentials are copied
+ * into process.env unless `reportOnly`. Locally it's process.env (.env).
+ * @returns {Promise<{ env: object, envKnown: boolean }>}
  */
-/**
- * In Cloud Build, read the Discord credentials from SITE_SECRETS directly
- * rather than relying on the build step's .env.refresh: the alert matters
- * most when that step failed.
- */
-async function loadDiscordCredentials() {
-  if (!isCloudBuild() || (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_USER_ID)) return;
+async function loadEnvForCheck({ reportOnly = false } = {}) {
+  if (!isCloudBuild()) return { env: process.env, envKnown: true };
   try {
     const { values } = await readSecrets();
-    for (const key of ['DISCORD_BOT_TOKEN', 'DISCORD_USER_ID']) {
-      if (values[key]) process.env[key] = values[key];
+    if (!reportOnly) {
+      for (const key of ['DISCORD_BOT_TOKEN', 'DISCORD_USER_ID']) {
+        if (values[key] && !process.env[key]) process.env[key] = values[key];
+      }
     }
+    return { env: { ...values, ...process.env }, envKnown: true };
   } catch (error) {
-    console.log(`⚠️  Could not read Discord credentials from ${SECRET_NAME}: ${error.message}`);
+    console.log(`⚠️  Could not read ${SECRET_NAME}: ${error.message} (checking every integration toggled on in site.config.ts)`);
+    return { env: process.env, envKnown: false };
   }
 }
 
+/**
+ * Main function
+ */
 async function main() {
-  console.log('Starting API health check...\n');
-  await loadDiscordCredentials();
+  const reportOnly = process.argv.includes('--report-only');
+  console.log(`Starting API health check${reportOnly ? ' (report only)' : ''}...\n`);
+  const { env, envKnown } = await loadEnvForCheck({ reportOnly });
 
-  const results = await checkAPIHealth();
+  const { active, skipped } = selectAPIs(APIs, { env, envKnown });
+  for (const { name } of skipped) console.log(`⏭️  ${name}: skipped (integration disabled)`);
+  const results = await checkAPIHealth(CACHE_DIR, active);
+  results.skipped.push(...skipped);
+  results.buildFailures = readBuildFailures();
   const report = generateReport(results);
 
   console.log('\n' + report);
@@ -467,9 +620,15 @@ async function main() {
   fs.writeFileSync(reportPath, JSON.stringify(results, null, 2));
   console.log(`📄 Report saved to: ${reportPath}\n`);
 
-  // Send Discord DM if any APIs failed
-  if (results.failed.length > 0) {
-    console.log('⚠️  Detected API failures, sending notification...\n');
+  for (const { step } of results.buildFailures) {
+    console.log(`🛑 Build step failed: ${step} (site will not be deployed)`);
+  }
+
+  // Send Discord DM if the build or any API failed
+  if (reportOnly) {
+    console.log('Report only: no notification sent\n');
+  } else if (results.failed.length > 0 || results.buildFailures.length > 0) {
+    console.log('⚠️  Detected failures, sending notification...\n');
     await sendDiscordNotification(results);
   } else {
     console.log('✅ All APIs healthy, no notification needed\n');
@@ -479,7 +638,29 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((error) => {
-  console.error('Error running health check:', error);
-  process.exit(0);
-});
+if (require.main === module) {
+  // Load .env file for local testing (Cloud Build uses Secret Manager)
+  try {
+    require('dotenv').config();
+  } catch (error) {
+    // dotenv not installed, skip (happens in Cloud Build)
+  }
+
+  main().catch((error) => {
+    console.error('Error running health check:', error);
+    process.exit(0);
+  });
+}
+
+module.exports = {
+  APIs,
+  DISCORD_LIMITS,
+  selectAPIs,
+  monitorName,
+  checkAPIHealth,
+  buildDiscordPayload,
+  buildPlainTextMessage,
+  readBuildFailures,
+  sendDiscordNotification,
+  generateReport,
+};

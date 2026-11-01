@@ -1,20 +1,82 @@
 ---
+import { pageTitle } from '../site.config';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import GameCarousel from '../components/GameCarousel';
-import { getAllGames } from '../utils/unified-games';
+import LoadError from '../components/LoadError.astro';
+import type { GameCardData } from '../components/GameCard';
+import { formatSiteDate } from '../components/formatDate';
+import { getAllGames, getPlatformName, getPlatformColor, type UnifiedGame } from '../utils/unified-games';
+import { getGameCapsuleFallbacks } from '../utils/steam';
+import { enabledIntegrations } from '../integrations';
 
-// Fetch all games and stats from all platforms in a single call
-const { games: allGames, steamStats, psnStats, nintendoStats } = await getAllGames();
+// Fetch all games and stats from the enabled platforms in a single call
+const enabled = enabledIntegrations();
+const sources = {
+  steam: enabled.has('steam'),
+  psn: enabled.has('psn'),
+  nintendo: enabled.has('nintendo'),
+  igdb: enabled.has('igdb'),
+};
+const { games: allGames, steamStats, psnStats, nintendoStats } = await getAllGames(sources);
 
-// Pre-compute platform game lists
-const steamGames = allGames.filter(g => g.platform === 'steam');
-const psnGames = allGames.filter(g => g.platform === 'psn');
-const nintendoGames = allGames.filter(g => g.platform === 'nintendo');
+// "Steam, PlayStation, and Nintendo Switch" (only the enabled platforms)
+const platformNames = (['steam', 'psn', 'nintendo'] as const).filter(p => sources[p]).map(getPlatformName);
+const platformList = platformNames.length <= 2
+  ? platformNames.join(' and ')
+  : `${platformNames.slice(0, -1).join(', ')}, and ${platformNames[platformNames.length - 1]}`;
+
+// Last-played dates are formatted here, at build time, in the site time zone and
+// passed to the cards as strings: formatting in the hydrated card would
+// re-run in the visitor's time zone and mismatch the server HTML
+const lastPlayed = (date: number | string) => formatSiteDate(date, { month: 'numeric', day: 'numeric', year: 'numeric' });
+
+function toCardData(game: UnifiedGame): GameCardData {
+  const stats: GameCardData['stats'] = [];
+  let trophies: GameCardData['trophies'];
+  if (game.steamData) {
+    stats.push({ label: 'Playtime', value: `${Math.floor(game.steamData.playtimeMinutes / 60)}h` });
+    if (game.steamData.lastPlayed && game.steamData.lastPlayed > 0) {
+      stats.push({ label: 'Last Played', value: lastPlayed(game.steamData.lastPlayed * 1000) });
+    }
+  }
+  if (game.psnData) {
+    if (game.psnData.playDuration) stats.push({ label: 'Playtime', value: game.psnData.playDuration });
+    if (game.psnData.trophies && game.psnData.trophies.total > 0) {
+      const { platinum, gold, silver, bronze } = game.psnData.trophies;
+      trophies = { platinum, gold, silver, bronze };
+    }
+    if (game.psnData.lastPlayed) stats.push({ label: 'Last Played', value: lastPlayed(game.psnData.lastPlayed) });
+  }
+  if (game.nintendoData) {
+    stats.push({ label: 'Playtime', value: `${Math.floor(game.nintendoData.playtimeSeconds / 3600)}h` });
+    if (game.nintendoData.lastPlayed) stats.push({ label: 'Last Played', value: lastPlayed(game.nintendoData.lastPlayed) });
+  }
+  const fallbackImages = game.steamData ? getGameCapsuleFallbacks(game.steamData.appid) : [];
+  return {
+    id: game.id,
+    name: game.name,
+    image: game.image || fallbackImages[0] || '',
+    fallbackImages: game.image ? fallbackImages : fallbackImages.slice(1),
+    platformName: getPlatformName(game.platform),
+    platformColor: getPlatformColor(game.platform),
+    stats,
+    trophies,
+  };
+}
+
+// Pre-compute platform game lists (only the fields the cards render)
+const steamGames = allGames.filter(g => g.platform === 'steam').map(toCardData);
+const psnGames = allGames.filter(g => g.platform === 'psn').map(toCardData);
+const nintendoGames = allGames.filter(g => g.platform === 'nintendo').map(toCardData);
+
+// The Steam status is a build-time snapshot (and the Steam cache can be up to
+// a day older than the build), so it is labelled as such rather than "currently"
+const buildDate = formatSiteDate(Date.now());
 ---
 
 <BaseLayout
-  title="Games - Atyansh Jaiswal"
-  description="Games I'm playing across Steam, PlayStation, and Nintendo Switch"
+  title={pageTitle('Games')}
+  description={`Games I'm playing across ${platformList}`}
 >
   <div class="max-w-7xl mx-auto">
     <div class="text-center mb-16">
@@ -29,9 +91,11 @@ const nintendoGames = allGames.filter(g => g.platform === 'nintendo');
         {steamStats && steamStats.playerSummary.gameextrainfo && (
           <div class="mb-8 p-6 rounded-lg border-2" style="background-color: var(--bg-secondary); border-color: var(--accent);">
             <div class="flex items-center gap-3">
-              <div class="w-3 h-3 rounded-full animate-pulse" style="background-color: var(--accent);"></div>
+              <div class="w-3 h-3 rounded-full motion-safe:animate-pulse" style="background-color: var(--accent);"></div>
               <div>
-                <div class="text-sm font-medium" style="color: var(--text-secondary);">Currently Playing on Steam</div>
+                <div class="text-sm font-medium" style="color: var(--text-secondary);">
+                  Last seen playing on Steam <span class="whitespace-nowrap">(as of the {buildDate} site update)</span>
+                </div>
                 <div class="text-xl font-bold" style="color: var(--text-primary);">{steamStats.playerSummary.gameextrainfo}</div>
               </div>
             </div>
@@ -67,7 +131,7 @@ const nintendoGames = allGames.filter(g => g.platform === 'nintendo');
               </div>
               <div class="flex-1 min-w-0">
                 <GameCarousel
-                  client:load
+                  client:visible
                   games={steamGames}
                   title="Recent Games"
                 />
@@ -139,7 +203,7 @@ const nintendoGames = allGames.filter(g => g.platform === 'nintendo');
               </div>
               <div class="flex-1 min-w-0">
                 <GameCarousel
-                  client:load
+                  client:visible
                   games={psnGames}
                   title="Recent Games"
                 />
@@ -171,7 +235,7 @@ const nintendoGames = allGames.filter(g => g.platform === 'nintendo');
               </div>
               <div class="flex-1 min-w-0">
                 <GameCarousel
-                  client:load
+                  client:visible
                   games={nintendoGames}
                   title="Recent Games"
                 />
@@ -181,5 +245,7 @@ const nintendoGames = allGames.filter(g => g.platform === 'nintendo');
         )}
       </section>
     )}
+
+    {allGames.length === 0 && <LoadError thing="game" />}
   </div>
 </BaseLayout>

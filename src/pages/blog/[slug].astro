@@ -1,22 +1,42 @@
 ---
+import { formatCalendarDate } from '../../components/formatDate';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 import { calculateReadingTime, formatReadingTime } from '../../utils/readingTime';
 
 export async function getStaticPaths() {
   const posts = await getCollection('blog');
   return posts.map((post) => ({
-    params: { slug: post.slug },
+    params: { slug: post.id },
     props: { post },
   }));
 }
 
 const { post } = Astro.props;
-const { Content } = await post.render();
-const readingTime = calculateReadingTime(post.body);
+const { Content } = await render(post);
+const readingTime = calculateReadingTime(post.body ?? '');
+const postUrl = new URL(`/blog/${post.id}/`, Astro.site).href;
+
+// Article JSON-LD (matches og:type=article) instead of the generic WebSite one
+const articleData = {
+  headline: post.data.title,
+  description: post.data.description,
+  datePublished: post.data.pubDate.toISOString(),
+  dateModified: (post.data.updatedDate ?? post.data.pubDate).toISOString(),
+  url: postUrl,
+  mainEntityOfPage: { '@type': 'WebPage', '@id': postUrl },
+  ...(post.data.image ? { image: new URL(post.data.image, Astro.site).href } : {}),
+  ...(post.data.tags.length > 0 ? { keywords: post.data.tags.join(', ') } : {}),
+};
 ---
 
-<BaseLayout title={`${post.data.title} - Blog`} description={post.data.description} type="article">
+<BaseLayout
+  title={`${post.data.title} - Blog`}
+  description={post.data.description}
+  type="article"
+  structuredDataType="article"
+  structuredData={articleData}
+>
   <article class="max-w-3xl mx-auto">
     <header class="mb-8">
       <h1 class="text-4xl font-bold mb-4" style="color: var(--text-primary);">
@@ -25,14 +45,14 @@ const readingTime = calculateReadingTime(post.body);
 
       <div class="text-sm mb-4" style="color: var(--text-secondary);">
         <time datetime={post.data.pubDate.toISOString()}>
-          Published: {post.data.pubDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+          Published: {formatCalendarDate(post.data.pubDate, { year: 'numeric', month: 'long', day: 'numeric' })}
         </time>
         <span class="mx-2">•</span>
         <span>{formatReadingTime(readingTime)}</span>
         {post.data.updatedDate && (
           <span class="ml-4">
             Last updated: <time datetime={post.data.updatedDate.toISOString()}>
-              {post.data.updatedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              {formatCalendarDate(post.data.updatedDate, { year: 'numeric', month: 'long', day: 'numeric' })}
             </time>
           </span>
         )}

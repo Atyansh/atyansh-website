@@ -1,8 +1,31 @@
 # Build the custom Cloud Build image with Chrome dependencies pre-installed.
 # Run: gcloud builds submit --config=cloudbuild-image.yaml .
-# Rebuild when: Chrome deps change, Node.js major version bumps, or Puppeteer upgrades.
+# Rebuild when: a Node security release ships, Chrome deps change, or
+# Puppeteer upgrades.
+#
+# Two tags: :22 moves to the newest build; :22-YYYY-MM-DD never changes and
+# is what cloudbuild.yaml pins, so a rebuilt image can't silently change the
+# site build. To roll forward: bump _DATE here, build + push, then update the
+# image tag in cloudbuild.yaml in the same PR (push the image BEFORE merging).
+#
+# The image lives in the build's own project: gcr.io/$PROJECT_ID/... uses
+# Cloud Build's built-in substitution (a user substitution's default value
+# can't reference $PROJECT_ID without dynamicSubstitutions, so it's spelled
+# out below rather than kept in an _IMAGE variable).
+substitutions:
+  _DATE: '2026-10-31'
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/personal-website-334502/node-puppeteer:22', '-f', 'Dockerfile.cloudbuild', '.']
+    args:
+      - 'build'
+      - '--pull'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/node-puppeteer:22'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/node-puppeteer:22-${_DATE}'
+      - '-f'
+      - 'Dockerfile.cloudbuild'
+      - '.'
 images:
-  - 'gcr.io/personal-website-334502/node-puppeteer:22'
+  - 'gcr.io/$PROJECT_ID/node-puppeteer:22'
+  - 'gcr.io/$PROJECT_ID/node-puppeteer:22-${_DATE}'

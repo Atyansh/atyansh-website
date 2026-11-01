@@ -1,0 +1,554 @@
+---
+// Spotify previews for /music: clicking a tile's play button (track, album,
+// artist, playlist, podcast show/episode) plays it right there, with a
+// progress ring on the tile's play control (PlayButton.tsx; ring styles in
+// global.css).
+//
+// Playback goes through ONE Spotify embed iframe driven by the embed's own
+// postMessage protocol. No Spotify JavaScript runs in our page, so the CSP
+// only needs frame-src https://open.spotify.com.
+//   embed → page: {type:'ready'}, {type:'playback_started'},
+//                 {type:'playback_update', payload:{isPaused, position, duration}} (ms)
+//   page → embed: {command:'load_complete_ack'}, {command:'play'|'pause'|'resume'},
+//                 {command:'seek', timestamp:<seconds>}
+//
+// Chrome / Firefox: the iframe is rendered off-screen (not display:none, not
+// lazy, or it never loads) and started with `play`; the click on our page is
+// the user activation. The tile's ring spins until the position actually
+// advances. Starts can take a few seconds (Firefox reports "paused at 0" for
+// ~1-2 s after playback_started while it buffers), so there is no fixed
+// timeout: the player is only revealed when blocked playback is positively
+// observed (after playback_started the embed sits paused at 0 and goes quiet
+// for QUIET_MS, or is still not advancing STALL_MS later), or after
+// START_CAP_MS with no playback at all. Once revealed it stays until closed,
+// so nothing flashes. Once a preview IS playing, the same embed is revealed
+// as a small player on the tile too (Spotify's own ⏮ ⏭ controls for albums,
+// artists and playlists): only its position and styling change, so playback
+// carries on uninterrupted. Skipping inside it keeps the tile "playing" and
+// the ring follows the new track; ✕ / Esc stop playback.
+//
+// Safari / iOS (WebKit, which every iOS browser uses): audio in a
+// cross-origin iframe needs a tap inside that frame, so the first tap skips
+// the hidden attempt and immediately opens the embed as a small player
+// anchored to the tile ("Tap ▶ to play"). Its playback still drives the
+// tile's ring and play/pause state.
+//
+// The player element lives in <body> (absolutely positioned in document
+// coordinates over the tile), so it scrolls with the page, is never clipped
+// by a carousel, and is never moved in the DOM (moving an iframe reloads it).
+---
+
+<p id="spotify-status" class="sr-only" aria-live="polite"></p>
+
+<style is:global>
+  .spotify-host {
+    z-index: 30;
+  }
+
+  /* Off-screen but rendered: a display:none or lazy iframe never loads.
+     Same positioning scheme as the revealed card, so revealing it only
+     changes left/top/width and styling: the iframe is never moved in the
+     DOM or re-created, and playback carries on. */
+  .spotify-host.is-hidden {
+    position: absolute;
+    left: -10000px;
+    top: 0;
+    width: 340px;
+  }
+
+  /* Revealed: a small player card anchored to the tile (left/top/width set
+     from the tile's position by the script) */
+  .spotify-host.is-inline {
+    position: absolute;
+    padding: 0.375rem;
+    color: var(--text-primary);
+    /* --bg-card is translucent in some themes: layer it on the page color */
+    background: linear-gradient(var(--bg-card), var(--bg-card)), var(--bg-primary);
+    border: 1px solid var(--accent);
+    border-radius: calc(var(--border-radius) * 2 + 4px);
+    box-shadow: 0 14px 36px var(--shadow), 0 4px 12px rgba(0, 0, 0, 0.18);
+  }
+
+  /* Below a narrow tile: a little notch pointing up at it */
+  .spotify-host.is-inline[data-placement='below']::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: var(--caret-x, 50%);
+    width: 12px;
+    height: 12px;
+    background: inherit;
+    border: inherit;
+    border-right: 0;
+    border-bottom: 0;
+    border-radius: 0;
+    /* only the half outside the card, so translucent themes don't double up */
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .spotify-host.is-inline {
+      animation: spotify-host-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+  }
+
+  @keyframes spotify-host-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.94);
+    }
+  }
+
+  .spotify-host-head {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0 0 0.375rem 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .spotify-host.is-inline .spotify-host-head {
+    display: flex;
+  }
+
+  .spotify-host-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+  }
+
+  .spotify-host-hint::before {
+    content: '';
+    flex-shrink: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: var(--accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .spotify-host[data-state='ready'] .spotify-host-hint::before {
+      animation: spotify-hint-pulse 1.4s ease-in-out infinite;
+    }
+  }
+
+  @keyframes spotify-hint-pulse {
+    50% {
+      opacity: 0.25;
+    }
+  }
+
+  .spotify-host-close {
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .spotify-host-close:hover,
+  .spotify-host-close:focus-visible {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .spotify-host iframe {
+    display: block;
+    width: 100%;
+    height: 80px;
+    border: 0;
+    border-radius: 12px;
+    /* placeholder until the embed paints */
+    background: var(--bg-secondary);
+  }
+
+  [data-theme='modern-glass'] .spotify-host.is-inline {
+    background: rgba(30, 41, 59, 0.72);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    border-color: rgba(129, 140, 248, 0.55);
+    box-shadow: 0 16px 40px rgba(99, 102, 241, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  [data-theme='brutalist'] .spotify-host.is-inline {
+    border: 3px solid #000;
+    box-shadow: 6px 6px 0 #000;
+  }
+
+  [data-theme='brutalist'] .spotify-host-close {
+    border: 2px solid #000;
+  }
+
+  [data-theme='dark-terminal'] .spotify-host.is-inline {
+    box-shadow: 0 0 18px rgba(0, 255, 65, 0.25);
+  }
+
+  [data-theme='dark-terminal'] .spotify-host-hint::before {
+    content: '>';
+    width: auto;
+    height: auto;
+    background: none;
+    color: var(--accent);
+  }
+</style>
+
+<script>
+  const ORIGIN = 'https://open.spotify.com';
+  const START_CAP_MS = 8000; // no playback at all this long after the click: reveal
+  const QUIET_MS = 2000; // after playback_started: paused at 0 and no updates this long = blocked
+  const STALL_MS = 5000; // after playback_started: still not advancing this long = blocked
+  // Narrowest player card (incl. its 14px of padding + border) at which the
+  // compact embed still shows all its controls: ▶ needs ~210px of embed, and
+  // ⏮ ⏭ ▶ for albums / artists / playlists / shows need ~300px (measured)
+  const minCardWidth = (key: string | null) => (/^(album|artist|playlist|show)\//.test(key ?? '') ? 316 : 224);
+
+  type State = 'loading' | 'playing' | 'paused' | 'ready';
+
+  // WebKit Safari, and every browser on iOS / iPadOS (iPadOS reports a Mac UA)
+  const ua = navigator.userAgent;
+  const isIOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const isSafari = /AppleWebKit/.test(ua) && !/(Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS)\//.test(ua);
+  const needsTapInFrame = isIOS || isSafari;
+  const touch = window.matchMedia('(hover: none)');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  let host: HTMLDivElement | null = null;
+  let iframe: HTMLIFrameElement | null = null;
+  let anchor: HTMLElement | null = null; // the tile the player belongs to
+  let currentKey: string | null = null;
+  let state: State | null = null;
+  let capTimer: ReturnType<typeof setTimeout> | null = null;
+  let quietTimer: ReturnType<typeof setTimeout> | null = null;
+  let stallTimer: ReturnType<typeof setTimeout> | null = null;
+  let started = false; // playback_started seen for this load
+  let position = 0;
+  let duration = 0;
+  let updatedAt = 0;
+  let rafId = 0;
+  let finished = false;
+  let pauseRequested = false;
+  let focusFrameWhenReady = false;
+
+  const tilesFor = (key: string | null): HTMLElement[] =>
+    key ? [...document.querySelectorAll<HTMLElement>(`[data-spotify-embed="${CSS.escape(key)}"]`)] : [];
+  const trackName = () => anchor?.dataset.trackName ?? 'track';
+  const isInline = () => !!host?.classList.contains('is-inline');
+
+  function post(message: Record<string, unknown>) {
+    iframe?.contentWindow?.postMessage(message, ORIGIN);
+  }
+
+  function announce(text: string) {
+    const el = document.getElementById('spotify-status');
+    if (el) el.textContent = text;
+  }
+
+  function clearTimers() {
+    for (const t of [capTimer, quietTimer, stallTimer]) if (t) clearTimeout(t);
+    capTimer = quietTimer = stallTimer = null;
+  }
+
+  function setHint(text: string) {
+    const el = host?.querySelector('.spotify-host-hint');
+    if (el) el.textContent = text;
+  }
+
+  function setProgress(fraction: number | null) {
+    tilesFor(currentKey).forEach((tile) => {
+      if (fraction === null) tile.style.removeProperty('--track-progress');
+      else tile.style.setProperty('--track-progress', String(Math.min(Math.max(fraction, 0), 1)));
+    });
+  }
+
+  // Smooth ring between the embed's ~1/s updates (reduced motion: step only)
+  function tick() {
+    rafId = 0;
+    if (state !== 'playing' || !duration) return;
+    setProgress((position + (performance.now() - updatedAt)) / duration);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function setState(next: State | null) {
+    state = next;
+    if (host) host.dataset.state = next ?? '';
+    tilesFor(currentKey).forEach((tile) => {
+      if (next) tile.dataset.trackState = next;
+      else delete tile.dataset.trackState;
+      const verb = tile.dataset.trackVerb ?? 'preview';
+      tile.setAttribute('aria-pressed', String(next === 'playing'));
+      tile.setAttribute('aria-label', `${next === 'playing' ? 'Pause' : 'Play'} ${verb}: ${tile.dataset.trackName ?? 'track'}`);
+    });
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+    if (next === 'playing' && !reduceMotion.matches) rafId = requestAnimationFrame(tick);
+    if (isInline()) setHint(next === 'playing' ? 'Now playing' : next === 'paused' ? 'Paused' : `${touch.matches ? 'Tap' : 'Press'} ▶ to play`);
+  }
+
+  /** Place the revealed player on its tile: across the tile's bottom when the
+   *  tile is wide enough for the embed's controls and the card clears the
+   *  tile's play button, otherwise as a card just below the tile (with a
+   *  notch pointing at it), kept on screen. */
+  function place(reveal = false) {
+    if (!host || !anchor || !isInline()) return;
+    const rect = anchor.getBoundingClientRect();
+    const viewport = document.documentElement.clientWidth;
+    const margin = 12;
+    host.style.width = `${Math.max(rect.width - 12, minCardWidth(currentKey))}px`;
+    const height = host.offsetHeight;
+    const button = anchor.querySelector('.play-btn')?.getBoundingClientRect();
+    const overTop = rect.bottom - height - 6;
+    const over =
+      rect.height > 120 && // (the playlist pill is small)
+      rect.width - 12 >= minCardWidth(currentKey) &&
+      (!button || overTop >= button.bottom + 6);
+    const width = over ? rect.width - 12 : Math.min(340, viewport - margin * 2);
+    const left = Math.min(Math.max(rect.left + rect.width / 2 - width / 2, margin), viewport - margin - width);
+    const caret = Math.min(Math.max(rect.left + rect.width / 2 - left, 20), width - 20);
+    host.dataset.placement = over ? 'over' : 'below';
+    host.style.width = `${width}px`;
+    host.style.setProperty('--caret-x', `${caret}px`);
+    const top = over ? overTop : rect.bottom + 10;
+    host.style.left = `${left + window.scrollX}px`;
+    host.style.top = `${top + window.scrollY}px`;
+    host.style.transformOrigin = `${caret}px ${over ? '100%' : '0'}`;
+    // Safari / iOS: the visitor has to reach the player's ▶, so bring a
+    // freshly opened one on screen. (When it opens on its own because a
+    // preview started, the page never jumps.)
+    if (reveal && needsTapInFrame && top + host.offsetHeight > window.innerHeight - margin) {
+      window.scrollBy({ top: top + host.offsetHeight - window.innerHeight + margin * 2, behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+    }
+  }
+
+  let placeQueued = false;
+  function queuePlace() {
+    if (placeQueued || !isInline()) return;
+    placeQueued = true;
+    requestAnimationFrame(() => {
+      placeQueued = false;
+      place();
+    });
+  }
+
+  /** Reveal the embed as a small player on its tile: so the visitor can press
+   *  play in it (Safari / iOS, or blocked autoplay), or, once a preview is
+   *  playing, for Spotify's own controls (⏮ ⏭ in albums, artists, playlists) */
+  function showInline() {
+    clearTimers();
+    if (!host || !iframe || isInline()) return;
+    host.classList.replace('is-hidden', 'is-inline');
+    iframe.tabIndex = 0;
+    iframe.removeAttribute('aria-hidden');
+    const waiting = state !== 'playing';
+    setState(state === 'loading' ? 'ready' : state);
+    place(waiting);
+    if (waiting) announce(`Press play in the Spotify player to hear ${trackName()}`);
+  }
+
+  function stop({ restoreFocus = false } = {}) {
+    clearTimers();
+    setProgress(null);
+    setState(null);
+    host?.remove();
+    host = null;
+    iframe = null;
+    const tile = anchor;
+    anchor = null;
+    currentKey = null;
+    position = duration = 0;
+    started = finished = pauseRequested = focusFrameWhenReady = false;
+    if (restoreFocus && tile?.isConnected) tile.focus({ preventScroll: true });
+  }
+
+  function start(tile: HTMLElement, viaKeyboard: boolean) {
+    const key = tile.dataset.spotifyEmbed;
+    if (!key) return;
+    stop();
+    currentKey = key;
+    anchor = tile;
+    setState('loading');
+
+    const [type, id] = key.split('/');
+    host = document.createElement('div');
+    host.className = 'spotify-host is-hidden';
+    host.setAttribute('role', 'group');
+    host.setAttribute('aria-label', `Spotify player: ${trackName()}`);
+    host.innerHTML =
+      '<div class="spotify-host-head"><span class="spotify-host-hint"></span>' +
+      '<button type="button" class="spotify-host-close" aria-label="Close Spotify player">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
+      '</button></div>';
+    iframe = document.createElement('iframe');
+    iframe.allow = 'autoplay; encrypted-media';
+    iframe.title = `Spotify: ${trackName()}`;
+    iframe.tabIndex = -1;
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.src = `${ORIGIN}/embed/${encodeURIComponent(type)}/${encodeURIComponent(id ?? '')}?utm_source=iframe-api`;
+    host.appendChild(iframe);
+    document.body.appendChild(host);
+
+    if (needsTapInFrame) {
+      // No hidden attempt: show the player right away, on this first tap
+      showInline();
+      focusFrameWhenReady = viaKeyboard;
+    } else {
+      announce(`Loading ${trackName()}`);
+      capTimer = setTimeout(() => {
+        if (state === 'loading') showInline();
+      }, START_CAP_MS);
+    }
+  }
+
+  function onTileClick(tile: HTMLElement, viaKeyboard: boolean) {
+    if (tile.dataset.spotifyEmbed === currentKey && iframe) {
+      if (state === 'playing') {
+        pauseRequested = true;
+        post({ command: 'pause' });
+      } else if (state === 'paused') {
+        pauseRequested = false;
+        if (finished) {
+          finished = false;
+          post({ command: 'seek', timestamp: 0 });
+        }
+        post({ command: 'resume' });
+      } else if (state === 'ready') {
+        // Waiting for a press inside the embed: point there
+        iframe.focus();
+      }
+      return; // 'loading': keep waiting
+    }
+    start(tile, viaKeyboard);
+  }
+
+  /** While loading, on each sign of life that isn't advancing playback */
+  function watchForBlockedStart() {
+    if (!started || isInline()) return;
+    if (quietTimer) clearTimeout(quietTimer);
+    quietTimer = setTimeout(() => {
+      if (state === 'loading') showInline();
+    }, QUIET_MS);
+    stallTimer ??= setTimeout(() => {
+      if (state === 'loading') showInline();
+    }, STALL_MS);
+  }
+
+  window.addEventListener('message', (e) => {
+    if (!iframe || e.source !== iframe.contentWindow || e.origin !== ORIGIN) return;
+    let data = e.data;
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch {
+        return;
+      }
+    }
+    if (!data || typeof data !== 'object') return;
+
+    if (data.type === 'ready') {
+      post({ command: 'load_complete_ack' });
+      if (!needsTapInFrame) post({ command: 'play' });
+      else if (focusFrameWhenReady) iframe.focus();
+      return;
+    }
+    if (data.type === 'playback_started') {
+      started = true;
+      if (state === 'loading') watchForBlockedStart();
+      return;
+    }
+    if (data.type !== 'playback_update' || !data.payload) return;
+
+    const payload = data.payload as { isPaused?: boolean; position?: number; duration?: number };
+    const previous = position;
+    position = Number(payload.position) || 0;
+    duration = Number(payload.duration) || duration;
+    updatedAt = performance.now();
+
+    // Finished (the embed may keep reporting isPaused:false at the end)
+    if (duration > 0 && position >= duration - 300) {
+      if (!finished && (state === 'playing' || state === 'paused')) {
+        finished = true;
+        setState('paused');
+        setProgress(null);
+        announce('Preview finished');
+      }
+      return;
+    }
+
+    const advancing = !payload.isPaused && position > 0 && position !== previous;
+    if (advancing) {
+      clearTimers();
+      if (state !== 'playing') {
+        finished = false;
+        pauseRequested = false;
+        setState('playing');
+        announce(`Playing ${trackName()}`);
+      }
+      if (reduceMotion.matches || !rafId) setProgress(position / duration);
+      // Playing: show the small player on the tile (Spotify's ⏮ ⏭ ▶ controls)
+      if (!isInline()) showInline();
+      return;
+    }
+
+    if (state === 'loading') {
+      watchForBlockedStart();
+      return;
+    }
+
+    if (payload.isPaused && state === 'playing') {
+      if (!pauseRequested && position < 500 && !isInline()) {
+        // Started and immediately stopped without us asking: blocked
+        setProgress(null);
+        setState('loading');
+        showInline();
+        return;
+      }
+      setState('paused');
+      setProgress(duration ? position / duration : 0);
+      announce('Paused');
+    }
+  });
+
+  // One delegated listener: covers tiles in static HTML and inside hydrated
+  // islands, and survives page swaps.
+  document.addEventListener('click', (e) => {
+    const target = e.target as Element | null;
+    if (target?.closest('.spotify-host-close')) {
+      stop({ restoreFocus: true });
+      return;
+    }
+    const tile = target?.closest<HTMLElement>('[data-spotify-embed]');
+    if (!tile) return;
+    e.preventDefault();
+    onTileClick(tile, e.detail === 0);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isInline()) stop({ restoreFocus: true });
+  });
+
+  // Keep the revealed player on its tile: carousels scroll sideways, and
+  // layout changes with the viewport. (Page scroll needs nothing: the player
+  // is positioned in document coordinates.)
+  document.addEventListener(
+    'scroll',
+    (e) => {
+      if (e.target !== document) queuePlace();
+    },
+    { capture: true, passive: true },
+  );
+  window.addEventListener('resize', queuePlace);
+
+  // Leaving the page stops playback
+  document.addEventListener('astro:before-swap', () => stop());
+</script>

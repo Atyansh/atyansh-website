@@ -451,15 +451,15 @@ export async function getKayaData(): Promise<KayaData | null> {
 
   try {
     // Get profile first to get user ID
-    const profile = await getProfile(KAYA_USERNAME);
+    const profile = KAYA_USERNAME ? await getProfile(KAYA_USERNAME) : null;
     if (!profile) {
-      log.error('Failed to get Kaya profile');
-      return null;
+      log.error(KAYA_USERNAME ? 'Failed to get Kaya profile' : 'KAYA_USERNAME is not configured');
+      return cache.fallback('Kaya');
     }
 
     if (profile.is_private) {
       log.error('Kaya profile is private');
-      return null;
+      return cache.fallback('Kaya');
     }
 
     log.info(`Found Kaya user: ${profile.fname} (ID: ${profile.id})`);
@@ -534,7 +534,7 @@ export async function getKayaData(): Promise<KayaData | null> {
     };
 
     if (persist) {
-      await cache.set(data);
+      await cache.setIfPlausible('Kaya', data, d => d.ascents.length);
     }
 
     log.info(`Fetched Kaya data: ${totalSends} sends, ${ascentsWithVideos.length} videos, max grade ${maxGrade}`);
@@ -544,11 +544,6 @@ export async function getKayaData(): Promise<KayaData | null> {
     log.error('Error fetching Kaya data:', error);
     // Serve last-known-good data rather than a page without videos. No fresh
     // cache file is written, so the post-build health check still alerts.
-    const stale = await cache.getStale();
-    if (stale) {
-      log.error(`Falling back to stale Kaya data from ${new Date(stale.timestamp).toISOString()}`);
-      return stale;
-    }
-    return null;
+    return cache.fallback('Kaya');
   }
 }

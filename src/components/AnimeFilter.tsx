@@ -1,20 +1,20 @@
 import MediaFilterGrid, { type MediaFilterGridConfig } from './MediaFilterGrid';
 import ErrorBoundary from './ErrorBoundary';
-import type { AnimeStatus } from '../content/config';
+import type { AnimeStatus } from '../content.config';
 
 interface AnimeData {
   title: string;
   englishTitle?: string;
   imageUrl: string;
+  /** MAL score, 1–10 */
   score?: number;
   status: AnimeStatus;
-  episodes?: number;
-  episodesWatched?: number;
   type?: string;
   year?: number;
-  startDate?: string;
-  endDate?: string;
+  startDate?: Date | string;
   malUrl: string;
+  /** Extra facts for the expanded card, formatted in anime.astro */
+  details?: Array<{ label: string; value: string }>;
 }
 
 interface Anime {
@@ -110,9 +110,12 @@ const config: MediaFilterGridConfig<Anime> = {
     getSubtitle: (a) => a.data.type || '',
     getImage: (a) => a.data.imageUrl,
     getRating: (a) => a.data.score ? a.data.score / 2 : undefined,
+    getRatingLabel: (a) => a.data.score ? `${a.data.score} out of 10` : undefined,
+    getDetails: (a) => a.data.details,
   },
   filterColumnClass: 'lg:grid-cols-5',
   itemNounPlural: 'anime',
+  viewerLabel: 'Anime details',
 };
 
 function AnimeFilterInner({ anime }: AnimeFilterProps) {

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import BaseCarousel from './BaseCarousel';
-import FullscreenImageViewer from './FullscreenImageViewer';
+import MediaViewer from './MediaViewer';
 
 interface Image {
   src: string;
@@ -13,42 +13,31 @@ interface PetPhotoCarouselProps {
 }
 
 export default function PetPhotoCarousel({ images }: PetPhotoCarouselProps) {
-  const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
-
-  const navigatePrev = () => {
-    setFullscreenIndex((prev) =>
-      prev === 0 ? images.length - 1 : (prev ?? 0) - 1
-    );
-  };
-
-  const navigateNext = () => {
-    setFullscreenIndex((prev) =>
-      prev === images.length - 1 ? 0 : (prev ?? 0) + 1
-    );
-  };
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const getOrigin = useCallback(
+    (index: number) => listRef.current?.querySelector<HTMLElement>(`[data-viewer-index="${index}"] img`) ?? null,
+    [],
+  );
 
   if (images.length === 0) {
     return null;
   }
 
-  // Map to FullscreenImageViewer format (title -> caption)
-  const fullscreenImages = images.map((img) => ({
-    src: img.src,
-    alt: img.alt,
-    caption: img.title,
-  }));
-
   return (
-    <>
+    <div ref={listRef}>
       <BaseCarousel itemCount={images.length}>
         {images.map((image, index) => (
           <button
             key={index}
-            onClick={() => setFullscreenIndex(index)}
-            className="flex-shrink-0 w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 rounded-lg overflow-hidden transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+            type="button"
+            data-viewer-index={index}
+            onClick={() => setViewerIndex(index)}
+            className="flex-shrink-0 w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 rounded-lg overflow-hidden transition-transform motion-safe:hover:scale-105 motion-safe:active:scale-95 cursor-pointer"
             style={{
               backgroundColor: 'var(--bg-secondary)'
             }}
+            aria-haspopup="dialog"
             aria-label={`View ${image.alt} in fullscreen`}
           >
             <img
@@ -60,15 +49,17 @@ export default function PetPhotoCarousel({ images }: PetPhotoCarouselProps) {
         ))}
       </BaseCarousel>
 
-      {fullscreenIndex !== null && (
-        <FullscreenImageViewer
-          images={fullscreenImages}
-          currentIndex={fullscreenIndex}
-          onClose={() => setFullscreenIndex(null)}
-          onPrevious={navigatePrev}
-          onNext={navigateNext}
+      {viewerIndex !== null && (
+        <MediaViewer
+          variant="photo"
+          items={images.map((img) => ({ image: img.src, alt: img.alt, caption: img.title }))}
+          index={viewerIndex}
+          onIndexChange={setViewerIndex}
+          onClose={() => setViewerIndex(null)}
+          getOrigin={getOrigin}
+          label="Photo"
         />
       )}
-    </>
+    </div>
   );
 }

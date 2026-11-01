@@ -4,14 +4,13 @@ import ErrorBoundary from './ErrorBoundary';
 interface MovieData {
   title: string;
   year?: number;
-  releaseDate?: Date;
+  releaseDate?: Date | string;
   director?: string;
   posterImage: string;
+  /** Letterboxd stars, 0.5–5 */
   rating?: number;
-  watchedDate?: Date;
-  reviewText?: string;
-  link?: string;
-  rewatch?: boolean;
+  /** Extra facts for the expanded card, formatted in movies.astro */
+  details?: Array<{ label: string; value: string }>;
 }
 
 interface Movie {
@@ -53,12 +52,11 @@ const config: MediaFilterGridConfig<Movie> = {
         { value: '1', label: '1+ Stars' },
         { value: 'rated', label: 'Any Rating' },
       ],
+      // "N+ Stars" means at least N (so 4+ includes 4½ and 5)
       match: (m, v) => {
         if (v === 'all') return true;
         if (v === 'rated') return !!m.data.rating && m.data.rating > 0;
-        const threshold = parseInt(v);
-        if (threshold === 5) return m.data.rating === 5;
-        return !!m.data.rating && m.data.rating >= threshold && m.data.rating < threshold + 1;
+        return !!m.data.rating && m.data.rating >= parseInt(v);
       },
     },
   ],
@@ -68,7 +66,7 @@ const config: MediaFilterGridConfig<Movie> = {
       label: 'Release Date',
       compare: (a, b) => {
         if (a.data.releaseDate && b.data.releaseDate)
-          return b.data.releaseDate.valueOf() - a.data.releaseDate.valueOf();
+          return new Date(b.data.releaseDate).getTime() - new Date(a.data.releaseDate).getTime();
         if (a.data.releaseDate) return -1;
         if (b.data.releaseDate) return 1;
         return 0;
@@ -97,9 +95,11 @@ const config: MediaFilterGridConfig<Movie> = {
     getSubtitle: (m) => m.data.director || (m.data.year ? `${m.data.year}` : ''),
     getImage: (m) => m.data.posterImage,
     getRating: (m) => m.data.rating,
+    getDetails: (m) => m.data.details,
   },
   filterColumnClass: 'lg:grid-cols-4',
   itemNounPlural: 'films',
+  viewerLabel: 'Film details',
 };
 
 function MoviesFilterInner({ movies }: MoviesFilterProps) {

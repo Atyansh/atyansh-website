@@ -35,7 +35,7 @@ describe('parseShelfPage', () => {
         coverImage: 'https://i.gr-assets.com/images/S/compressed.photo.goodreads.com/books/1636833412l/58465495.jpg',
         rating: undefined,
         status: 'finished',
-        link: 'https://www.goodreads.com/review/show/7985970580',
+        link: 'https://www.goodreads.com/review/show/1000000001',
         isbn: '9780593566633',
       });
       expect(books[0].publishedDate!.getFullYear()).toBe(2021);

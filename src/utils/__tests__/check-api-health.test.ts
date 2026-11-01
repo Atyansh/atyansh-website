@@ -46,7 +46,7 @@ describe('checkFn on fixture data', () => {
     ['IGDB (Game Covers)', { 'steam:x': { url: 'u', timestamp: 1 } }, { 'steam:x': { url: '', timestamp: 1 } }],
     ['Letterboxd', { movies: [{}] }, { movies: [] }],
     ['Goodreads', { books: [{}] }, { books: [] }],
-    ['Goodreads (session renewal)', { renewed: true }, { renewed: false, error: 'x' }],
+    ['Goodreads (login expiry)', { renewed: false, expiresAt: new Date(Date.now() + 200 * DAY).toISOString() }, { renewed: true, expiresAt: new Date(Date.now() + 10 * DAY).toISOString() }],
     ['Nintendo Switch', { games: [{}] }, { games: [] }],
     ['Kaya (Climbing)', { pyramid: [{}], ascentsWithVideos: [{}] }, { pyramid: [{}], ascentsWithVideos: [] }],
     ['Kaya (Logged-in)', {}, { authError: 'token refresh returned 401' }],
@@ -54,6 +54,26 @@ describe('checkFn on fixture data', () => {
   ])('%s passes healthy data and fails broken data', (name, good, bad) => {
     expect(api(name).checkFn(good)).toBeTruthy();
     expect(api(name).checkFn(bad)).toBeFalsy();
+  });
+});
+
+describe('Goodreads (login expiry)', () => {
+  const check = () => api('Goodreads (login expiry)');
+  const inDays = (n: number) => new Date(Date.now() + n * DAY).toISOString();
+
+  it('does not alert just because the silent renewal was refused', () => {
+    expect(check().checkFn({ renewed: false, error: 'silent sign-in was refused (HTTP 200)', expiresAt: inDays(300) })).toBe(true);
+  });
+
+  it('does not alert when the expiry is unknown (the Goodreads check covers a dead cookie)', () => {
+    expect(check().checkFn({ renewed: false, error: 'x' })).toBe(true);
+  });
+
+  it('alerts within 30 days of expiry, with the date and days left', () => {
+    const data = { renewed: false, expiresAt: inDays(12.5) };
+    expect(check().checkFn(data)).toBe(false);
+    expect(check().failReason(data)).toMatch(/expires on \d{4}-\d{2}-\d{2} \(12 days left\)/);
+    expect(check().checkFn({ expiresAt: inDays(31) })).toBe(true);
   });
 });
 

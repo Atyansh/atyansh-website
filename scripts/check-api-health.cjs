@@ -27,6 +27,13 @@ const { readSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs')
 const { loadSiteModules } = require('./site-config.cjs');
 
 const CACHE_DIR = path.join(process.cwd(), '.cache');
+const GOODREADS_EXPIRY_WARN_DAYS = 30;
+
+/** Days until the Goodreads login expires, from goodreads-session.json, or null if unknown */
+function goodreadsDaysLeft(data) {
+  const expires = data && data.expiresAt ? Date.parse(data.expiresAt) : NaN;
+  return Number.isFinite(expires) ? (expires - Date.now()) / (24 * 60 * 60 * 1000) : null;
+}
 // cloudbuild.yaml's build and test steps don't stop the build when they fail:
 // they leave <step-id> here (holding the end of their log) so this script can
 // DM about it, and the deploy step refuses to deploy.
@@ -121,18 +128,22 @@ const APIs = [
     name: 'Goodreads',
     cacheFile: 'goodreads-data.json',
     checkFn: (data) => data.books && data.books.length > 0,
-    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then node scripts/push-secrets.cjs GOODREADS_COOKIE',
+    renewal: 'The Goodreads login has expired or was signed out (password change, sign out of all devices). Sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then node scripts/push-secrets.cjs GOODREADS_COOKIE',
     requiresApiKey: true,
-    selfHealing: true, // Session renewed by refresh-tokens.cjs (see "Goodreads (session renewal)")
+    selfHealing: false,
   },
   {
-    name: 'Goodreads (session renewal)',
+    // Alerts only as the login nears its one-year expiry. A refused silent
+    // re-sign-in is the normal state (Amazon only allows it for about an
+    // hour after a password login), so that alone isn't an alert; and if the
+    // login dies early, the "Goodreads" check above alerts when shelves fail.
+    name: 'Goodreads (login expiry)',
     cacheFile: 'goodreads-session.json',
-    checkFn: (data) => data.renewed,
-    failReason: (data) => `Couldn't renew the Goodreads login: ${data.error}. The current cookie still works until it expires (up to a year after the last successful renewal), so the books page is fine for now`,
-    renewal: 'Renewed automatically every build. If the login was killed (password change, sign out of all devices): sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then node scripts/push-secrets.cjs GOODREADS_COOKIE',
+    checkFn: (data) => goodreadsDaysLeft(data) === null || goodreadsDaysLeft(data) > GOODREADS_EXPIRY_WARN_DAYS,
+    failReason: (data) => `The Goodreads login expires on ${data.expiresAt.slice(0, 10)} (${Math.max(0, Math.floor(goodreadsDaysLeft(data)))} days left); the books page stops updating after that`,
+    renewal: 'Sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then node scripts/push-secrets.cjs GOODREADS_COOKIE',
     requiresApiKey: true,
-    selfHealing: true, // Re-signs in silently every build, pushing expiry a year out
+    selfHealing: false,
   },
   {
     name: 'Nintendo Switch',

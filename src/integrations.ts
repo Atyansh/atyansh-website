@@ -61,7 +61,7 @@ export const INTEGRATIONS: Integration[] = [
     id: 'goodreads',
     name: 'Goodreads',
     requiredEnv: ['GOODREADS_USER_ID', 'GOODREADS_COOKIE'],
-    healthChecks: [{ name: 'Goodreads' }, { name: 'Goodreads (session renewal)' }],
+    healthChecks: [{ name: 'Goodreads' }, { name: 'Goodreads (login expiry)' }],
     setup: 'User id from your profile URL; GOODREADS_COOKIE is the Cookie header of a signed-in goodreads.com request',
   },
   {

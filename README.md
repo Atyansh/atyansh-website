@@ -364,7 +364,7 @@ The session rests on Amazon's login cookies, which expire a year after they're i
 
 **In practice Amazon only allowed the silent re-sign-in for about an hour after a password sign-in** (tested October 2026); after that it asks for the password, so renewal fails and the existing cookie is kept. Expect to paste a fresh cookie about once a year, when the one-year login expires.
 
-You also need a new cookie if the login is killed (changing your Goodreads/Amazon password, or "sign out of all devices"). The "Goodreads" health check alerts when the shelves stop loading, and the site keeps serving the last good books until you paste a new cookie. The "Goodreads (session renewal)" check reports the failed silent renewal; since that's the normal state after the first hour, treat it as informational.
+You also need a new cookie if the login is killed (changing your Goodreads/Amazon password, or "sign out of all devices"). The "Goodreads" health check alerts when the shelves stop loading, and the site keeps serving the last good books until you paste a new cookie. The "Goodreads (login expiry)" check reads the login's expiry from the cookie (Amazon's `session-id-time`) and alerts only in the last 30 days before it, so a refused silent renewal on its own never sends a DM.
 
 ### 9. TMDB (TV Show Tracking)
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { parseLetterboxdRSS, addDiaryDetails, reviveMovieDates, type LetterboxdMovie } from '../letterboxd';
 
 const item = (slug: string, fields: Record<string, string>) => `<item>
-  <link>https://letterboxd.com/atyansh/film/${slug}/</link>
+  <link>https://letterboxd.com/testuser/film/${slug}/</link>
   <letterboxd:filmTitle>${slug}</letterboxd:filmTitle>
   <letterboxd:filmYear>2025</letterboxd:filmYear>
   ${Object.entries(fields).map(([k, v]) => `<letterboxd:${k}>${v}</letterboxd:${k}>`).join('\n  ')}

@@ -7,35 +7,26 @@ solutionLanguage: 'Python'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler25.py'
 ---
 
-## Problem Statement
+## The problem
 
-The Fibonacci sequence is defined by the recurrence relation:
+Find the index of the first Fibonacci number (with F₁ = F₂ = 1) that has 1000 digits.
 
-F(n) = F(n-1) + F(n-2), where F(1) = 1 and F(2) = 1.
+## My solution
 
-Hence the first 12 terms will be:
+Python integers are arbitrary precision, so I just step the sequence. `c` holds Fₙ, starting at F₃ = 2, and `n` tracks its index:
 
-- F(1) = 1
-- F(2) = 1
-- F(3) = 2
-- F(4) = 3
-- F(5) = 5
-- F(6) = 8
-- F(7) = 13
-- F(8) = 21
-- F(9) = 34
-- F(10) = 55
-- F(11) = 89
-- F(12) = 144
+```python
+while(c / (10**999) == 0):
+  a = b
+  b = c
+  c = a + b
+  n += 1
+```
 
-The 12th term, F(12), is the first term to contain three digits.
+In Python 2 (which this is written for, given `print n`), `/` on integers is floor division, so `c / 10**999 == 0` means `c < 10⁹⁹⁹`, i.e. `c` still has fewer than 1000 digits. That's a few thousand big-integer additions and finishes instantly.
 
-What is the index of the first term in the Fibonacci sequence to contain 1000 digits?
+## Notes
 
-## Approach
+This only works under Python 2. Under Python 3, `/` is true division, and `c / 10**999` underflows to `0.0` for any `c` below roughly 10⁶⁷⁵. I checked: the loop then stops at a 676-digit number and reports the wrong index. Using `//` fixes it.
 
-The solution involves:
-1. Generating Fibonacci numbers sequentially
-2. Checking the number of digits in each term
-3. Using BigInteger in Java to handle large numbers
-4. Stopping when we find the first term with 1000 digits
+Since Fₙ ≈ φⁿ/√5, the index can also be computed directly with logarithms.

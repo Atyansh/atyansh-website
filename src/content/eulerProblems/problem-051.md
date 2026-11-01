@@ -7,18 +7,28 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler51.java'
 ---
 
-## Problem Statement
+## The problem
 
-By replacing the 1st digit of the 2-digit number *3, it turns out that six of the nine possible values: 13, 23, 43, 53, 73, and 83, are all prime.
+Take a prime, pick some of its digit positions, and fill all of them with the same digit, trying 0 through 9. Find the smallest prime that is part of a family where eight of those ten numbers are prime.
 
-By replacing the 3rd and 4th digits of 56**3 with the same digit, this 5-digit number is the first example having seven primes among the ten generated numbers, yielding the family: 56003, 56113, 56333, 56443, 56663, 56773, and 56993. Consequently 56003, being the first member of this family, is the smallest prime with this property.
+## My solution
 
-Find the smallest prime which, by replacing part of the number (not necessarily adjacent digits) with the same digit, is part of an eight prime value family.
+The search walks odd numbers upward from 5. For each prime, `calculate` tries every non-empty subset of digit positions, encoded as a bitmask from 1 to 2ᴸ − 1 (L is the number of digits). For each mask it writes each digit 0–9 into the masked positions, skips results with a leading zero, and counts how many are prime by trial division. It returns the best count over all masks, and the main loop stops at the first prime where that count is 8. Any mask that reaches 8 is also printed to stderr as a binary "pivot" pattern.
 
-## Approach
+```java
+for(char ch = '0'; ch <= '9'; ch++) {
+  char[] digits = num.toCharArray();
+  for(Integer index : arr)
+    digits[length-index.intValue()-1] = ch;
 
-The solution involves:
-1. Generating prime numbers systematically
-2. For each prime, trying different digit replacement patterns
-3. Checking if replacing certain digits with 0-9 produces 8 primes
-4. Finding the smallest prime that satisfies this property
+  if(isPrime(Long.parseLong(new String(digits))) && digits[0] != '0') {
+    temp++;
+  }
+}
+```
+
+That's 2ᴸ × 10 primality tests per prime (640 for a six-digit number), which is brute force but fine at this size.
+
+## Notes
+
+The code never checks that the masked positions held the same digit to begin with, so a prime can match an eight-prime pattern without being a member of that family. That's what happens here: the first prime to hit 8 has different digits in the masked positions, so the number printed on stdout is not in its own family and is not the answer. The answer is the smallest member of the family described by the stderr pivot pattern. Requiring the masked digits to be equal before counting would fix this.

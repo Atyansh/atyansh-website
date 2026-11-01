@@ -6,7 +6,8 @@ import AnimatedCard from '../components/AnimatedCard.astro';
 
 const projects = (await getCollection('projects'))
   .sort((a, b) => {
-    // First, sort by featured status (featured first)
+    // Featured projects first (`featured` only orders the list; no badge is
+    // shown)
     if (a.data.featured && !b.data.featured) return -1;
     if (!a.data.featured && b.data.featured) return 1;
     // Then, sort by start date (most recent first)
@@ -36,16 +37,9 @@ const papers = (await getCollection('papers'))
             delay={index * 0.05}
             className="h-full flex flex-col"
           >
-            <div class="flex justify-between items-start mb-3 flex-shrink-0">
-              <h3 class="text-2xl font-semibold" style="color: var(--text-primary);">
-                {project.data.title}
-              </h3>
-              {project.data.featured && (
-                <span class="text-xs px-2 py-1 rounded-full font-medium" style="background-color: var(--accent-surface); color: var(--accent-surface-fg); border: 2px solid var(--accent);">
-                  Featured
-                </span>
-              )}
-            </div>
+            <h3 class="text-2xl font-semibold mb-3 flex-shrink-0" style="color: var(--text-primary);">
+              {project.data.title}
+            </h3>
 
             <p class="mb-4 flex-grow" style="color: var(--text-secondary);">
               {project.data.description}
@@ -76,16 +70,9 @@ const papers = (await getCollection('papers'))
             href={`/papers/${paper.id}`}
             delay={index * 0.05 + 0.2}
           >
-            <div class="flex justify-between items-start mb-3">
-              <h3 class="text-xl font-semibold pr-4" style="color: var(--text-primary);">
-                {paper.data.title}
-              </h3>
-              {paper.data.featured && (
-                <span class="text-xs px-2 py-1 rounded-full font-medium flex-shrink-0" style="background-color: var(--accent-surface); color: var(--accent-surface-fg); border: 2px solid var(--accent);">
-                  Featured
-                </span>
-              )}
-            </div>
+            <h3 class="text-xl font-semibold mb-3" style="color: var(--text-primary);">
+              {paper.data.title}
+            </h3>
 
             <p class="text-sm mb-3" style="color: var(--text-secondary);">
               {paper.data.authors.join(', ')}

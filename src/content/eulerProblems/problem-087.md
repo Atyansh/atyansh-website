@@ -7,22 +7,29 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler87.java'
 ---
 
-## Problem Statement
+## The problem
 
-The smallest number expressible as the sum of a prime square, prime cube, and prime fourth power is 28. In fact, there are exactly four numbers below fifty that can be expressed in such a way:
+Count the numbers below fifty million that can be written as p² + q³ + r⁴ for primes p, q and r.
 
-- 28 = 2² + 2³ + 2⁴
-- 33 = 3² + 2³ + 2⁴
-- 49 = 5² + 2³ + 2⁴
-- 47 = 2² + 3³ + 2⁴
+## My solution
 
-How many numbers below fifty million can be expressed as the sum of a prime square, prime cube, and prime fourth power?
+The square term is the one that limits the prime size: p² < 50,000,000 means p < √(5 × 10⁷) ≈ 7071.07. So I get the primes up to 7072 from my shared `PrimeGenerator` helper, which checks each odd number by trial division up to its square root. That gives 908 primes.
 
-## Approach
+Then three nested loops go over the same sorted list for the square, cube and fourth-power terms. Each loop breaks as soon as its partial sum passes the limit, so the inner loops are short: cubes stop around q ≈ 370 and fourth powers around r ≈ 84. Some numbers have more than one representation, so the sums go into a `HashSet<Integer>`, and only successful inserts are counted:
 
-The solution involves:
-1. Generating all primes up to sqrt(50,000,000) using Sieve of Eratosthenes
-2. For each combination of three primes (a, b, c), computing a² + b³ + c⁴
-3. Checking if the sum is less than 50,000,000
-4. Using a Set to store unique sums
-5. Counting the total number of unique sums
+```java
+int cSum = bSum + c*c*c*c;
+
+if(cSum > limit)
+  break;
+
+if(set.add(cSum))
+  answer++;
+```
+
+That comes to about 1.14 million candidate sums, of which about 42,000 are duplicates.
+
+## Notes
+
+- `b*b*b` is `int` arithmetic and would overflow for primes above 1290. It's safe only because the loop breaks long before that.
+- The break uses `> limit`, so a sum of exactly 50,000,000 would be counted even though the problem says "below". It doesn't matter here: 50,000,000 has no such representation.

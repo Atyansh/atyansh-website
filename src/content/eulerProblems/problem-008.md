@@ -7,27 +7,28 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler8.java'
 ---
 
-## Problem Statement
+## The problem
 
-The four adjacent digits in the 1000-digit number that have the greatest product are 9 × 9 × 8 × 9 = 5832.
+Given a fixed 1000-digit number, find the largest product of a run of adjacent digits.
 
-Find the thirteen adjacent digits in the 1000-digit number that have the greatest product. What is the value of this product?
+## My solution
 
-(The 1000-digit number is provided in the problem.)
+The 1000 digits are pasted into the source as a string literal. I slide a window across it and multiply the digits in the window directly, converting each character with `charAt(i) - 48` (48 is the ASCII code for '0'):
 
-## Approach
+```java
+for(int i = 0; i < length-4; i++) {
+  temp = (((int) (num.charAt(i))) - 48) *
+         (((int) (num.charAt(i+1))) - 48) *
+         (((int) (num.charAt(i+2))) - 48) *
+         (((int) (num.charAt(i+3))) - 48) *
+         (((int) (num.charAt(i+4))) - 48);
+  if(temp > max)
+    max = temp;
+}
+```
 
-To find the maximum product of thirteen adjacent digits:
+Each window is multiplied from scratch, which is fine for 996 windows.
 
-1. Store the 1000-digit number as a string
-2. Use a sliding window of size 13
-3. For each window position, calculate the product of the 13 digits
-4. Keep track of the maximum product found
-5. Return the maximum
+## Notes
 
-Optimization tips:
-- If any digit in the window is 0, the product is 0, so skip to the position after that 0
-- Convert characters to integers for multiplication
-- Be careful with integer overflow; use long data type
-
-The time complexity is O(n) where n is the length of the number, since we scan through it once with a sliding window.
+My code multiplies **five** adjacent digits. The problem as it reads on Project Euler today asks for thirteen, so this program solves the older version of the problem rather than the current one. For thirteen digits, the five hard-coded terms would become an inner loop, and the product would need a `long` (9¹³ is far beyond `int` range).

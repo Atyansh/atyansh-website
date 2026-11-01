@@ -7,26 +7,16 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler5.java'
 ---
 
-## Problem Statement
+## The problem
 
-2520 is the smallest number that can be divided by each of the numbers from 1 to 10 without any remainder.
+Find the smallest positive number that every integer from 1 to 20 divides evenly, i.e. lcm(1, 2, …, 20).
 
-What is the smallest positive number that is evenly divisible with no remainder by all of the numbers from 1 to 20?
+## My solution
 
-## Approach
+I worked this out by hand and the program just prints the product:
 
-This problem asks for the Least Common Multiple (LCM) of all numbers from 1 to 20.
-
-The LCM of two numbers can be calculated using the formula:
-```
-LCM(a, b) = (a × b) / GCD(a, b)
+```java
+System.out.println(2*2*2*2*3*3*5*7*11*13*17*19);
 ```
 
-Where GCD is the Greatest Common Divisor, which can be computed using Euclid's algorithm.
-
-To find the LCM of multiple numbers:
-1. Start with LCM = 1
-2. For each number from 2 to 20, compute: LCM = LCM(LCM, number)
-3. The final result is the smallest number divisible by all numbers from 1 to 20
-
-Alternatively, we can use prime factorization: find the highest power of each prime that appears in the range, then multiply them together.
+The LCM of a range is the product of the highest power of each prime that fits in the range. For primes up to 20, those powers are 2⁴ = 16 (since 2⁵ = 32 > 20), 3² = 9 (since 3³ = 27 > 20), and the first power of 5, 7, 11, 13, 17 and 19. Every number from 1 to 20 factors into primes with exponents no bigger than these, so it divides the product, and no smaller number works because each of those prime powers is itself in the range.

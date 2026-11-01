@@ -7,25 +7,24 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler38.java'
 ---
 
-## Problem Statement
+## The problem
 
-Take the number 192 and multiply it by each of 1, 2, and 3:
+Take an integer, multiply it by 1, 2, …, n for some n > 1, and concatenate the products. Find the largest 1–9 pandigital 9-digit number that can be formed this way.
 
-- 192 × 1 = 192
-- 192 × 2 = 384
-- 192 × 3 = 576
+## My solution
 
-By concatenating each product we get the 1 to 9 pandigital, 192384576. We will call 192384576 the concatenated product of 192 and (1,2,3).
+For each base i below 10,000 I append i × 1, i × 2, … to a string while feeding each product's digits into a `TreeSet`, and abandon i as soon as a digit is 0 or repeats. If the loop reaches 9 digits without a failure, the string is 1–9 pandigital (it can't run past 9 digits without repeating one), so I parse it and keep the maximum.
 
-The same can be achieved by starting with 9 and multiplying by 1, 2, 3, 4, and 5, giving the pandigital, 918273645, which is the concatenated product of 9 and (1,2,3,4,5).
+```java
+while(num != 0) {
+  if(num % 10 == 0 || !digits.add(num % 10))
+    continue a;
 
-What is the largest 1 to 9 pandigital 9-digit number that can be formed as the concatenated product of an integer with (1,2,...,n) where n > 1?
+  num /= 10;
+  count++;
+}
+```
 
-## Approach
+The bound of 10,000 is exact, and it also takes care of n > 1 automatically. A 5-digit base gives at least 5 + 5 = 10 digits after two products, so the base has at most 4 digits, and a base with at most 4 digits needs at least two products to reach 9 digits.
 
-The solution involves:
-1. Testing different base numbers systematically
-2. For each base, multiplying by 1, 2, 3, etc., and concatenating results
-3. Stopping when the concatenation reaches or exceeds 9 digits
-4. Checking if the result is a 1-9 pandigital
-5. Tracking the maximum pandigital found
+The program also prints each base that sets a new maximum before printing the result, a leftover from debugging.

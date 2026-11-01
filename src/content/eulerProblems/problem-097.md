@@ -7,61 +7,25 @@ solutionLanguage: 'Python'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler97.py'
 ---
 
-# Problem 97: Large Non-Mersenne Prime
+## The problem
 
-## Problem Statement
+Find the last ten digits of the prime 28433 × 2⁷⁸³⁰⁴⁵⁷ + 1, which has over 2.3 million digits.
 
-The first known prime found to exceed one million digits was discovered in 1999, and is a Mersenne prime of the form $2^{6972593} - 1$; it contains exactly 2,098,960 digits. Subsequently other Mersenne primes, of the form $2^p - 1$, have been found which contain more digits.
+## My solution
 
-However, in 2004 it was found that a massive non-Mersenne prime exceeds one million digits, which contains 2,357,207 digits: $28433 \times 2^{7830457} + 1$.
-
-**Find the last ten digits of this prime number.**
-
-## Approach
-
-This problem requires computing the last 10 digits of a massive number without calculating the entire number (which would be computationally infeasible given it has over 2 million digits).
-
-### Key Insight: Modular Arithmetic
-We only need the last 10 digits, which is equivalent to finding the result modulo $10^{10}$.
-
-Using modular arithmetic properties:
-- $(a \times b) \bmod m = ((a \bmod m) \times (b \bmod m)) \bmod m$
-- We can compute $2^{7830457} \bmod 10^{10}$ using modular exponentiation
-
-### Modular Exponentiation (Fast Power Algorithm)
-Instead of computing $2^{7830457}$ directly, we use binary exponentiation:
+The whole thing is three lines of Python 2, and it computes the full number:
 
 ```python
-def mod_exp(base, exp, mod):
-    result = 1
-    base = base % mod
-    while exp > 0:
-        if exp % 2 == 1:
-            result = (result * base) % mod
-        exp = exp >> 1
-        base = (base * base) % mod
-    return result
+a = 28433*(2**7830457)
+
+print a+1
 ```
 
-### Solution Steps
-1. Compute $2^{7830457} \bmod 10^{10}$ using modular exponentiation
-2. Multiply by 28433: $(28433 \times 2^{7830457}) \bmod 10^{10}$
-3. Add 1: $(28433 \times 2^{7830457} + 1) \bmod 10^{10}$
+Python's integers have arbitrary precision, so this simply builds the entire 2,357,207-digit number and prints it. I read the last ten digits off the end of the output. There's no modular arithmetic involved.
 
-## Complexity
+The arithmetic itself is fast (about 0.03 s). Nearly all of the time goes into converting the result to decimal for printing, because CPython's int-to-string conversion is quadratic in the number of digits. On Python 3.9 that conversion took about 78 seconds.
 
-- **Time Complexity**: O(log n) where n is the exponent, due to binary exponentiation
-- **Space Complexity**: O(1)
+## Notes
 
-## Solution
-
-View the complete solution on [GitHub](https://github.com/atyansh/Project-Euler/blob/master/Euler97.py).
-
-## Related Concepts
-
-- Modular arithmetic
-- Modular exponentiation (fast power algorithm)
-- Binary exponentiation
-- Number theory
-- Mersenne primes
-- Large number computation
+- `pow(2, 7830457, 10**10)` does modular exponentiation and makes this instant: multiply by 28433, add 1 and reduce mod 10¹⁰.
+- Python 3.11 and later refuse to convert integers longer than 4,300 digits to strings by default, so this approach now raises a `ValueError` unless you raise the limit with `sys.set_int_max_str_digits`.

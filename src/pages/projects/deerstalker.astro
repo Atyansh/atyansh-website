@@ -7,6 +7,8 @@ import WeeklyTimeline from '../../components/WeeklyTimeline';
 import TechStackGrid from '../../components/TechStackGrid';
 import ImageGallery from '../../components/ImageGallery';
 
+// Lines of code is the team's own count from the CSE 125 final report
+// (`cat | wc` over the client, server and util sources).
 const projectStats = [
   { label: 'Team Size', value: '7', icon: '👥' },
   { label: 'Development Time', value: '10', suffix: ' weeks', icon: '⏱️' },
@@ -99,49 +101,94 @@ const developmentImages = [
   },
 ];
 
+// From my weekly CSE 125 status reports (mood = the 1-10 morale score I gave
+// that week; week 8 had no number, week 10 had no report) and the commit log.
 const weeklyProgress = [
   {
-    week: 'Week 2-3',
-    title: 'Foundation & Core Systems',
+    week: 'Week 2',
+    title: 'Networking skeleton',
     mood: 10,
     accomplishments: [
-      'Implemented core networking framework using Boost Asio',
-      'Set up server broadcasting to multiple clients',
-      'Integrated Google Protocol Buffers for data serialization',
-      'Integrated Bullet Physics into game engine',
+      'Started from the Boost.Asio echo example and turned it into a server that broadcasts to every connected client',
+      'Made the client read from its socket asynchronously and merged it with the graphics team\'s first renderer',
     ]
   },
   {
-    week: 'Week 4-5',
-    title: 'Physics & Controllers',
-    mood: 8,
+    week: 'Week 3',
+    title: 'Protobuf and a server-owned world',
+    mood: 10,
     accomplishments: [
-      'Integrated Xbox controller support',
-      'Loaded compound rigid body models from Maya into Bullet',
-      'Debugged camera and skybox rendering with graphics team',
-      'Collaborated on item spawning logic and bullet shooting mechanics',
+      'Replaced raw key-press messages with a Protocol Buffers schema for game events',
+      'Made the server the source of truth: it runs the game loop and the only Bullet world, and clients just draw',
+      'Disabled Nagle\'s algorithm on server sockets to fix the network',
     ]
   },
   {
-    week: 'Week 6-7',
-    title: 'Game Logic & MVP',
-    mood: 8,
+    week: 'Week 4',
+    title: 'Controllers and collision meshes',
+    mood: 5,
     accomplishments: [
-      'Developed core game logic and mechanics',
-      'Implemented hat logic and item interactions',
-      'Fixed critical server-client synchronization issues',
-      'Achieved MVP milestone with the team',
+      'Added Xbox controller input through GLFW\'s joystick API',
+      'Loaded collision shapes exported from Maya\'s Bullet plugin, starting with a compound rigid body for the mango',
+      'A slow week: most of the team, me included, was busy with other things',
     ]
   },
   {
-    week: 'Week 8-9',
-    title: 'Polish & Features',
+    week: 'Week 5',
+    title: 'Integration',
     mood: 8,
     accomplishments: [
-      'Added primary and secondary hat abilities',
-      'Developed rotational physics for bullet shooting orientation',
-      'Refactored codebase for performance',
-      'Added more fighting elements and gameplay refinements',
+      'Helped Cindy debug the camera and skybox and merged them in',
+      'Worked with Brian on item spawning in Bullet and integrated Eduardo and Victor\'s mango shooting',
+      'Bullet\'s kinematic character controller didn\'t work for us, so we turned to a dynamic (rigid-body) one',
+    ]
+  },
+  {
+    week: 'Week 6',
+    title: 'Stalled',
+    mood: 5,
+    accomplishments: [
+      'Item interaction and game logic moved forward, but nothing was demo-ready',
+      'Finished fixing message framing after world snapshots outgrew the original 4-digit length header',
+    ]
+  },
+  {
+    week: 'Week 7',
+    title: 'Dynamic controller',
+    mood: 8,
+    accomplishments: [
+      'Wrote the dynamic character controller: ray casts for ground checks, movement relative to the camera',
+      'Merged Victor\'s respawn, equipping, throwing and shooting work and added the client side for it',
+      'Fixed several server-client bugs that came out of the merge',
+    ]
+  },
+  {
+    week: 'Week 8',
+    title: 'Hats get abilities',
+    accomplishments: [
+      'Split every hat into a primary and secondary ability, with one HatType enum shared by client and server',
+      'Built the propeller hat and the wizard hat\'s mango shot, aimed from the player\'s rotation quaternion',
+      'Moved client message handling out of the window code into a state-based MessageHandler',
+    ]
+  },
+  {
+    week: 'Week 9',
+    title: 'Fighting',
+    mood: 8,
+    accomplishments: [
+      'Punching with a forward ray cast and knockback impulses; health sent to clients',
+      'Capped the server at four clients with stable IDs 1-4, fixed spawn points and random hat spawns',
+      'Moved animation-state decisions to the server and set up the FMOD sound engine',
+      'Bear hat gravity kill and deerstalker invisibility',
+    ]
+  },
+  {
+    week: 'Week 10',
+    title: 'Demo week',
+    accomplishments: [
+      'Ramming, bear mode, stun, grabbing and throwing, the wrench hit and the shockwave',
+      '3D positional sound effects and the zero-gravity music',
+      'Lives with delayed respawn, a spectator camera once you are out, and the lobby to match to lobby loop',
     ]
   },
 ];
@@ -150,57 +197,69 @@ const techStack = [
   {
     name: 'ASSIMP',
     category: 'Client-Side',
-    description: '3D model loading and processing',
+    description: 'Loads the OBJ, FBX and .X models, including the skeletal animations',
     icon: '🎨'
   },
   {
     name: 'OpenGL',
     category: 'Client-Side',
-    description: 'Modern graphics rendering with VBO/VBA',
+    description: 'GLSL 3.3 shaders, GPU skinning, a cubemap skybox and instanced clouds (with GLFW, GLEW, GLM, SOIL)',
     icon: '🖼️'
   },
   {
     name: 'FMOD',
     category: 'Client-Side',
-    description: 'Audio engine for sound effects',
+    description: 'Streamed music plus 3D sound effects, with the listener placed on your player',
     icon: '🔊'
   },
   {
     name: 'FreeType',
     category: 'Client-Side',
-    description: 'Font rendering for UI elements',
+    description: 'Text for the HUD hat timer and the WINNER! banner',
     icon: '📝'
   },
   {
     name: 'Bullet Physics',
     category: 'Server-Side',
-    description: 'Physics simulation and collision detection',
+    description: 'Bullet 2.83; the whole simulation runs on the server only',
     icon: '⚡'
   },
   {
     name: 'Protocol Buffers',
-    category: 'Server-Side',
-    description: 'Efficient binary serialization',
+    category: 'Shared',
+    description: 'One Message type both ways: input events up, world snapshots and events down',
     icon: '📦'
   },
   {
-    name: 'Boost Networking',
+    name: 'Boost.Asio',
     category: 'Shared',
-    description: 'TCP-based client-server communication',
+    description: 'Async TCP on both ends with length-prefixed frames',
     icon: '🔗'
   },
   {
     name: 'C++',
     category: 'Shared',
-    description: 'Primary programming language',
+    description: 'Visual Studio 2015 solution: client, server and a shared util library',
     icon: '⚙️'
   },
 ];
+
+const holdSnippet = `// Runs at the start of every server tick
+void Game::loopReset() {
+    gravityController_->deactivate();
+    clearAnimations();
+
+    for (auto pair : playerMap_) {
+        pair.second->setVisible(true);
+        pair.second->setLinearFactor(btVector3(1,1,1));
+        pair.second->setBearMode(false);
+    }
+}`;
 ---
 
 <BaseLayout
   title="Deerstalker - 3D Multiplayer Brawler"
-  description="A 3D online multiplayer brawler game built for CSE 125, featuring networked gameplay with custom physics and real-time combat."
+  description="Four-player online brawler in C++ for UCSD CSE 125: hats grant abilities, Bullet physics runs on an authoritative server, clients render protobuf snapshots."
 >
   <article class="max-w-6xl mx-auto">
     <!-- Hero Section -->
@@ -210,7 +269,7 @@ const techStack = [
           Deerstalker
         </h1>
         <p class="text-xl md:text-2xl max-w-3xl mx-auto leading-relaxed" style="color: var(--text-secondary);">
-          A 3D online multiplayer brawler game where players fight to be the last standing on the stage, featuring special ability "hats" for strategic gameplay.
+          A four-player online brawler where you knock each other off a construction site, using hats that grant special abilities.
         </p>
 
         <!-- Action Buttons -->
@@ -243,41 +302,47 @@ const techStack = [
         </h2>
         <div class="space-y-4 text-lg" style="color: var(--text-secondary);">
           <p>
-            Deerstalker is a four-person pseudo-wrestling game where players fight to knock each other off the stage.
-            The game features special ability "hats" that provide unique powers, creating strategic gameplay where choosing
-            the right hat at the right time can be the difference between victory and defeat.
+            CSE 125 at UC San Diego is a ten-week course where a team builds a networked 3D game from scratch.
+            Our team of seven was Team Deerstalker, and the class listing called the game "Super Awesome Hat Attack Mania Wars";
+            the window title just says Deerstalker. Four players start on a construction-site stage with three lives each.
+            Fall off and you lose a life; the last player with lives left wins. Hats drop onto the middle of the stage every
+            ten seconds or so, and each one gives you two abilities for as long as you wear it.
           </p>
           <p>
-            Developed as part of CSE 125 at UC San Diego, this 10-week capstone project showcases advanced game development,
-            network programming, physics simulation, and collaborative software engineering.
+            I wrote the server and the networking: the game loop, the protobuf protocol, the Bullet physics world, the character
+            controller, all the combat and hat logic, the client's input and message handling, and the FMOD sound engine. By
+            <code>git blame</code>, about 88% of the server code is mine. Timothy Kua built the skeletal animation system and
+            the clouds, Cindy Vu the HUD, text rendering, camera and skybox, and Tiffany Lam modeled, rigged and animated the
+            characters and hats. Victor Alor, Eduardo Ramirez and Brian Choi each wrote server pieces I built on or merged:
+            the first server skeleton and protobuf hookup, the config loader, item drops, respawning and shooting.
           </p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
             <div class="flex items-start gap-3">
               <span class="text-3xl">🎯</span>
               <div>
                 <h4 class="font-bold" style="color: var(--text-primary);">Objective</h4>
-                <p class="text-base">Be the last player standing on the stage</p>
+                <p class="text-base">Knock the others off the stage; three lives each, last one standing wins</p>
               </div>
             </div>
             <div class="flex items-start gap-3">
               <span class="text-3xl">🎩</span>
               <div>
-                <h4 class="font-bold" style="color: var(--text-primary);">Special Abilities</h4>
-                <p class="text-base">5 unique hats with distinct powers</p>
+                <h4 class="font-bold" style="color: var(--text-primary);">Hats</h4>
+                <p class="text-base">Five hats, each with a primary (RB) and a secondary (LB) ability</p>
               </div>
             </div>
             <div class="flex items-start gap-3">
               <span class="text-3xl">🌐</span>
               <div>
                 <h4 class="font-bold" style="color: var(--text-primary);">Multiplayer</h4>
-                <p class="text-base">Up to 4 players in networked combat</p>
+                <p class="text-base">Four clients over TCP; the match starts once all four press ready</p>
               </div>
             </div>
             <div class="flex items-start gap-3">
               <span class="text-3xl">⚡</span>
               <div>
-                <h4 class="font-bold" style="color: var(--text-primary);">Real-time Physics</h4>
-                <p class="text-base">Dynamic physics simulation with Bullet</p>
+                <h4 class="font-bold" style="color: var(--text-primary);">Physics</h4>
+                <p class="text-base">One Bullet world on the server; clients only render what it sends</p>
               </div>
             </div>
           </div>
@@ -285,8 +350,119 @@ const techStack = [
       </div>
     </AnimatedCard>
 
-    <!-- Video Showcase -->
+    <!-- How It Works -->
     <AnimatedCard delay={0.3}>
+      <div class="my-16">
+        <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
+          How It Works
+        </h2>
+        <div class="space-y-4 text-lg max-w-4xl mx-auto" style="color: var(--text-secondary);">
+          <p>
+            <strong style="color: var(--text-primary);">The server owns everything.</strong> Clients never simulate anything.
+            The server runs Boost.Asio on one thread to accept connections and read messages, and pushes every incoming message
+            onto a mutex-protected queue. The main thread runs a fixed 30 Hz loop: drain the queue and apply each input event,
+            step the Bullet world, expire mangoes and hats, update stun and respawn timers, then broadcast the result.
+            Each tick advances Bullet by 1/15 s (four fixed 1/60 s substeps), so the physics runs at twice wall-clock speed.
+          </p>
+          <p>
+            <strong style="color: var(--text-primary);">What goes over the wire.</strong> Both directions use one protobuf
+            <code>Message</code>, framed as a 6-character ASCII length followed by the serialized bytes, over TCP with Nagle's
+            algorithm turned off. The header started at 4 digits and had to grow once snapshots passed 9,999 bytes. Clients send
+            intents: a direction from the stick (8 directions, read digitally at a 0.5 tilt threshold) plus the camera's facing
+            vector, or jump, punch, grab, equip, and the two hat buttons. Every tick the server answers with a full snapshot: for
+            every player, hat and mango, its 4x4 world matrix as 16 doubles, plus each player's health, lives, current hat,
+            animation state, visibility and hat timer. Alongside that come events for things clients should react to once:
+            sounds, deletions, ready/start, win and game over.
+          </p>
+          <p>
+            <strong style="color: var(--text-primary);">The client is a renderer.</strong> A background Asio thread parses
+            snapshots into a queue; the render loop drains it each frame, creates scene-graph nodes for new IDs, and sets each
+            node's matrix straight from the server. There is no prediction or interpolation. The server also decides which
+            animation each player is in, and the client keeps a preloaded skinned model per animation and just shows the right
+            one. FMOD plays sound effects in 3D at the position of the player or object involved, with the listener on your own player.
+          </p>
+          <p>
+            <strong style="color: var(--text-primary);">Movement.</strong> Players are dynamic rigid bodies with rotation
+            locked off, driven by a controller adapted from the dynamic character controller in Bullet's old demos. Each
+            substep it casts a short ray down to decide whether you're on the ground and a few rays forward to find punch, ram
+            and wrench targets. A move event turns you toward the camera-relative direction and applies a force; a jump is an
+            upward impulse that only fires when the down ray hits something.
+          </p>
+          <p>
+            <strong style="color: var(--text-primary);">Hold-to-use abilities with no state.</strong> At the start of every
+            tick the server switches off zero gravity, invisibility and bear mode. The client sends a hat event every frame the
+            bumper is held, which switches them back on. Holding the button keeps the ability on, and letting go ends it
+            within one tick, without any timers or "is active" flags:
+          </p>
+          <pre class="p-4 rounded-xl overflow-x-auto text-sm" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);"><code>{holdSnippet}</code></pre>
+        </div>
+      </div>
+    </AnimatedCard>
+
+    <!-- Hats -->
+    <AnimatedCard delay={0.4}>
+      <div class="my-16">
+        <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
+          The Hats
+        </h2>
+        <p class="text-center text-lg mb-8 max-w-3xl mx-auto" style="color: var(--text-secondary);">
+          Y picks up a hat within reach or throws yours away. A hat vanishes two minutes after it spawns, even on your head,
+          and the HUD counts that down. When your health hits zero you're stunned for ten seconds and drop your hat.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">👊</span>
+              <span style="color: var(--text-primary);">Bare hands (any time)</span>
+            </h3>
+            <p style="color: var(--text-secondary);">X punches: 10 damage and a knockback up and away. B grabs a stunned player within reach and carries them over your head; press B again to throw them.</p>
+          </div>
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">🧙</span>
+              <span style="color: var(--text-primary);">Wizard hat</span>
+            </h3>
+            <p style="color: var(--text-secondary);"><strong>Primary:</strong> fire a mango that lives for two seconds. It does no damage, but it shoves whoever it hits.</p>
+            <p style="color: var(--text-secondary);"><strong>Secondary:</strong> hold to heal.</p>
+          </div>
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">🚁</span>
+              <span style="color: var(--text-primary);">Propeller hat</span>
+            </h3>
+            <p style="color: var(--text-secondary);"><strong>Primary:</strong> hold to fly up.</p>
+            <p style="color: var(--text-secondary);"><strong>Secondary:</strong> hold to push yourself down.</p>
+          </div>
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">⛑️</span>
+              <span style="color: var(--text-primary);">Hard hat</span>
+            </h3>
+            <p style="color: var(--text-secondary);"><strong>Primary:</strong> a long-reach wrench swing that does 100 damage, so a hit stuns at once.</p>
+            <p style="color: var(--text-secondary);"><strong>Secondary:</strong> a ground slam. Players standing within range take 10 damage and are pushed outward; loose hats nearby scatter.</p>
+          </div>
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">🐻</span>
+              <span style="color: var(--text-primary);">Bear hat</span>
+            </h3>
+            <p style="color: var(--text-secondary);"><strong>Primary:</strong> hold to switch off gravity for every player (you too) while different music plays.</p>
+            <p style="color: var(--text-secondary);"><strong>Secondary:</strong> hold to turn into a bear. You're rooted in place and take no damage.</p>
+          </div>
+          <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
+            <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
+              <span style="color: var(--accent);">🕵️</span>
+              <span style="color: var(--text-primary);">Deerstalker</span>
+            </h3>
+            <p style="color: var(--text-secondary);"><strong>Primary:</strong> hold to be invisible to everyone else.</p>
+            <p style="color: var(--text-secondary);"><strong>Secondary:</strong> charge forward as a giant ram. Three rays, straight ahead and 60° to each side, find the target, which takes 20 damage and a bigger knockback than a punch or wrench hit.</p>
+          </div>
+        </div>
+      </div>
+    </AnimatedCard>
+
+    <!-- Video Showcase -->
+    <AnimatedCard delay={0.5}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
           Development Progress Videos
@@ -296,7 +472,7 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Development Images -->
-    <AnimatedCard delay={0.4}>
+    <AnimatedCard delay={0.6}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
           Development Gallery
@@ -306,7 +482,7 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Tech Stack -->
-    <AnimatedCard delay={0.5}>
+    <AnimatedCard delay={0.7}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
           Technology Stack
@@ -316,94 +492,94 @@ const techStack = [
     </AnimatedCard>
 
     <!-- Development Journey -->
-    <AnimatedCard delay={0.6}>
+    <AnimatedCard delay={0.8}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
-          My Development Journey
+          Week by Week
         </h2>
         <p class="text-center text-lg mb-12 max-w-3xl mx-auto" style="color: var(--text-secondary);">
-          My contributions as the networking and game engine lead throughout the 10-week development cycle
+          My side of the project, from my weekly status reports and the commit log. The mood is the 1-10 morale score I gave each week.
         </p>
         <WeeklyTimeline client:load items={weeklyProgress} />
       </div>
     </AnimatedCard>
 
     <!-- Technical Challenges -->
-    <AnimatedCard delay={0.7}>
+    <AnimatedCard delay={0.9}>
       <div class="my-16">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
-          Technical Challenges & Solutions
+          Problems I Ran Into
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
             <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
-              <span style="color: var(--accent);">⚙️</span>
-              <span style="color: var(--text-primary);">Physics Integration</span>
+              <span style="color: var(--accent);">🎮</span>
+              <span style="color: var(--text-primary);">Character controller</span>
             </h3>
-            <p class="mb-2" style="color: var(--text-secondary);"><strong>Challenge:</strong> Poor Bullet Physics API documentation</p>
-            <p style="color: var(--text-secondary);"><strong>Solution:</strong> Extensive trial-and-error experimentation and community research</p>
+            <p class="mb-2" style="color: var(--text-secondary);"><strong>Problem:</strong> Bullet's kinematic character controller has known issues, and it didn't work for us.</p>
+            <p style="color: var(--text-secondary);"><strong>Fix:</strong> Players became ordinary rigid bodies with rotation locked, moved by forces, with ray casts for ground checks and attack targets. In the last week I tried mixing in direct velocity control, then switched back to forces only on the final day.</p>
           </div>
           <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
             <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
               <span style="color: var(--accent);">🌐</span>
-              <span style="color: var(--text-primary);">Network Synchronization</span>
+              <span style="color: var(--text-primary);">Framing and latency</span>
             </h3>
-            <p class="mb-2" style="color: var(--text-secondary);"><strong>Challenge:</strong> Maintaining consistent game state across multiple clients</p>
-            <p style="color: var(--text-secondary);"><strong>Solution:</strong> Server-authoritative architecture with Protocol Buffers</p>
+            <p class="mb-2" style="color: var(--text-secondary);"><strong>Problem:</strong> The game's many small TCP messages didn't behave until Nagle's algorithm was off, and later the snapshots outgrew the 4-digit length header.</p>
+            <p style="color: var(--text-secondary);"><strong>Fix:</strong> TCP_NODELAY on every server socket, a 6-digit header (Brian found the limit), and a 1 MB receive buffer.</p>
           </div>
           <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
             <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
-              <span style="color: var(--accent);">🎮</span>
-              <span style="color: var(--text-primary);">Character Controllers</span>
+              <span style="color: var(--accent);">🧵</span>
+              <span style="color: var(--text-primary);">Two threads, one game</span>
             </h3>
-            <p class="mb-2" style="color: var(--text-secondary);"><strong>Challenge:</strong> Kinematic controllers had limitations for our use case</p>
-            <p style="color: var(--text-secondary);"><strong>Solution:</strong> Developed custom dynamic character controllers with physics-based movement</p>
+            <p class="mb-2" style="color: var(--text-secondary);"><strong>Problem:</strong> Network callbacks and the game loop run on different threads.</p>
+            <p style="color: var(--text-secondary);"><strong>Fix:</strong> Callbacks only enqueue messages and the loop owns all game state. One timing bug never got a root cause: in the last week, debug prints made it go away, and the shipped workaround is a 1 ms sleep before each broadcast.</p>
           </div>
           <div class="p-6 rounded-xl" style="background: var(--card-bg); border: 1px solid rgba(var(--accent-rgb), 0.2);">
             <h3 class="text-xl font-bold mb-3 flex items-center gap-2">
-              <span style="color: var(--accent);">🎨</span>
-              <span style="color: var(--text-primary);">Animation Pipeline</span>
+              <span style="color: var(--accent);">🤼</span>
+              <span style="color: var(--text-primary);">Grabbing</span>
             </h3>
-            <p class="mb-2" style="color: var(--text-secondary);"><strong>Challenge:</strong> Loading and animating FBX models with skeletal animation</p>
-            <p style="color: var(--text-secondary);"><strong>Solution:</strong> Used ASSIMP for model loading and developed custom animation system</p>
+            <p class="mb-2" style="color: var(--text-secondary);"><strong>Problem:</strong> Carrying a player who is also a physics body.</p>
+            <p style="color: var(--text-secondary);"><strong>Fix:</strong> The grabbed player's linear motion is zeroed out and each substep their transform is pinned above and behind the grabber, rotated to lie flat. Releasing them restores physics and launches them as a projectile in the direction the grabber is facing.</p>
           </div>
         </div>
       </div>
     </AnimatedCard>
 
     <!-- Team Lessons -->
-    <AnimatedCard delay={0.8}>
+    <AnimatedCard delay={1.0}>
       <div class="my-16 p-8 rounded-2xl" style="background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.05) 0%, rgba(var(--accent-rgb), 0.02) 100%); border: 1px solid rgba(var(--accent-rgb), 0.1);">
         <h2 class="text-3xl md:text-4xl font-bold mb-8 text-center" style="color: var(--text-primary);">
-          Lessons Learned
+          Looking Back
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="flex gap-4">
             <span class="text-3xl">💡</span>
             <div>
-              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">Early Game Design</h4>
-              <p style="color: var(--text-secondary);">Starting with clear game mechanics from the beginning is crucial for project success</p>
+              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">Pin down gameplay early</h4>
+              <p style="color: var(--text-secondary);">The hat brawler idea never changed, but the actual gameplay wasn't settled until late in the quarter, and most of the hat abilities went in during the final two weeks.</p>
             </div>
           </div>
           <div class="flex gap-4">
-            <span class="text-3xl">🤝</span>
+            <span class="text-3xl">🔌</span>
             <div>
-              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">Team Communication</h4>
-              <p style="color: var(--text-secondary);">Regular synchronization prevented integration issues and kept everyone aligned</p>
+              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">Networking first</h4>
+              <p style="color: var(--text-secondary);">My advice in our final report was to get networking working early and make sure client and server can talk correctly at scale. With the server-authoritative loop in place by week 3, most later features were server logic plus a new field or event in the protocol.</p>
             </div>
           </div>
           <div class="flex gap-4">
             <span class="text-3xl">🎯</span>
             <div>
-              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">Sub-team Structure</h4>
-              <p style="color: var(--text-secondary);">Breaking into focused teams improved productivity and allowed for specialized work</p>
+              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">Sub-teams worked</h4>
+              <p style="color: var(--text-secondary);">Splitting into a networking/game-engine team and a graphics team let both move in parallel, with weekly meetings for the big decisions.</p>
             </div>
           </div>
           <div class="flex gap-4">
             <span class="text-3xl">📚</span>
             <div>
-              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">Learning Curve</h4>
-              <p style="color: var(--text-secondary);">Complex libraries like Bullet Physics require significant time investment to master</p>
+              <h4 class="font-bold text-lg mb-2" style="color: var(--text-primary);">Learning curves collide</h4>
+              <p style="color: var(--text-secondary);">Bullet and skeletal animation got hard for both sub-teams in the same stretch. The rag-doll style fighting we originally planned was dropped, mostly because it was too hard to build in Bullet.</p>
             </div>
           </div>
         </div>
@@ -426,4 +602,3 @@ const techStack = [
     </footer>
   </article>
 </BaseLayout>
-

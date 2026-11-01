@@ -7,33 +7,39 @@ solutionLanguage: 'Python'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler66.py'
 ---
 
-## Problem Statement
+## The problem
 
-Consider quadratic Diophantine equations of the form:
+For each non-square D ≤ 1000, take the solution of x² − Dy² = 1 in positive integers with the smallest x. Find the D for which that minimal x is largest.
 
-x² - Dy² = 1
+## My solution
 
-For example, when D=13, the minimal solution in x is 649² - 13×180² = 1.
+This is Pell's equation, and its minimal solution is always one of the convergents h/k of the continued fraction of √D. The script uses the same expansion code as my Problem 64 solution to collect one period of partial quotients (a dict of seen states detects the repeat), drops a₀, and then generates convergents with the standard recurrence
 
-It can be assumed that there are no solutions in positive integers when D is square.
+- hₙ = aₙ·hₙ₋₁ + hₙ₋₂
+- kₙ = aₙ·kₙ₋₁ + kₙ₋₂
 
-By finding minimal solutions in x for D = {2, 3, 5, 6, 7}, we obtain the following:
+starting from h = a₀, k = 1. It keeps going, wrapping around the period as many times as needed, until h² − Dk² = 1, and tracks the D with the largest x so far.
 
-- 3² - 2×2² = 1
-- 2² - 3×1² = 1
-- 9² - 5×4² = 1
-- 5² - 6×2² = 1
-- 8² - 7×3² = 1
+```python
+while diophantine != 0:
+  tempX = x
+  tempY = y
 
-Hence, by considering minimal solutions in x for D ≤ 7, the largest x is obtained when D=5.
+  x = (x * list[index]) + prevX
+  y = (y * list[index]) + prevY
 
-Find the value of D ≤ 1000 in minimal solutions of x for which the largest value of x is obtained.
+  index += 1
+  if index >= len(list):
+    index = 0
 
-## Approach
+  prevX = tempX
+  prevY = tempY
 
-The solution involves:
-1. Using continued fractions for √D to find solutions (Pell's equation)
-2. Computing convergents of the continued fraction
-3. Testing each convergent to see if it satisfies x² - Dy² = 1
-4. Finding the D ≤ 1000 that produces the largest minimal x
-5. Using BigInteger to handle very large x values
+  diophantine = x * x - i * y * y - 1
+```
+
+Python's big integers matter here: the largest minimal x for D ≤ 1000 has 38 digits. The whole run takes a few hundredths of a second.
+
+## Notes
+
+The wrap-around is needed. If the period length r is even, the minimal solution is the convergent at the end of the first period, but if r is odd, that convergent solves x² − Dy² = −1, and the answer only comes at the end of the second period.

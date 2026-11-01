@@ -7,22 +7,35 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler72.java'
 ---
 
-## Problem Statement
+## The problem
 
-Consider the fraction, n/d, where n and d are positive integers. If n<d and HCF(n,d)=1, it is called a reduced proper fraction.
+Count the reduced proper fractions n/d (n < d, gcd(n, d) = 1) with d ≤ 1,000,000.
 
-If we list the set of reduced proper fractions for d ≤ 8 in ascending order of size, we get:
+## My solution
 
-1/8, 1/7, 1/6, 1/5, 1/4, 2/7, 1/3, 3/8, 2/5, 3/7, 1/2, 4/7, 3/5, 5/8, 2/3, 5/7, 3/4, 4/5, 5/6, 6/7, 7/8
+The number of reduced fractions with denominator d is Euler's totient φ(d), so the answer is φ(2) + φ(3) + … + φ(1,000,000). I compute each φ(d) separately:
 
-It can be seen that there are 21 elements in this set.
+1. **Factor d by trial division**: divide out 2, then try every odd p until nothing is left, recording each prime's exponent in a `HashMap`.
+2. **Totient of the radical by inclusion–exclusion.** Let r be the product of the distinct primes. Then φ(r) = r − Σ r/p + Σ r/(pq) − … over all subsets of those primes. `calculate` enumerates the subsets by walking the bitmasks 1 … 2ᵏ−1 (via `Integer.toBinaryString`) and builds a `Tuple` holding the subset's product and a parity flag that decides whether r/product is added or subtracted.
+3. **Scale up for repeated factors**: multiply by p^(e−1) for each prime, since φ(d) = φ(r) · d/r.
 
-How many elements would be contained in the set of reduced proper fractions for d ≤ 1,000,000?
+```java
+for(Tuple tuple : tuples) {
+  if(tuple.even)
+    count += simple/tuple.value;
+  else
+    count -= simple/tuple.value;
+}
 
-## Approach
+for(Integer factor : map.keySet()) {
+  count *= ((int) Math.pow(factor, map.get(factor) - 1));
+}
+```
 
-The solution involves:
-1. Recognizing that the count equals the sum of Euler's totient function φ(d) for d from 2 to 1,000,000
-2. For each denominator d, φ(d) counts fractions with that denominator
-3. Computing φ(d) efficiently for all d using a sieve-like approach
-4. Summing all φ(d) values
+The running total goes into a `long`. Each φ(d) fits in an `int`, and there's a sanity check that throws if one ever comes out negative.
+
+The expensive part is the factoring. The trial division doesn't stop at √d. It keeps going until the remaining cofactor is 1, so a prime d means trying every odd number up to d. Summed over all d, that comes to roughly 3 × 10¹⁰ trial divisions.
+
+## Notes
+
+A totient sieve does the whole range in about O(N log log N): start with φ[i] = i, and for each prime p subtract φ[m]/p from every multiple m of p.

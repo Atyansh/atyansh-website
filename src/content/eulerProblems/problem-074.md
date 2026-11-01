@@ -7,33 +7,35 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler74.java'
 ---
 
-## Problem Statement
+## The problem
 
-The number 145 is well known for the property that the sum of the factorial of its digits is equal to 145:
+Repeatedly replace a number with the sum of the factorials of its digits. Every start eventually runs into a loop. Count the starting numbers below one million whose chain has exactly 60 distinct terms before the first repeat.
 
-1! + 4! + 5! = 1 + 24 + 120 = 145
+## My solution
 
-Perhaps less well known is 169, in that it produces the longest chain of numbers that link back to 169; it turns out that there are only three such loops that exist:
+Straight simulation with no caching. For every start from 1 to 999,999, I keep a `HashSet` of the values seen so far and step the chain until the next value is already in the set. The set's size is then the number of non-repeating terms:
 
-- 169 → 363601 → 1454 → 169
-- 871 → 45361 → 871
-- 872 → 45362 → 872
+```java
+while(!set.contains(value)) {
+  set.add(value);
 
-It is not difficult to prove that EVERY starting number will eventually get stuck in a loop. For example,
+  long sum = 0;
+  while(value != 0) {
+    sum += digitFactorial((int) value % 10);
+    value = value / 10;
+  }
 
-- 69 → 363600 → 1454 → 169 → 363601 (→ 1454)
-- 78 → 45360 → 871 → 45361 (→ 871)
-- 540 → 145 (→ 145)
+  value = sum;
+}
 
-Starting with 69 produces a chain of five non-repeating terms, but the longest non-repeating chain with a starting number below one million is sixty terms.
+if(set.size() == 60)
+  answer++;
+```
 
-How many chains, with a starting number below one million, contain exactly sixty non-repeating terms?
+The digit factorials 0! to 9! are computed once into constants (with a small recursive `factorial`), and `digitFactorial` picks one with a `switch`. Values never get larger than 7 × 9! = 2,540,160, so the `long`s are more than enough.
 
-## Approach
+The problem statement guarantees that no chain from a start below one million is longer than 60 terms, so the work is bounded by about 60 million steps plus a fresh `HashSet` per start.
 
-The solution involves:
-1. For each number below one million, computing its factorial digit sum chain
-2. Tracking visited numbers to detect loops
-3. Counting the chain length until a repeated number is found
-4. Using memoization to speed up computation for previously seen numbers
-5. Counting numbers with exactly 60 non-repeating terms
+## Notes
+
+Most chains share their tails, so memoizing chain lengths would cut out most of the work. The next term also doesn't depend on digit order, so all rearrangements of a start's digits share every term after the first.

@@ -7,49 +7,16 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler1.java'
 ---
 
-# Problem 1: Multiples of 3 or 5
+## The problem
 
-## Problem Statement
+Add up every natural number below 1000 that is divisible by 3 or by 5.
 
-If we list all the natural numbers below 10 that are multiples of 3 or 5, we get 3, 5, 6 and 9. The sum of these multiples is 23.
+## My solution
 
-**Find the sum of all the multiples of 3 or 5 below 1000.**
-
-## Approach
-
-This problem can be solved using two approaches:
-
-### Brute Force Approach
-Iterate through all numbers from 1 to 999 and check if each number is divisible by 3 or 5. If so, add it to the sum.
+There is no loop at all. The whole program is one expression using inclusion–exclusion and the arithmetic-series formula:
 
 ```java
-int sum = 0;
-for (int i = 1; i < 1000; i++) {
-    if (i % 3 == 0 || i % 5 == 0) {
-        sum += i;
-    }
-}
+System.out.println(3*(333*334)/2 + 5*(199*200)/2 - 15*(66*67)/2);
 ```
 
-### Mathematical Approach (More Efficient)
-Use the arithmetic series formula to calculate the sum of multiples directly:
-- Sum of multiples of 3 below 1000
-- Plus sum of multiples of 5 below 1000
-- Minus sum of multiples of 15 below 1000 (to avoid double counting)
-
-The sum of multiples of n below limit = n × (1 + 2 + 3 + ... + k) where k = floor((limit-1)/n)
-
-## Complexity
-
-- **Time Complexity**: O(n) for brute force, O(1) for mathematical approach
-- **Space Complexity**: O(1)
-
-## Solution
-
-View the complete solution on [GitHub](https://github.com/atyansh/Project-Euler/blob/master/Euler1.java).
-
-## Related Concepts
-
-- Modular arithmetic
-- Arithmetic series
-- Set theory (inclusion-exclusion principle)
+Below 1000 there are 333 multiples of 3, 199 multiples of 5 and 66 multiples of 15. The multiples of k sum to k·(1 + 2 + … + m) = k·m(m+1)/2, where m is how many there are. Adding the sums for 3 and 5 counts the multiples of 15 twice, so their sum is subtracted once. The counts (⌊999/3⌋, ⌊999/5⌋, ⌊999/15⌋) were worked out by hand and hard-coded, so this is O(1).

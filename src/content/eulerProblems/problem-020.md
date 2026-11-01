@@ -7,35 +7,23 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler20.java'
 ---
 
-## Problem Statement
+## The problem
 
-n! means n × (n - 1) × ... × 3 × 2 × 1
+Find the sum of the decimal digits of 100!.
 
-For example, 10! = 10 × 9 × ... × 3 × 2 × 1 = 3,628,800, and the sum of the digits in the number 10! is 3 + 6 + 2 + 8 + 8 + 0 + 0 = 27.
+## My solution
 
-Find the sum of the digits in the number 100!
+100! has 158 digits, so it needs arbitrary-precision arithmetic. There are two short versions.
 
-## Approach
+**Java (`Euler20.java`)** multiplies a `BigInteger` accumulator by 100, 99, …, 1, decrementing the multiplier by adding `BigInteger("-1")` each time, then sums the characters of the decimal string:
 
-Since 100! is an extremely large number (158 digits), we need to use arbitrary-precision arithmetic.
-
-**Using BigInteger:**
-1. Calculate 100! using BigInteger
-2. Convert the result to a string
-3. Iterate through each character (digit)
-4. Sum all the digits
-
-Implementation:
 ```java
-BigInteger factorial = BigInteger.ONE;
-for (int i = 2; i <= 100; i++) {
-    factorial = factorial.multiply(BigInteger.valueOf(i));
-}
-String digits = factorial.toString();
-int sum = 0;
-for (char c : digits.toCharArray()) {
-    sum += c - '0';
+for(int i = 0; i < 100; i++) {
+  c = c.multiply(b);
+  b = b.add(new BigInteger("-1"));
 }
 ```
 
-This approach is straightforward and leverages Java's built-in support for large numbers. The alternative would be implementing factorial multiplication manually with an array, but BigInteger handles this efficiently.
+**Python (`Euler20.py`, Python 2)** uses native big integers and a recursive factorial with base case `n <= 2: return n`, then sums `int(a)` over the digits of `str(n)`. (That base case would make `fact(0)` return 0, but it is only ever called with 100.)
+
+Both do about a hundred big-number multiplications, which is instant.

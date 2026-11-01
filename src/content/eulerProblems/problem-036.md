@@ -7,19 +7,14 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler36.java'
 ---
 
-## Problem Statement
+## The problem
 
-The decimal number, 585 = 1001001001₂ (binary), is palindromic in both bases.
+Sum all numbers below one million that are palindromes in both base 10 and base 2 (without leading zeros).
 
-Find the sum of all numbers, less than one million, which are palindromic in base 10 and base 2.
+## My solution
 
-(Please note that the palindromic number, in either base, may not include leading zeros.)
+Plain brute force. For every i below a million I build the decimal string with `Integer.toString` and the binary string with `Integer.toBinaryString`, and check each by comparing characters from both ends toward the middle. Neither method emits leading zeros, so the problem's leading-zero rule is handled for free. A million iterations with two short strings each runs quickly.
 
-## Approach
+## Notes
 
-The solution involves:
-1. Iterating through all numbers below one million
-2. Checking if each number is a palindrome in base 10
-3. Converting to binary and checking if it's a palindrome in base 2
-4. Ensuring no leading zeros are considered
-5. Summing all numbers that are palindromic in both bases
+Only odd numbers can be binary palindromes (the leading bit is 1, so the last must be too). Going further, there are fewer than 2,000 decimal palindromes below a million, and generating just those and testing them in binary would skip almost all of the loop.

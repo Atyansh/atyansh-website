@@ -1,6 +1,6 @@
 ---
 title: 'Building a Personal Website Entirely with Claude Code'
-description: 'A deep dive into building a comprehensive personal website with real-time activity tracking from 11+ platforms, self-healing OAuth infrastructure, and automated deployments - all without writing a single line of code manually.'
+description: 'A deep dive into building a comprehensive personal website with real-time activity tracking from 10 platforms, self-healing OAuth infrastructure, and automated deployments - all without writing a single line of code manually.'
 pubDate: 2026-01-19
 updatedDate: 2026-10-31
 tags: ['claude-code', 'web-development', 'infrastructure', 'oauth', 'astro']
@@ -9,7 +9,7 @@ draft: false
 
 import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
 
-I'd been procrastinating on building a proper personal website since college. After joining Anthropic, I finally had the push I needed - I wanted to learn [Claude Code](https://claude.com/claude-code) by building something real. What started as an experiment turned into a fully-featured personal website that aggregates real-time data from over 11 different platforms. The most interesting part? Not a single line of code was written manually.
+I'd been procrastinating on building a proper personal website since college. After joining Anthropic, I finally had the push I needed - I wanted to learn [Claude Code](https://claude.com/claude-code) by building something real. What started as an experiment turned into a fully-featured personal website that aggregates real-time data from 10 different platforms. The most interesting part? Not a single line of code was written manually.
 
 This post is a technical deep-dive into the architecture, challenges, and solutions that went into building [atyansh.com](https://atyansh.com).
 
@@ -42,7 +42,7 @@ Astro was the clear choice for a content-heavy site. Its static-first approach m
 
 ## Activity Tracking Architecture
 
-The heart of the site is the activity tracking system. It pulls data from 11+ external APIs and displays them in a unified interface.
+The heart of the site is the activity tracking system. It pulls data from 10 external sources and displays them in a unified interface.
 
 <ArchitectureDiagram />
 
@@ -130,7 +130,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3)
 
 ## Caching Strategy
 
-With 11+ external APIs, build times could easily balloon to several minutes. The solution was an aggressive file-based caching system.
+With 10 external sources, build times could easily balloon to several minutes. The solution was an aggressive file-based caching system.
 
 Each API response is cached to disk with a TTL appropriate for that data type:
 - Game cover art: 30 days (rarely changes)

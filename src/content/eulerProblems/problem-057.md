@@ -7,28 +7,21 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler57.java'
 ---
 
-## Problem Statement
+## The problem
 
-It is possible to show that the square root of two can be expressed as an infinite continued fraction.
+Expanding the continued fraction for √2 one level at a time gives 3/2, 7/5, 17/12, 41/29, and so on. In the first thousand expansions, count how many have a numerator with more digits than the denominator.
 
-√2 = 1 + 1/(2 + 1/(2 + 1/(2 + ... ))) = 1.414213...
+## My solution
 
-By expanding this for the first four iterations, we get:
+Only the fractional part needs tracking. If an expansion is 1 + n/d, the next is 1 + 1/(2 + n/d) = 1 + d/(2d + n). So the code keeps n/d, starting at 1/2, and on each step checks whether the full numerator n + d has more digits than d, then moves (n, d) to (d, 2d + n):
 
-1 + 1/2 = 3/2 = 1.5
-1 + 1/(2 + 1/2) = 7/5 = 1.4
-1 + 1/(2 + 1/(2 + 1/2)) = 17/12 = 1.41666...
-1 + 1/(2 + 1/(2 + 1/(2 + 1/2))) = 41/29 = 1.41379...
+```java
+if(num.add(den).toString().length() > den.toString().length())
+  count++;
 
-The next three expansions are 99/70, 239/169, and 577/408, but the eighth expansion, 1393/985, is the first example where the number of digits in the numerator exceeds the number of digits in the denominator.
+temp = num.add(den.add(den));
+num = den;
+den = temp;
+```
 
-In the first one-thousand expansions, how many fractions contain a numerator with more digits than the denominator?
-
-## Approach
-
-The solution involves:
-1. Generating the continued fraction expansion iteratively
-2. Using the recurrence relation for numerators and denominators
-3. Using BigInteger to handle large numbers
-4. Comparing digit counts for numerator and denominator
-5. Counting expansions where numerator has more digits
+It needs `BigInteger` because both terms grow by a factor of about 1 + √2 per step, reaching around 380 digits by the thousandth expansion. The loop is linear in the number of expansions.

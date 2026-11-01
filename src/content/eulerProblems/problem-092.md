@@ -7,56 +7,30 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler92.java'
 ---
 
-# Problem 92: Square Digit Chains
+## The problem
 
-## Problem Statement
+Repeatedly replace a number with the sum of the squares of its digits. Every chain ends up at either 1 or 89. Count the starting numbers below ten million that reach 89.
 
-A number chain is created by continuously adding the square of the digits in a number to form a new number until it has been seen before.
+## My solution
 
-For example:
-- 44 → 32 → 13 → 10 → 1 → 1
-- 85 → 89 → 145 → 42 → 20 → 4 → 16 → 37 → 58 → 89
+Pure brute force, with no caching. For each start from 1 to 9,999,999, I follow the chain while recording every value in a fresh `TreeSet`. The loop stops when `add` returns false, meaning a value repeated. If 89 showed up along the way, the start is counted:
 
-Therefore any chain that arrives at 1 or 89 will become stuck in an endless loop. What is most amazing is that EVERY starting number will eventually arrive at 1 or 89.
+```java
+while(chain.add(num)) {
+  if(num == 89)
+    count++;
 
-**How many starting numbers below ten million will arrive at 89?**
+  sum = 0;
+  while(num != 0) {
+    sum += (num % 10)*(num % 10);
+    num /= 10;
+  }
+  num = sum;
+}
+```
 
-## Approach
+Since 89 can only be added to the set once, each start is counted at most once. Chains reaching 1 stop when 1 repeats, and chains reaching 89 go around the 89 → 145 → … → 89 cycle once and stop. That's ten million chains of up to about 20 values, each building its own `TreeSet`, so it's slow but simple.
 
-This problem requires simulating the square digit chain process for many numbers. The key insight is that we can optimize using memoization.
+## Notes
 
-### Brute Force Approach
-For each number from 1 to 10,000,000:
-1. Calculate the sum of squares of its digits
-2. Repeat until reaching 1 or 89
-3. Count how many numbers arrive at 89
-
-### Optimized Approach with Memoization
-Since many numbers will share the same intermediate values in their chains, we can cache results:
-1. Create a lookup table to store which destination (1 or 89) each number reaches
-2. For each number, follow the chain until we either:
-   - Reach 1 or 89 directly
-   - Reach a number we've already computed
-3. Backfill the cache with all numbers in the current chain
-
-Additional optimization: The sum of squares of digits of any number below 10,000,000 is at most:
-- 9² × 7 = 567 (for 9,999,999)
-
-So we only need to compute chains for numbers up to 567 initially, then use this cache for larger numbers.
-
-## Complexity
-
-- **Time Complexity**: O(n × d) where n is the upper limit and d is the average chain length, reduced significantly with memoization
-- **Space Complexity**: O(n) for the memoization cache
-
-## Solution
-
-View the complete solution on [GitHub](https://github.com/atyansh/Project-Euler/blob/master/Euler92.java).
-
-## Related Concepts
-
-- Dynamic programming
-- Memoization
-- Digit manipulation
-- Chain sequences
-- Cycle detection
+The obvious speedup: after one step, every start below 10⁷ is at most 7 × 9² = 567. Working out where each of 1 to 567 ends up first turns every start into a single digit-square sum plus a table lookup.

@@ -7,20 +7,23 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler4.java'
 ---
 
-## Problem Statement
+## The problem
 
-A palindromic number reads the same both ways. The largest palindrome made from the product of two 2-digit numbers is 9009 = 91 × 99.
+Find the largest palindrome that is the product of two 3-digit numbers.
 
-Find the largest palindrome made from the product of two 3-digit numbers.
+## My solution
 
-## Approach
+Brute force. Two nested loops run `i` and `j` from 999 down to 100, multiply them, and keep the largest product that is a palindrome. There is no early exit, so all 900 × 900 = 810,000 products are checked (each pair twice, as i·j and j·i).
 
-To solve this problem efficiently:
-1. Generate products of all pairs of 3-digit numbers (100 to 999)
-2. Start from the largest products by iterating in descending order
-3. For each product, check if it is a palindrome
-4. Return the first (largest) palindrome found
+The palindrome test converts the number to a string and compares characters from both ends toward the middle:
 
-A number is a palindrome if its string representation reads the same forwards and backwards. We can check this by comparing the number with its reverse.
+```java
+for(int i = 0; i < length/2; i++)
+  if(s.charAt(i) != s.charAt(length - 1 - i))
+    return false;
+return true;
+```
 
-Since we're looking for the largest palindrome, starting from 999 × 999 and working downwards will find the answer more quickly.
+## Notes
+
+Counting down doesn't help on its own here, because the first palindrome found isn't necessarily the largest. The code handles that correctly by tracking a running maximum instead of stopping early. Restricting the inner loop to `j ≤ i` and breaking once `i·j` drops below the current maximum would cut the work a lot.

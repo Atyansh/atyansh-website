@@ -7,30 +7,22 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler69.java'
 ---
 
-## Problem Statement
+## The problem
 
-Euler's Totient function, φ(n) [sometimes called the phi function], is used to determine the number of numbers less than n which are relatively prime to n. For example, as 1, 2, 4, 5, 7, and 8, are all less than nine and relatively prime to nine, φ(9)=6.
+Euler's totient φ(n) counts the numbers below n that share no factor with n. Find the n ≤ 1,000,000 for which n/φ(n) is largest.
 
-| n | Relatively Prime | φ(n) | n/φ(n) |
-|---|-----------------|------|--------|
-| 2 | 1               | 1    | 2      |
-| 3 | 1,2             | 2    | 1.5    |
-| 4 | 1,3             | 2    | 2      |
-| 5 | 1,2,3,4         | 4    | 1.25   |
-| 6 | 1,5             | 2    | 3      |
-| 7 | 1,2,3,4,5,6     | 6    | 1.1666...  |
-| 8 | 1,3,5,7         | 4    | 2      |
-| 9 | 1,2,4,5,7,8     | 6    | 1.5    |
-| 10| 1,3,7,9         | 4    | 2.5    |
+## My solution
 
-It can be seen that n=6 produces a maximum n/φ(n) for n ≤ 10.
+The Java file is a brute force I abandoned. It only tries even n and computes φ(n) by counting the odd j < n with gcd(n, j) = 1 (even j can never be coprime to an even n), using Euclid's algorithm. That's around 1.25 × 10¹¹ gcd calls. A comment at the bottom of the file records what happened next: "This is taking too long. I calculated the answer mathematically."
 
-Find the value of n ≤ 1,000,000 for which n/φ(n) is a maximum.
+```java
+for(int i = 2; i < 1000000; i+=2) {
+  int totient = 0;
+  for(int j = 1; j < i; j+=2) {
+    if(hcf(i, j) == 1)
+      totient++;
+  }
+  ...
+```
 
-## Approach
-
-The solution involves:
-1. Recognizing that n/φ(n) is maximized when n has many small prime factors
-2. The answer is the product of consecutive primes: 2 × 3 × 5 × 7 × 11 × 13 × 17
-3. Finding the largest primorial (product of consecutive primes) ≤ 1,000,000
-4. Alternatively, computing φ(n) for all n and finding the maximum ratio
+The math is short. n/φ(n) is the product of p/(p − 1) over the distinct primes p dividing n. It depends only on which primes divide n, not their powers, every extra prime factor makes it larger, and smaller primes contribute more. So the best n under the limit is a product of consecutive primes 2·3·5·7·…, continued as long as the product stays at or below one million. That's the reasoning in the file's comment too: use as many of the smallest primes as possible.

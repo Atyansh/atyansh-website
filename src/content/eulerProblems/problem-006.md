@@ -7,28 +7,24 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler6.java'
 ---
 
-## Problem Statement
+## The problem
 
-The sum of the squares of the first ten natural numbers is:
-1² + 2² + ... + 10² = 385
+For the numbers 1 to 100, take the square of their sum and subtract the sum of their squares.
 
-The square of the sum of the first ten natural numbers is:
-(1 + 2 + ... + 10)² = 55² = 3025
+## My solution
 
-Hence the difference between the square of the sum and the sum of the squares of the first ten natural numbers is 3025 - 385 = 2640.
+The code mixes the two approaches. The sum of squares is a plain loop, while the square of the sum uses the closed form (n(n+1)/2)², written as (100·101)²/4:
 
-Find the difference between the sum of the squares of the first one hundred natural numbers and the square of the sum.
+```java
+for(int i = 1; i <= 100; i++)
+  a += i*i;
 
-## Approach
+b = (100*101)*(100*101)/4;
+c = b-a;
+```
 
-We can use mathematical formulas to solve this efficiently:
+Everything fits comfortably in an `int` (10100² is about 10⁸), so overflow isn't a concern.
 
-1. Sum of first n natural numbers: `n(n+1)/2`
-2. Sum of squares of first n natural numbers: `n(n+1)(2n+1)/6`
+## Notes
 
-For n = 100:
-- Calculate sum = 100(101)/2, then square it
-- Calculate sum of squares = 100(101)(201)/6
-- Find the difference: (sum)² - sum of squares
-
-This approach runs in O(1) time complexity, avoiding the need to iterate through all numbers.
+The loop could also be replaced by the formula for the sum of squares, n(n+1)(2n+1)/6, which makes the whole thing O(1).

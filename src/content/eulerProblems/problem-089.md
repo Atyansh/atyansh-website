@@ -7,32 +7,29 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler89.java'
 ---
 
-## Problem Statement
+## The problem
 
-For a number written in Roman numerals to be considered valid there are basic rules which must be followed. Even though the rules allow some numbers to be expressed in more than one way there is always a "best" way of writing a particular number.
+A file holds a thousand valid Roman numerals, not all written as compactly as possible. Find the total number of characters saved by rewriting each one in its minimal form.
 
-For example, it would appear that there are at least six ways of writing the number sixteen:
+## My solution
 
-IIIIIIIIIIIIIIII
-VIIIIIIIIIII
-VVIIIIII
-XIIIIII
-VVVI
-XVI
+I parse each numeral to an integer, write that integer back out in minimal form, and add up the length differences. A small `Roman` class does both conversions.
 
-However, according to the rules only XIIIIII and XVI are valid, and the last example is considered to be the most efficient, as it uses the least number of numerals.
+**Parsing** goes from right to left. The last symbol is always added. Each earlier symbol is added if it's at least as large as the symbol to its right, and subtracted otherwise, which handles IV, XC and so on. The parser doesn't care about minimality, so non-minimal input like `IIII` or `VIIII` simply adds up.
 
-The 11K text file, roman.txt, contains one thousand numbers written in valid, but not necessarily minimal, Roman numerals; see About... Roman Numerals for the definitive rules for this problem.
+**Writing** is greedy over 13 tokens: the seven single symbols plus the six subtractive pairs IV, IX, XL, XC, CD and CM. Going from M down, I append a token as many times as it fits:
 
-Find the number of characters saved by writing each of these in their minimal form.
+```java
+for(int i = arr.length - 1; i >= 0; i--) {
+  while(num >= arr[i].value) {
+    roman += arr[i].roman;
+    num -= arr[i].value;
+  }
+}
+```
 
-Note: You can assume that all the Roman numerals in the file contain no more than four consecutive identical units.
+Including the subtractive pairs as their own tokens is what makes the greedy output minimal: 4 becomes IV and not IIII, 900 becomes CM and not DCCCC. The main loop reads the file line by line and adds `original.length() - minimal.length()` to the total.
 
-## Approach
+## Notes
 
-The solution involves:
-1. Reading Roman numerals from the file
-2. Converting each Roman numeral to its decimal value
-3. Converting the decimal value back to minimal Roman numeral form
-4. Comparing the lengths of original and minimal forms
-5. Summing the character savings across all 1000 numbers
+Since only the length matters, the conversion can be skipped: replacing DCCCC, CCCC, LXXXX, XXXX, VIIII and IIII with two-character placeholders and comparing lengths gives the same count.

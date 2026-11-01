@@ -7,24 +7,14 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler30.java'
 ---
 
-## Problem Statement
+## The problem
 
-Surprisingly there are only three numbers that can be written as the sum of fourth powers of their digits:
+Find the sum of all numbers that equal the sum of the fifth powers of their own digits (1 doesn't count, since it isn't a sum).
 
-- 1634 = 1⁴ + 6⁴ + 3⁴ + 4⁴
-- 8208 = 8⁴ + 2⁴ + 0⁴ + 8⁴
-- 9474 = 9⁴ + 4⁴ + 7⁴ + 4⁴
+## My solution
 
-As 1 = 1⁴ is not a sum it is not included.
+Brute force over 101 … 999,999. For each number I peel off digits with `% 10`, add `Math.pow(digit, 5)`, and compare the total to the original.
 
-The sum of these numbers is 1634 + 8208 + 9474 = 19316.
+A comment in the code justifies stopping at a million informally: past that point the digit sum "simply cannot catch up". The precise version: a number with d ≥ 7 digits is at least 10ᵈ⁻¹, but its digit fifth-power sum is at most d × 9⁵ (413,343 for d = 7), which is far smaller. So the bound is safe. It's also loose: no 6-digit number can exceed 6 × 9⁵ = 354,294, so roughly two thirds of the loop is wasted, though a million iterations hardly matter.
 
-Find the sum of all the numbers that can be written as the sum of fifth powers of their digits.
-
-## Approach
-
-The solution involves:
-1. Determining an upper bound for the search (6 × 9⁵ = 354,294)
-2. For each number, extracting its digits and computing the sum of fifth powers
-3. Checking if the sum equals the original number
-4. Accumulating all such numbers (excluding 1)
+Starting at 101 skips 1, which the problem excludes, along with all two-digit numbers. I checked separately that nothing below 101 qualifies, so that's safe too.

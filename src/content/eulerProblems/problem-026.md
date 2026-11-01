@@ -7,28 +7,30 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler26.java'
 ---
 
-## Problem Statement
+## The problem
 
-A unit fraction contains 1 in the numerator. The decimal representation of the unit fractions with denominators 2 to 10 are given:
+Among denominators d < 1000, find the one for which the decimal expansion of 1/d has the longest repeating cycle.
 
-- 1/2 = 0.5
-- 1/3 = 0.(3)
-- 1/4 = 0.25
-- 1/5 = 0.2
-- 1/6 = 0.1(6)
-- 1/7 = 0.(142857)
-- 1/8 = 0.125
-- 1/9 = 0.(1)
-- 1/10 = 0.1
+## My solution
 
-Where 0.1(6) means 0.166666..., and has a 1-digit recurring cycle. It can be seen that 1/7 has a 6-digit recurring cycle.
+Long division with remainder tracking, for every d from 2 to 999. Starting from a remainder of 1, I multiply by 10 until it is at least d, take the remainder mod d, and add it to a `TreeSet`. A remainder of 0 means the decimal terminates, so d is skipped. A remainder already in the set means the digits are about to repeat, and the set's size is taken as the cycle length.
 
-Find the value of d < 1000 for which 1/d contains the longest recurring cycle in its decimal fraction part.
+```java
+while(true) {
+  while(a - i < 0)
+    a *= 10;
+  if(a % i == 0)
+    continue outer;
+  if(!remainders.add(a%i)) {
+    if(max < remainders.size()) { max = remainders.size(); d = i; }
+    continue outer;
+  }
+  a = a % i;
+}
+```
 
-## Approach
+There are only d − 1 possible non-zero remainders, so each d takes at most d steps and the whole search is under a million set operations.
 
-The solution involves:
-1. Implementing long division to find the recurring cycle length
-2. Detecting when a remainder repeats (indicating the start of a cycle)
-3. Testing all denominators d < 1000
-4. Finding the one with the longest recurring cycle
+## Notes
+
+The set size isn't exactly the cycle length. When a remainder is small, the inner `while` multiplies by 10 more than once, and the remainders in between (the ones that produce a 0 digit) never get recorded. So the code really counts the non-zero digits in the cycle, plus a pre-period remainder or two when d has factors of 2 or 5. For 1/101 = 0.(0099) it reports 2 instead of 4. I modelled the loop in Python: this measure differs from the true period for 881 of the 998 denominators, but its maximum is at the same d, so the answer comes out right. Counting multiply-by-10 steps instead of set entries would give the exact length.

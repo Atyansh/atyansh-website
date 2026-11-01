@@ -7,27 +7,24 @@ solutionLanguage: 'Java'
 githubLink: 'https://github.com/atyansh/Project-Euler/blob/master/Euler83.java'
 ---
 
-## Problem Statement
+## The problem
 
-NOTE: This problem is a significantly more challenging version of Problem 81.
+In the same 80×80 grid, find the smallest path sum from the top-left cell to the bottom-right cell when moves in all four directions are allowed.
 
-In the 5 by 5 matrix below, the minimal path sum from the top left to the bottom right, by moving left, right, up, and down, is indicated in bold red and is equal to 2297.
+## My solution
 
+This is the same code as problems 81 and 82 with a fourth link. Every `Node` points `up`, `down`, `left` and `right`, the top-left node is seeded with its own value, and a FIFO queue drives the relaxation. Whenever a neighbour's distance improves through the current node, the neighbour is updated and queued again:
+
+```java
+if(travel.left != null)
+  if(travel.left.distance > (travel.distance + travel.left.value)) {
+    travel.left.distance = travel.distance + travel.left.value;
+    q.add(travel.left);
+  }
 ```
-131 673 234 103 18
-201 96  342 965 150
-630 803 746 422 111
-537 699 497 121 956
-805 732 524 37  331
-```
 
-Find the minimal path sum from the top left to the bottom right by moving left, right, up, and down in matrix.txt, a 31K text file containing an 80 by 80 matrix.
+Once moves can go left and up, there's no simple DP order over the grid, and this is where a general shortest-path search becomes necessary. My version isn't Dijkstra: there's no priority queue, so a cell can be processed several times as cheaper paths reach it. It's queue-based Bellman–Ford (SPFA). With positive cell values it still converges to the exact shortest distances, and the answer is the bottom-right node's distance.
 
-## Approach
+## Notes
 
-The solution involves:
-1. Reading the 80x80 matrix from the file
-2. Using Dijkstra's algorithm to find the shortest path
-3. Treating each cell as a node in a graph
-4. Edges connect adjacent cells (up, down, left, right)
-5. Finding the shortest path from top-left to bottom-right
+Dijkstra with a priority queue would process each of the 6,400 cells exactly once. The queue version gets the same answer by possibly reprocessing some cells.

@@ -1,12 +1,12 @@
 ---
 title: 'Personal Website'
-description: 'A comprehensive personal website featuring bio, projects, research, blog, and real-time activity tracking from 11+ platforms. Built entirely with AI-assisted development.'
+description: 'This site: a static Astro site rebuilt every night from 10 sources, from Spotify and Steam to Goodreads and my climbing gym. Written entirely with Claude Code.'
 # The audio system is a hidden feature (visit with ?audio=on to reveal it).
 # Frontmatter is static and feeds public meta tags / project cards, so it
 # deliberately omits the audio mentions ('Web Audio API', description).
-technologies: ['Astro', 'TypeScript', 'React', 'Tailwind CSS', 'Google Cloud', 'Node.js']
+technologies: ['Astro', 'TypeScript', 'React', 'Tailwind CSS', 'Google Cloud Build', 'Firebase Hosting']
 featured: true
-startDate: 2024-11-01
+startDate: 2025-10-11
 links:
   github: 'https://github.com/Atyansh/atyansh-website'
   website: 'https://atyansh.com'
@@ -15,69 +15,48 @@ links:
 import ArchitectureDiagram from '../../components/ArchitectureDiagram.astro';
 import AmbientAudioSection from './_ambient-audio.mdx';
 
-# Personal Website
+I'd put off building a real personal site since college. When I joined Anthropic I wanted to learn [Claude Code](https://claude.com/claude-code) properly, so I built this site with it. I haven't written any of its code by hand.
 
-A comprehensive personal website that serves as a central hub for my online presence. The entire project was built using [Claude Code](https://claude.com/claude-code) - not a single line of code was manually written.
+Besides the usual pages (work, papers, a blog, my [Project Euler solutions](/euler), a [PGP key](/pgp) and [my pets](/pets)), most of the site shows what I'm currently into: the games I'm playing, the music I listen to, the books, films, TV and anime I've finished, and my bouldering.
 
-## Content
+## Where the data comes from
 
-- **Bio** - Main landing page with personal introduction
-- **Projects** - Portfolio of technical work
-- **Research** - Academic papers and publications
-- **Blog** - Technical writing and thoughts
-- **Activity** - Real-time tracking of games, music, TV, movies, anime, books, and climbing
-- **Resume** - Professional experience
-- **Pets** - Photos and info about my animals
-- **PGP Key** - For secure communication
+The site is fully static. Everything is fetched at build time, and a build runs every night at 2 AM Pacific and on every push.
 
-## Activity Tracking
+- **Games:** the Steam Web API; PlayStation Network's API, with a refresh token that rotates every build; Nintendo Switch play history scraped from Exophase in a headless browser; and IGDB for consistent box art across all three.
+- **Music:** Spotify's API for top tracks, top artists, playlists and recent plays.
+- **Movies:** my Letterboxd diary, ratings and posters, scraped.
+- **TV:** a "watched" list and my ratings on TMDB.
+- **Anime:** the MyAnimeList API.
+- **Books:** Goodreads shelves, scraped with a signed-in session since Goodreads removed its RSS feeds in 2026.
+- **Climbing:** Kaya's GraphQL API, for my grade pyramid, send history and send videos.
 
-The site pulls data from 11+ different platforms to display what I'm currently playing, watching, reading, and climbing:
+Most of these aren't stable APIs. Tokens expire on schedules from a day to a year, Letterboxd sits behind Cloudflare, and Goodreads and Trakt (which the TV page used to rely on) have both shut down the interfaces I started with. The interesting part of this project is keeping a page full of other people's data working every day without me looking at it.
 
-**Gaming**
-- Steam - PC games with playtime and achievements
-- PlayStation Network - PS4/PS5 games with trophy progress
-- Nintendo Switch - via Exophase integration
-- IGDB - High-quality cover art for all platforms
+## Keeping it running
 
-**Media**
-- Spotify - Recently played tracks
-- Letterboxd - Movie diary and ratings
-- TMDB - TV shows with poster images
-- MyAnimeList - Anime watching progress
-- Goodreads - Read, currently reading, and want-to-read shelves
-
-**Fitness**
-- Kaya - Bouldering stats, grade pyramid, and send videos
-
-## Self-Healing Infrastructure
-
-One of the key technical challenges was managing OAuth tokens that expire at different intervals (24 hours to 90 days). The solution:
-
-- **Pre-build token refresh** - A script runs before each build to test and refresh expired tokens, using Puppeteer stealth to bypass Cloudflare when needed, and attempts a silent Goodreads re-sign-in (Amazon mostly requires a fresh login about once a year)
-- **Single-secret credential store** - Every credential lives in one JSON secret in Google Cloud Secret Manager; renewed tokens are saved in one validated write per build, with the last three versions kept for rollback
-- **Retry logic** - All API calls include exponential backoff and serialized rate limiting for transient failures
-- **File-based caching** - Generic `FileCache<T>` with 24-hour TTL minimizes redundant API calls across builds
-- **Health monitoring** - Discord DM notifications when any API fails during the daily build
-- **Last-known-good fallback** - Each build restores the previous build's data, so every source that fails serves yesterday's data instead of an empty page, and sources that can only be partly fetched (Letterboxd behind Cloudflare, Kaya's capped public API) merge onto it
-
-## Architecture
+- **Tokens refresh themselves.** Before each build a script tests the credentials that expire, renews them (MyAnimeList, PSN and IGDB tokens, plus a Goodreads re-sign-in when Amazon allows one) and writes any that changed back to Google Secret Manager in a single validated write. All credentials live in one JSON secret, and the last three versions are kept for rollback.
+- **Bad data never replaces good data.** Each build starts from the previous build's cache. A source that fails, comes back empty, or returns less than half of what it had before keeps yesterday's data instead of blanking its page. Sources that can only be partly fetched, like Letterboxd past page 1 or Kaya's capped public queries, are merged onto the previous copy.
+- **I hear about problems on Discord.** After every build a health check looks for a fresh cache file from each source and DMs me with what broke and how to fix it. Build or test failures DM me too, and a failed build never deploys. Where an expiry date is known in advance, as with the Goodreads login, the alert comes in the last 30 days rather than on the day.
+- **The build has only the permissions it needs.** Cloud Build runs as a service account limited to deploying to Firebase, reading and updating its one secret, and its own storage bucket.
 
 <ArchitectureDiagram />
 
-## Technical Stack
+## The front end
 
-- **Frontend**: Astro 7, React, Tailwind CSS 4, Framer Motion
-- **Build**: TypeScript, Node.js 22, Vitest
-- **Infrastructure**: Google Cloud Build (custom Docker image), Secret Manager, Firebase Hosting
-- **Monitoring**: Custom health checks with Discord DM notifications
+Astro renders plain HTML, with React only where a page needs interactivity: the filterable media grids, the image viewer that grows out of a tile, and the music player. Songs play in place through a hidden Spotify embed that the page drives over `postMessage`, so the play buttons, progress ring and pop-up player are the site's own rather than Spotify's widget. Nothing on the media pages links away from the site.
+
+There are five visual themes, from a clean default to a brutalist one and a dark terminal, switchable from the header. The site sends a strict Content Security Policy, and visits are counted with GoatCounter, which doesn't use cookies, rather than Google Analytics.
 
 <div class="audio-gated">
   <AmbientAudioSection />
 </div>
 
-## Key Features
+## Stack
 
-- **Zero manual code** - 100% AI-assisted development via Claude Code
-- **Graceful degradation** - Missing API keys don't break the build; React ErrorBoundaries isolate component failures
-- **CDN-optimized** - Immutable hashes for assets, automatic cache invalidation
+- **Site:** Astro 7, React, Tailwind CSS 4, Framer Motion, TypeScript
+- **Build:** Node.js 22, Vitest, Puppeteer for the scraped sources
+- **Infrastructure:** Cloud Scheduler, Cloud Build (custom Docker image), Secret Manager, Firebase Hosting
+- **Monitoring:** a Discord bot that DMs me
+
+The whole thing is configurable for forks: identity, social links and each integration are switched on and off in one config file, and pages for disabled integrations aren't built.

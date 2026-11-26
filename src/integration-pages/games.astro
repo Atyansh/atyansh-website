@@ -4,7 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import GameCarousel from '../components/GameCarousel';
 import LoadError from '../components/LoadError.astro';
 import type { GameCardData } from '../components/GameCard';
-import { formatSiteDate } from '../components/formatDate';
+import { formatSiteDate, formatCalendarDate } from '../components/formatDate';
 import { getAllGames, getPlatformName, getPlatformColor, type UnifiedGame } from '../utils/unified-games';
 import { getGameCapsuleFallbacks } from '../utils/steam';
 import { enabledIntegrations } from '../integrations';
@@ -30,6 +30,14 @@ const platformList = platformNames.length <= 2
 // re-run in the visitor's time zone and mismatch the server HTML
 const lastPlayed = (date: number | string) => formatSiteDate(date, { month: 'numeric', day: 'numeric', year: 'numeric' });
 
+/** 201 -> "3h 21m", 45 -> "45m" */
+function duration(minutes: number): string {
+  const total = Math.round(minutes);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 function toCardData(game: UnifiedGame): GameCardData {
   const stats: GameCardData['stats'] = [];
   let trophies: GameCardData['trophies'];
@@ -48,16 +56,24 @@ function toCardData(game: UnifiedGame): GameCardData {
     if (game.psnData.lastPlayed) stats.push({ label: 'Last Played', value: lastPlayed(game.psnData.lastPlayed) });
   }
   if (game.nintendoData) {
-    stats.push({ label: 'Playtime', value: `${Math.floor(game.nintendoData.playtimeSeconds / 3600)}h` });
-    if (game.nintendoData.lastPlayed) stats.push({ label: 'Last Played', value: lastPlayed(game.nintendoData.lastPlayed) });
+    const { playtimeSeconds, daysPlayed, firstPlayed, lastPlayed: last } = game.nintendoData;
+    stats.push({ label: 'Playtime', value: playtimeSeconds < 3600 ? duration(playtimeSeconds / 60) : `${Math.floor(playtimeSeconds / 3600)}h` });
+    if (daysPlayed) {
+      stats.push({ label: 'Days Played', value: daysPlayed.toLocaleString() });
+      stats.push({ label: 'Per Play Day', value: duration(playtimeSeconds / 60 / daysPlayed) });
+    }
+    if (firstPlayed) stats.push({ label: 'First Played', value: lastPlayed(firstPlayed) });
+    if (last) stats.push({ label: 'Last Played', value: lastPlayed(last) });
   }
-  const fallbackImages = game.steamData ? getGameCapsuleFallbacks(game.steamData.appid) : [];
+  const fallbackImages = game.steamData
+    ? getGameCapsuleFallbacks(game.steamData.appid)
+    : game.fallbackImage ? [game.fallbackImage] : [];
   return {
     id: game.id,
     name: game.name,
     image: game.image || fallbackImages[0] || '',
     fallbackImages: game.image ? fallbackImages : fallbackImages.slice(1),
-    platformName: getPlatformName(game.platform),
+    platformName: game.nintendoData?.device === 'switch2' ? 'Switch 2' : getPlatformName(game.platform),
     platformColor: getPlatformColor(game.platform),
     stats,
     trophies,
@@ -68,6 +84,32 @@ function toCardData(game: UnifiedGame): GameCardData {
 const steamGames = allGames.filter(g => g.platform === 'steam').map(toCardData);
 const psnGames = allGames.filter(g => g.platform === 'psn').map(toCardData);
 const nintendoGames = allGames.filter(g => g.platform === 'nintendo').map(toCardData);
+
+// Nintendo: totals, recent play days, and hours per month from the play-day
+// log that builds up one build at a time (Nintendo only reports recent days)
+const nintendoSince = nintendoStats?.firstPlayedAt ? formatSiteDate(nintendoStats.firstPlayedAt, { year: 'numeric' }) : null;
+const nintendoSessions = nintendoStats?.sessions ?? [];
+const recentSessions = nintendoSessions.slice(0, 5).map(s => ({
+  ...s,
+  day: formatCalendarDate(s.date, { month: 'short', day: 'numeric', year: 'numeric' }),
+  time: duration(s.minutes),
+}));
+const monthKey = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+const minutesByMonth = new Map<string, number>();
+for (const s of nintendoSessions) {
+  const key = s.date.slice(0, 7);
+  minutesByMonth.set(key, (minutesByMonth.get(key) ?? 0) + s.minutes);
+}
+// The last 12 months up to now, shown once the log spans two or more months
+const nintendoMonths = minutesByMonth.size >= 2
+  ? Array.from({ length: 12 }, (_, i) => {
+      const now = new Date();
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11 + i, 1));
+      const minutes = minutesByMonth.get(monthKey(d)) ?? 0;
+      return { label: formatCalendarDate(d, { month: 'short' }), full: formatCalendarDate(d, { month: 'long', year: 'numeric' }), minutes, hours: minutes / 60 };
+    })
+  : [];
+const maxMonthHours = Math.max(1, ...nintendoMonths.map(m => m.hours));
 
 // The Steam status is a build-time snapshot (and the Steam cache can be up to
 // a day older than the build), so it is labelled as such rather than "currently"
@@ -218,7 +260,7 @@ const buildDate = formatSiteDate(Date.now());
             <div class="flex flex-col lg:flex-row gap-8">
               <div class="lg:w-64 flex-shrink-0">
                 <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary);">Nintendo Switch</h3>
-                <div class="space-y-4">
+                <div class="grid grid-cols-2 lg:grid-cols-1 gap-4">
                   <div>
                     <div class="text-3xl font-bold" style="color: var(--accent);">
                       {nintendoStats.totalGames}
@@ -231,7 +273,35 @@ const buildDate = formatSiteDate(Date.now());
                     </div>
                     <div class="text-sm" style="color: var(--text-secondary);">Hours Played</div>
                   </div>
+                  {nintendoStats.totalDaysPlayed ? (
+                    <div>
+                      <div class="text-3xl font-bold" style="color: var(--accent);">
+                        {nintendoStats.totalDaysPlayed.toLocaleString()}
+                      </div>
+                      <div class="text-sm" style="color: var(--text-secondary);">Days Played</div>
+                    </div>
+                  ) : null}
+                  {nintendoSince && (
+                    <div>
+                      <div class="text-3xl font-bold" style="color: var(--accent);">{nintendoSince}</div>
+                      <div class="text-sm" style="color: var(--text-secondary);">Playing Since</div>
+                    </div>
+                  )}
                 </div>
+
+                {recentSessions.length > 0 && (
+                  <div class="mt-6">
+                    <h4 class="text-sm font-semibold mb-2" style="color: var(--text-primary);">Recent Play</h4>
+                    <ul class="space-y-2 text-sm">
+                      {recentSessions.map(s => (
+                        <li>
+                          <div class="truncate" style="color: var(--text-primary);" title={s.name}>{s.name}</div>
+                          <div class="text-xs" style="color: var(--text-secondary);">{s.day} · {s.time}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
               <div class="flex-1 min-w-0">
                 <GameCarousel
@@ -239,6 +309,30 @@ const buildDate = formatSiteDate(Date.now());
                   games={nintendoGames}
                   title="Recent Games"
                 />
+
+                {nintendoMonths.length > 0 && (
+                  <figure class="mt-8">
+                    <figcaption class="text-sm font-semibold mb-3" style="color: var(--text-primary);">Hours played per month</figcaption>
+                    <div class="switch-months" aria-hidden="true">
+                      {nintendoMonths.map(m => (
+                        <div class="switch-month" title={`${m.full}: ${duration(m.minutes)}`}>
+                          <div class="switch-month-track">
+                            <div class="switch-month-bar" style={`height: ${(m.hours / maxMonthHours) * 100}%;`}></div>
+                          </div>
+                          <div class="switch-month-label">{m.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <table class="sr-only">
+                      <caption>Hours played per month</caption>
+                      <tbody>
+                        {nintendoMonths.map(m => (
+                          <tr><th scope="row">{m.full}</th><td>{duration(m.minutes)}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </figure>
+                )}
               </div>
             </div>
           </div>
@@ -249,3 +343,31 @@ const buildDate = formatSiteDate(Date.now());
     {allGames.length === 0 && <LoadError thing="game" />}
   </div>
 </BaseLayout>
+
+<style>
+  .switch-months {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 2px;
+    align-items: end;
+  }
+  .switch-month-track {
+    height: 6rem;
+    display: flex;
+    align-items: flex-end;
+    border-bottom: 1px solid var(--border);
+  }
+  .switch-month-bar {
+    width: 100%;
+    min-height: 0;
+    background: var(--accent);
+    border-radius: 4px 4px 0 0;
+  }
+  .switch-month:hover .switch-month-bar { opacity: 0.8; }
+  .switch-month-label {
+    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+</style>

@@ -300,7 +300,8 @@ The build automatically monitors every **enabled** API integration and sends Dis
 **Monitored APIs:**
 - With API keys (self-healing): Spotify, MyAnimeList, IGDB
 - With API keys (manual renewal): Steam, PSN, TMDB, Kaya login (`KAYA_REFRESH_TOKEN`), Goodreads (`GOODREADS_COOKIE`; a silent re-sign-in is attempted each build but Amazon usually refuses it, so expect a fresh cookie about once a year)
-- Web scraping/public APIs: Letterboxd, Nintendo (Exophase), Kaya (climbing)
+- Web scraping/public APIs: Letterboxd, Kaya (climbing)
+- Nintendo Switch: your Nintendo Account's play history (`NINTENDO_SESSION_TOKEN`, see README)
 
 **How it works:**
 - Runs after every build (`scripts/check-api-health.cjs`)
@@ -383,7 +384,7 @@ This script:
 - Skips keys that aren't set in `.env`
 
 **All keys in `SITE_SECRETS`:**
-- Gaming: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `PSN_REFRESH_TOKEN`, `PSN_REFRESH_TOKEN_EXPIRES_AT`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`, `EXOPHASE_USERNAME`
+- Gaming: `STEAM_API_KEY`, `STEAM_ID`, `PSN_NPSSO`, `PSN_REFRESH_TOKEN`, `PSN_REFRESH_TOKEN_EXPIRES_AT`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `IGDB_ACCESS_TOKEN`, `NINTENDO_SESSION_TOKEN`
 - Spotify: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`
 - MyAnimeList: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `MAL_ACCESS_TOKEN`, `MAL_REFRESH_TOKEN`
 - TV Shows: `TMDB_READ_TOKEN`, `TMDB_ACCESS_TOKEN`, `TMDB_ACCOUNT_OBJECT_ID`, `TMDB_TV_LIST_ID`

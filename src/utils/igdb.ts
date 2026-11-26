@@ -183,6 +183,7 @@ const EXCLUDED_GAMES = new Set([
 const NAME_MAPPINGS: Record<string, string> = {
   'grand theft auto v legacy': 'Grand Theft Auto V',
   'mega man 11 demo version': 'Mega Man 11',
+  'my friend pedro: blood bullets bananas': 'My Friend Pedro',
 };
 
 /**
@@ -366,7 +367,7 @@ export async function getIGDBCoverUrl(gameName: string, platform?: 'steam' | 'ps
     } else if (platform === 'psn') {
       platformFilter = ' & (platforms = (48, 167, 169))'; // PS4, PS5, PS5 Digital
     } else if (platform === 'nintendo') {
-      platformFilter = ' & platforms = (130)'; // Nintendo Switch
+      platformFilter = ' & platforms = (130, 508)'; // Nintendo Switch, Switch 2
     }
 
     // IGDB uses a custom query language

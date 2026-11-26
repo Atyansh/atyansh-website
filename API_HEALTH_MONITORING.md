@@ -25,10 +25,10 @@ report without sending a DM (the preview build uses it).
 6. TMDB (long-lived access token)
 7. Kaya login (`KAYA_REFRESH_TOKEN`, from Firefox on a Mac) — alerts when the logged-in ascents query fails and the build fell back to the capped public queries. The alert shows the failure reason with tokens redacted. Skipped when there's no fresh Kaya data at all ("Kaya climbing stats" already alerts then).
 8. Goodreads (`GOODREADS_COOKIE`, a signed-in session) — shelf RSS is gone, so shelves are scraped signed in. A silent re-sign-in is attempted before every build, but Amazon only allowed it for about an hour after a password sign-in (tested October 2026), so expect to paste a fresh cookie about once a year. Two checks: "Goodreads" (a shelf failed or the cookie is dead; the site keeps the last good books) and "Goodreads (login expiry)", which reads the login's expiry from the cookie and alerts only in the last 30 days before it. A refused silent renewal on its own doesn't alert.
+9. Nintendo Switch (`NINTENDO_SESSION_TOKEN`, a Nintendo Account session token valid ~2 years) — play history read from Nintendo's app API. Two checks: "Nintendo Switch" (the fetch failed; "Nintendo sign-in was rejected" in the log means the login expired or was revoked, and the site keeps the last good games) and "Nintendo (login expiry)", which reads the token's expiry and alerts only in the last 30 days before it.
 
 **Web scraping / public APIs (no credentials):**
-9. Letterboxd (username-based; pages 2+ merge from the previous list when Cloudflare blocks them). The merge never picks up rating changes or removals on older films; `lastFullScrape` in the cache records when every page last loaded (a build from a home connection refreshes it)
-10. Nintendo Switch (Exophase scraping)
+10. Letterboxd (username-based; pages 2+ merge from the previous list when Cloudflare blocks them). The merge never picks up rating changes or removals on older films; `lastFullScrape` in the cache records when every page last loaded (a build from a home connection refreshes it)
 11. Kaya climbing stats (grade pyramid + send videos)
 
 ## How It Works

@@ -1,5 +1,5 @@
-// Shared Puppeteer launch helper for the build-time scrapers (Letterboxd,
-// Exophase). Hardened because the build container holds every credential:
+// Shared Puppeteer launch helper for the build-time scraper (Letterboxd).
+// Hardened because the build container holds every credential:
 //
 // - Chrome gets a minimal environment (no API keys/tokens), not process.env.
 // - Each page opened with browser.newPage() is locked to the site it first
@@ -40,8 +40,7 @@ export function minimalChromeEnv(env: NodeJS.ProcessEnv = process.env): Record<s
 
 // Extra registrable domains a scraped site needs for its own assets.
 // Letterboxd serves JS/CSS/fonts from s.ltrbxd.com and images from
-// a.ltrbxd.com. Exophase's data is inline in the HTML (window.playerGames),
-// so it needs nothing beyond exophase.com.
+// a.ltrbxd.com.
 const SITE_COMPANIONS: Record<string, string[]> = {
   'letterboxd.com': ['ltrbxd.com'],
 };

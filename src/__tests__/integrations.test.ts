@@ -57,7 +57,7 @@ describe('enabledIntegrations', () => {
   });
 
   it('generates /games when any one platform is enabled', () => {
-    expect(enabledPages({ EXOPHASE_USERNAME: 'u' }, allOn).map(p => p.route)).toEqual(['/games']);
+    expect(enabledPages({ NINTENDO_SESSION_TOKEN: 't' }, allOn).map(p => p.route)).toEqual(['/games']);
   });
 
   it('with only Letterboxd, generates only /movies', () => {

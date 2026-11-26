@@ -14,19 +14,6 @@ export type BookStatus = typeof BOOK_STATUSES[number];
 // paths, so URLs stay the same as with the old `slug`.
 const entries = (name: string) => glob({ pattern: '**/[^_]*.{md,mdx}', base: `./src/content/${name}` });
 
-const blog = defineCollection({
-  loader: entries('blog'),
-  schema: z.object({
-    title: z.string(),
-    description: z.string(),
-    pubDate: z.coerce.date(),
-    updatedDate: z.coerce.date().optional(),
-    draft: z.boolean().optional().default(false),
-    tags: z.array(z.string()).optional().default([]),
-    image: z.string().optional(),
-  }),
-});
-
 const projects = defineCollection({
   loader: entries('projects'),
   schema: z.object({
@@ -90,7 +77,6 @@ const eulerProblems = defineCollection({
 });
 
 export const collections = {
-  blog,
   projects,
   papers,
   pets,

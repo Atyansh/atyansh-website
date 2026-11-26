@@ -7,7 +7,6 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
 ## Features
 
 ### Core Features
-- 📝 **Blog** with markdown support and tagging
 - 📄 **Papers/Publications** section for research work
 - 💼 **Projects** showcase with 143 Project Euler solutions
 - 👨‍💻 **Work Experience** page with resume
@@ -15,7 +14,7 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
 - 🐾 **Pet Gallery** with image galleries
 
 ### Activity Tracking
-- 🎮 **Gaming** - Track games across Steam, PlayStation Network, and Nintendo Switch via Exophase
+- 🎮 **Gaming** - Track games across Steam, PlayStation Network, and Nintendo Switch (play history straight from your Nintendo Account)
 - 🎵 **Music** - Display recently played tracks from Spotify
 - 🎬 **Movies** - Show watched films from Letterboxd
 - 📺 **TV Shows** - Track watched shows via a TMDB list with ratings
@@ -117,7 +116,7 @@ An integration is **enabled** when its toggle in `site.config.ts` is on **and** 
 | MyAnimeList | `/anime` | `MAL_CLIENT_ID`, `MAL_ACCESS_TOKEN` | `MAL_CLIENT_SECRET`, `MAL_REFRESH_TOKEN` (auto-refresh) | App at myanimelist.net/apiconfig | `node scripts/get-mal-token.cjs` |
 | Steam | `/games` | `STEAM_API_KEY`, `STEAM_ID` | | steamcommunity.com/dev/apikey; your 64-bit id | |
 | PlayStation | `/games` | `PSN_NPSSO` or `PSN_REFRESH_TOKEN` | `PSN_REFRESH_TOKEN_EXPIRES_AT` | NPSSO from ca.account.sony.com/api/v1/ssocookie | (refresh token minted by `refresh-tokens.cjs`) |
-| Nintendo Switch (Exophase) | `/games` | `EXOPHASE_USERNAME` | | Your Exophase username (public scraping) | |
+| Nintendo Switch | `/games` | `NINTENDO_SESSION_TOKEN` | | Nintendo Account session token from `scripts/get-nintendo-token.cjs` (valid ~2 years) | |
 | IGDB (game covers) | (enhances `/games`) | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET` | `IGDB_ACCESS_TOKEN` | Twitch app at dev.twitch.tv/console | (token minted by `refresh-tokens.cjs`) |
 | Kaya | `/climbing` | `KAYA_USERNAME` | `KAYA_REFRESH_TOKEN` (lifts the 200-ascent cap) | Your username; token per `.env.example` | |
 | Discord alerts | (none) | `DISCORD_BOT_TOKEN`, `DISCORD_USER_ID` | | See [API_HEALTH_MONITORING.md](./API_HEALTH_MONITORING.md) | |
@@ -130,7 +129,7 @@ An integration is **enabled** when its toggle in `site.config.ts` is on **and** 
 
 ### 3. Replace the owner's content
 
-These are the original owner's, not configuration: blog posts (`src/content/blog/`), projects (`src/content/projects/`, `src/pages/projects/`), papers (`src/content/papers/`), Project Euler solutions (`src/content/eulerProblems/`), pets (`src/pages/pets.astro`, `public/images/pets/`), the home page bio/experience/education (`src/pages/index.astro`; name, avatar and links there come from config), `public/resume.pdf`, `public/publickey.asc` + `src/pages/pgp.astro`, `public/.well-known/security.txt` and `keybase.txt`, the OG-image avatar `src/assets/og/avatar.png`, and the ambient-audio songs. Remove a nav entry for content you delete in `src/layouts/BaseLayout.astro`.
+These are the original owner's, not configuration: projects (`src/content/projects/`, `src/pages/projects/`), papers (`src/content/papers/`), Project Euler solutions (`src/content/eulerProblems/`), pets (`src/pages/pets.astro`, `public/images/pets/`), the home page bio/experience/education (`src/pages/index.astro`; name, avatar and links there come from config), `public/resume.pdf`, `public/publickey.asc` + `src/pages/pgp.astro`, `public/.well-known/security.txt` and `keybase.txt`, the OG-image avatar `src/assets/og/avatar.png`, and the ambient-audio songs. Remove a nav entry for content you delete in `src/layouts/BaseLayout.astro`.
 
 ### 4. Google Cloud + Firebase (only if you want the automated daily builds)
 
@@ -191,19 +190,23 @@ All API credentials are optional. Configure only the services you want to use.
 - Tokens are valid for 60 days, then need to be refreshed
 - Detailed guide: https://bigbudone.com/posts/how-to-get-your-npsso-token-for-playstation-api-access/
 
-### 3. Exophase (Unified Gaming Stats)
+### 3. Nintendo Switch (Play History)
 
-Exophase provides a unified view of achievements across platforms.
+Your Switch play history comes straight from Nintendo: per game, total playtime, days played, first and last played, and whether it's a Switch 2 game, plus the last few play days. Nintendo has no public API; this is the play history the Nintendo Switch Online app shows, read with your own Nintendo Account. No browser or scraping is involved.
 
 **What you need:**
-- Your Exophase username
+- A Nintendo Account with the console you play on
 
 **Steps:**
-1. Create an account at https://www.exophase.com
-2. Link your gaming accounts (Steam, PSN, Xbox, etc.)
-3. Your data is public and scraped via username - no API key needed
+1. `node scripts/get-nintendo-token.cjs` prints a Nintendo sign-in link. Open it and sign in (the page says you're linking **Nintendo Store**; the script borrows that app's sign-in).
+2. On the "Select this person" page, right-click the red button and **Copy Link Address** (don't click it).
+3. `pbpaste | node scripts/get-nintendo-token.cjs finish` swaps the link for `NINTENDO_SESSION_TOKEN`, checks it by reading your play history, and saves it to `.env`.
+4. `node scripts/push-secrets.cjs NINTENDO_SESSION_TOKEN` stores it for Cloud Build.
 
-**Note:** The site uses web scraping, which may be slower and is subject to rate limiting. Exophase also handles Nintendo Switch games.
+**Notes:**
+- The session token lasts about two years and never rotates, so builds only read it (no extra secret versions). Each build trades it for a 15-minute access token. The "Nintendo (login expiry)" health check alerts 30 days before it expires; repeat the steps above then.
+- Nintendo only reports the last few play days, so each build merges them into a play-day log in the cache. The monthly hours chart appears once that log spans two months.
+- Covers come from IGDB like the other platforms; Nintendo's own square icon is only the fallback.
 
 ### 4. IGDB (Game Cover Art)
 
@@ -540,7 +543,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   │   ├── MusicCarousel.tsx
 │   │   └── ...
 │   ├── content/                # Markdown content
-│   │   ├── blog/              # Blog posts
 │   │   ├── papers/            # Research papers
 │   │   ├── projects/          # Project showcases
 │   │   ├── eulerProblems/     # Project Euler solutions
@@ -561,7 +563,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   ├── pages/                  # Routes
 │   │   ├── index.astro        # Home
 │   │   ├── robots.txt.ts      # robots.txt (sitemap URLs from site.config.ts)
-│   │   ├── blog/
 │   │   ├── projects/
 │   │   └── ...
 │   ├── styles/
@@ -572,6 +573,7 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   │   ├── concurrency.ts     # pLimit concurrency helper
 │   │   ├── retry.ts           # Retry logic with backoff
 │   │   ├── steam.ts           # Steam API integration
+│   │   ├── nintendo.ts        # Nintendo Switch play history (Nintendo Account)
 │   │   ├── spotify.ts         # Spotify API integration
 │   │   ├── tmdb.ts            # TMDB TV integration
 │   │   ├── kaya.ts            # Kaya climbing API
@@ -624,7 +626,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 
 Create markdown files in the appropriate directory:
 
-- **Blog posts**: `src/content/blog/post-title.md`
 - **Projects**: `src/content/projects/project-name.md`
 - **Papers**: `src/content/papers/paper-name.md`
 
@@ -762,7 +763,7 @@ If you accidentally commit secrets:
 
 ### Web Scraping Issues
 
-**Letterboxd, Goodreads, Exophase, Kaya rely on scraping/public APIs:**
+**Letterboxd, Goodreads, Kaya rely on scraping/public APIs:**
 - If these fail, the site structure may have changed
 - Letterboxd pages 2+ are Cloudflare-blocked from Cloud Build IPs (they load fine from a home connection, so local builds won't reproduce it); builds merge page 1 + RSS onto the previous list instead
 - Kaya's public queries are capped at 200 results; the full list needs a working `KAYA_REFRESH_TOKEN`
@@ -809,7 +810,7 @@ This is a personal website, but feel free to:
 
 ## License
 
-This project is open source and available for personal use. Please replace all personal content (resume, PGP key, blog posts, etc.) with your own.
+This project is open source and available for personal use. Please replace all personal content (resume, PGP key, projects, etc.) with your own.
 
 ## Built With
 

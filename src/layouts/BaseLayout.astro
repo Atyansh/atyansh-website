@@ -13,7 +13,7 @@ interface Props {
   description?: string;
   image?: string;
   type?: string;
-  structuredDataType?: 'person' | 'article' | 'website' | 'blog';
+  structuredDataType?: 'person' | 'website';
   structuredData?: Record<string, any>;
 }
 
@@ -27,9 +27,8 @@ if (image) {
 } else {
   // Generate dynamic OG image
   const ogParams = new URLSearchParams({
-    title: title.replace(` - ${siteConfig.name}`, '').replace(' - Blog', '').replace(' - Project', ''),
+    title: title.replace(` - ${siteConfig.name}`, '').replace(' - Project', ''),
     description: description,
-    type: type === 'article' ? 'blog' : 'default',
   });
   ogImageURL = new URL(`/og-image.png?${ogParams.toString()}`, Astro.site);
 }
@@ -209,7 +208,6 @@ const goatcounterEndpoint = siteConfig.analytics.goatcounter;
                 <li><a href={page.route} class="nav-link transition-colors rounded px-2 py-1" aria-label={page.navAriaLabel}>{page.navLabel}</a></li>
               ))}
               <li><a href="/pets" class="nav-link transition-colors rounded px-2 py-1" aria-label="Navigate to pets page">Pets</a></li>
-              <li><a href="/blog" class="nav-link transition-colors rounded px-2 py-1" aria-label="Navigate to blog">Blog</a></li>
             </ul>
           </div>
 
@@ -241,7 +239,6 @@ const goatcounterEndpoint = siteConfig.analytics.goatcounter;
               <li class={index === 0 && mediaPages.length > 0 ? 'pt-2' : undefined}><a href={page.route} class="nav-link block transition-colors rounded px-2 py-2" aria-label={page.navAriaLabel}>{page.navLabel}</a></li>
             ))}
             <li class={mainPages.length === 0 && mediaPages.length > 0 ? 'pt-2' : undefined}><a href="/pets" class="nav-link block transition-colors rounded px-2 py-2" aria-label="Navigate to pets page">Pets</a></li>
-            <li><a href="/blog" class="nav-link block transition-colors rounded px-2 py-2" aria-label="Navigate to blog">Blog</a></li>
           </ul>
         </div>
       </nav>

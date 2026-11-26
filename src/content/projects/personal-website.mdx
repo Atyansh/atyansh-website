@@ -17,13 +17,13 @@ import AmbientAudioSection from './_ambient-audio.mdx';
 
 I'd put off building a real personal site since college. When I joined Anthropic I wanted to learn [Claude Code](https://claude.com/claude-code) properly, so I built this site with it. I haven't written any of its code by hand.
 
-Besides the usual pages (work, papers, a blog, my [Project Euler solutions](/euler), a [PGP key](/pgp) and [my pets](/pets)), most of the site shows what I'm currently into: the games I'm playing, the music I listen to, the books, films, TV and anime I've finished, and my bouldering.
+Besides the usual pages (work, papers, my [Project Euler solutions](/euler), a [PGP key](/pgp) and [my pets](/pets)), most of the site shows what I'm currently into: the games I'm playing, the music I listen to, the books, films, TV and anime I've finished, and my bouldering.
 
 ## Where the data comes from
 
 The site is fully static. Everything is fetched at build time, and a build runs every night at 2 AM Pacific and on every push.
 
-- **Games:** the Steam Web API; PlayStation Network's API, with a refresh token that rotates every build; Nintendo Switch play history scraped from Exophase in a headless browser; and IGDB for consistent box art across all three.
+- **Games:** the Steam Web API; PlayStation Network's API, with a refresh token that rotates every build; Nintendo Switch play history read straight from Nintendo with my own account; and IGDB for consistent box art across all three.
 - **Music:** Spotify's API for top tracks, top artists, playlists and recent plays.
 - **Movies:** my Letterboxd diary, ratings and posters, scraped.
 - **TV:** a "watched" list and my ratings on TMDB.

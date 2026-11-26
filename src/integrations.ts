@@ -111,10 +111,10 @@ export const INTEGRATIONS: Integration[] = [
   },
   {
     id: 'nintendo',
-    name: 'Nintendo Switch (Exophase)',
-    requiredEnv: ['EXOPHASE_USERNAME'],
-    healthChecks: [{ name: 'Nintendo Switch' }],
-    setup: 'Your Exophase username (public profile scraping)',
+    name: 'Nintendo Switch',
+    requiredEnv: ['NINTENDO_SESSION_TOKEN'],
+    healthChecks: [{ name: 'Nintendo Switch' }, { name: 'Nintendo (login expiry)' }],
+    setup: 'Nintendo Account session token (valid ~2 years) from scripts/get-nintendo-token.cjs; each build trades it for an access token to read your play history',
   },
   {
     id: 'igdb',

@@ -48,12 +48,28 @@ describe('checkFn on fixture data', () => {
     ['Goodreads', { books: [{}] }, { books: [] }],
     ['Goodreads (login expiry)', { renewed: false, expiresAt: new Date(Date.now() + 200 * DAY).toISOString() }, { renewed: true, expiresAt: new Date(Date.now() + 10 * DAY).toISOString() }],
     ['Nintendo Switch', { games: [{}] }, { games: [] }],
+    ['Nintendo (login expiry)', { games: [{}], sessionExpiresAt: new Date(Date.now() + 700 * DAY).toISOString() }, { games: [{}], sessionExpiresAt: new Date(Date.now() + 10 * DAY).toISOString() }],
     ['Kaya (Climbing)', { pyramid: [{}], ascentsWithVideos: [{}] }, { pyramid: [{}], ascentsWithVideos: [] }],
     ['Kaya (Logged-in)', {}, { authError: 'token refresh returned 401' }],
     ['TMDB (TV Shows)', { shows: [{ posterImage: 'p' }, { posterImage: '' }] }, { shows: [{ posterImage: '' }, { posterImage: '' }] }],
   ])('%s passes healthy data and fails broken data', (name, good, bad) => {
     expect(api(name).checkFn(good)).toBeTruthy();
     expect(api(name).checkFn(bad)).toBeFalsy();
+  });
+});
+
+describe('Nintendo (login expiry)', () => {
+  const check = () => api('Nintendo (login expiry)');
+
+  it('alerts within 30 days of the session token expiring, with the date and days left', () => {
+    const data = { games: [{}], sessionExpiresAt: new Date(Date.now() + 5.5 * DAY).toISOString() };
+    expect(check().checkFn(data)).toBe(false);
+    expect(check().failReason(data)).toMatch(/Nintendo login expires on \d{4}-\d{2}-\d{2} \(5 days left\)/);
+  });
+
+  it('does not alert when the expiry is unknown, and only runs on a fresh cache', () => {
+    expect(check().checkFn({ games: [{}] })).toBe(true);
+    expect(check().onlyWhenFresh).toBe(true);
   });
 });
 
@@ -207,7 +223,9 @@ describe('buildPlainTextMessage', () => {
   it('fits in a 2000-character message when all APIs fail', () => {
     const text = buildPlainTextMessage(allFailing());
     expect(text.length).toBeLessThanOrEqual(2000);
-    expect(text).toContain('Spotify');
+    // Most urgent first: the action-required entries lead, each line capped
+    expect(text).toContain('🚨 Action required: Steam');
+    expect(text.split('\n').every((line: string) => line.length <= 300)).toBe(true);
   });
 });
 
@@ -292,8 +310,8 @@ describe('selectAPIs (disabled integrations are skipped, not alerted)', () => {
   it('checks IGDB only alongside a games platform', () => {
     const igdb = { IGDB_CLIENT_ID: 'i', IGDB_CLIENT_SECRET: 's' };
     expect(names(selectAPIs(APIs, { env: igdb, modules: modules() }).active)).toEqual([]);
-    expect(names(selectAPIs(APIs, { env: { ...igdb, EXOPHASE_USERNAME: 'u' }, modules: modules() }).active))
-      .toEqual(['IGDB (Game Covers)', 'Nintendo Switch']);
+    expect(names(selectAPIs(APIs, { env: { ...igdb, NINTENDO_SESSION_TOKEN: 't' }, modules: modules() }).active))
+      .toEqual(['IGDB (Game Covers)', 'Nintendo (login expiry)', 'Nintendo Switch']);
   });
 
   it('checks every toggled-on integration when the keys could not be read', () => {

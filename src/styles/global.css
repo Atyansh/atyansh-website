@@ -404,7 +404,7 @@ body {
   max-width: 70ch;
 }
 
-/* Blog Prose Styling - Theme-aware */
+/* Prose Styling - Theme-aware */
 .prose {
   line-height: 1.75;
   color: var(--text-secondary);

@@ -1,7 +1,7 @@
 // Unified game data structure combining Steam, PSN, and Nintendo
 import { getSteamStats, type SteamGame, type SteamStats } from './steam';
 import { getPSNData, type PSNGame, type PSNStats } from './psn';
-import { getNintendoStats, type NintendoGame, type NintendoStats } from './nintendo';
+import { getNintendoStats, type NintendoDevice, type NintendoGame, type NintendoStats } from './nintendo';
 import { getIGDBCoverUrl, isExcludedGame, flushIGDBCache } from './igdb';
 import { createLogger } from './logger';
 
@@ -15,6 +15,8 @@ export interface UnifiedGame {
   platform: Platform;
   image: string; // Card/thumbnail image
   headerImage?: string; // Larger header image for modal
+  /** Platform's own art, tried when `image` (IGDB) is missing or fails */
+  fallbackImage?: string;
 
   // Platform-specific data
   steamData?: {
@@ -41,6 +43,9 @@ export interface UnifiedGame {
     titleId: string;
     playtimeSeconds: number;
     lastPlayed?: number;
+    firstPlayed?: number;
+    daysPlayed?: number;
+    device?: NintendoDevice;
   };
 }
 
@@ -149,10 +154,14 @@ export async function getAllGames(sources: GameSources = ALL_SOURCES): Promise<A
           platform: 'nintendo',
           image: igdbCover || '',
           headerImage: igdbCover || '',
+          fallbackImage: game.imageUrl,
           nintendoData: {
             titleId: game.titleId,
             playtimeSeconds: game.totalPlayTime,
             lastPlayed: game.lastPlayedAt,
+            firstPlayed: game.firstPlayedAt,
+            daysPlayed: game.totalPlayedDays,
+            device: game.device,
           },
         };
       })

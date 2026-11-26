@@ -27,12 +27,17 @@ const { readSecrets, isCloudBuild, SECRET_NAME } = require('./site-secrets.cjs')
 const { loadSiteModules } = require('./site-config.cjs');
 
 const CACHE_DIR = path.join(process.cwd(), '.cache');
-const GOODREADS_EXPIRY_WARN_DAYS = 30;
+const LOGIN_EXPIRY_WARN_DAYS = 30;
+
+/** Days until an ISO expiry date, or null if unknown */
+function daysLeft(expiresAt) {
+  const expires = expiresAt ? Date.parse(expiresAt) : NaN;
+  return Number.isFinite(expires) ? (expires - Date.now()) / (24 * 60 * 60 * 1000) : null;
+}
 
 /** Days until the Goodreads login expires, from goodreads-session.json, or null if unknown */
 function goodreadsDaysLeft(data) {
-  const expires = data && data.expiresAt ? Date.parse(data.expiresAt) : NaN;
-  return Number.isFinite(expires) ? (expires - Date.now()) / (24 * 60 * 60 * 1000) : null;
+  return daysLeft(data && data.expiresAt);
 }
 // cloudbuild.yaml's build and test steps don't stop the build when they fail:
 // they leave <step-id> here (holding the end of their log) so this script can
@@ -139,7 +144,7 @@ const APIs = [
     // login dies early, the "Goodreads" check above alerts when shelves fail.
     name: 'Goodreads (login expiry)',
     cacheFile: 'goodreads-session.json',
-    checkFn: (data) => goodreadsDaysLeft(data) === null || goodreadsDaysLeft(data) > GOODREADS_EXPIRY_WARN_DAYS,
+    checkFn: (data) => goodreadsDaysLeft(data) === null || goodreadsDaysLeft(data) > LOGIN_EXPIRY_WARN_DAYS,
     failReason: (data) => `The Goodreads login expires on ${data.expiresAt.slice(0, 10)} (${Math.max(0, Math.floor(goodreadsDaysLeft(data)))} days left); the books page stops updating after that`,
     renewal: 'Sign in at goodreads.com, copy the whole Cookie request header from DevTools (Network tab), set GOODREADS_COOKIE in .env (single-quoted), then node scripts/push-secrets.cjs GOODREADS_COOKIE',
     requiresApiKey: true,
@@ -149,8 +154,21 @@ const APIs = [
     name: 'Nintendo Switch',
     cacheFile: 'nintendo-data.json',
     checkFn: (data) => data.games && data.games.length > 0,
-    renewal: 'Exophase scraping may have failed - check EXOPHASE_USERNAME in SITE_SECRETS',
-    requiresApiKey: false,
+    renewal: 'Check the build log\'s [Nintendo] lines. "Nintendo sign-in was rejected" means the login expired or was revoked: run node scripts/get-nintendo-token.cjs (two steps), then node scripts/push-secrets.cjs NINTENDO_SESSION_TOKEN',
+    requiresApiKey: true,
+    selfHealing: false,
+  },
+  {
+    // Warns ahead of the ~2-year session token's expiry; a failed fetch is
+    // reported by the entry above
+    name: 'Nintendo (login expiry)',
+    cacheFile: 'nintendo-data.json',
+    onlyWhenFresh: true,
+    checkFn: (data) => daysLeft(data.sessionExpiresAt) === null || daysLeft(data.sessionExpiresAt) > LOGIN_EXPIRY_WARN_DAYS,
+    failReason: (data) => `The Nintendo login expires on ${data.sessionExpiresAt.slice(0, 10)} (${Math.max(0, Math.floor(daysLeft(data.sessionExpiresAt)))} days left); the Switch games stop updating after that`,
+    renewal: 'Run node scripts/get-nintendo-token.cjs (two steps), then node scripts/push-secrets.cjs NINTENDO_SESSION_TOKEN',
+    requiresApiKey: true,
+    selfHealing: false,
   },
   {
     name: 'Kaya (Climbing)',

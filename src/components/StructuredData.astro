@@ -2,7 +2,7 @@
 import { siteConfig } from '../site.config';
 
 interface Props {
-  type?: 'person' | 'article' | 'website' | 'blog';
+  type?: 'person' | 'website';
   data?: Record<string, any>;
 }
 
@@ -49,28 +49,6 @@ const getStructuredData = () => {
       return baseStructuredData;
     case 'website':
       return websiteData;
-    case 'article':
-      return {
-        '@context': 'https://schema.org',
-        '@type': 'Article',
-        ...data,
-        author: {
-          '@type': 'Person',
-          name: author.name,
-          url: siteConfig.url,
-        },
-      };
-    case 'blog':
-      return {
-        '@context': 'https://schema.org',
-        '@type': 'Blog',
-        ...data,
-        author: {
-          '@type': 'Person',
-          name: author.name,
-          url: siteConfig.url,
-        },
-      };
     default:
       return websiteData;
   }

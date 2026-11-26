@@ -487,6 +487,18 @@ windows, rating changes, etc.). The `build-cache/` prefix in
 the same bucket is a separate mechanism (rolling last-known-good for the
 stale-cache fallback) and is overwritten, not archived. First snapshots: 2026-08-01 UTC (the evening of 2026-07-31 PT).
 
+Notes for readers of the archive:
+- A snapshot only holds the sources that fetched successfully in that build
+  (a failed source writes no cache file; its fallback copy isn't archived), so
+  a missing file means "no fresh data that build", not "empty".
+- `nintendo-data.json` changed source on 2026-11-26. Before: Exophase scrapes,
+  titleIds like `exophase-hades-ii`, playtime and last played only. After:
+  Nintendo's own play history, titleIds are Nintendo's (`0100a00019de0000`),
+  plus `totalPlayedDays`, `firstPlayedAt`, `device` (`switch`/`switch2`) and a
+  cumulative `stats.sessions` play-day log. Join the two eras by game name.
+  There is no Nintendo file for 2026-11-23 to 2026-11-26 (Exophase was blocked);
+  nothing was played in that window, so totals carry over unchanged.
+
 ## Firebase Hosting
 
 The site is served by Firebase Hosting (Blaze plan) — its global CDN terminates TLS for atyansh.com, and every `firebase deploy` automatically purges the CDN, so new content is live immediately with no invalidation step.

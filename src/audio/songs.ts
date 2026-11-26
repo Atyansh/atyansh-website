@@ -102,10 +102,10 @@ const workSong: Song = {
   ],
 };
 
-// ── Blog: Thoughtful, jazzy (G major, 72 BPM) ───────────────────────
+// ── Papers: Thoughtful, jazzy (G major, 72 BPM) ───────────────────────
 
-const blogSong: Song = {
-  name: 'blog',
+const papersSong: Song = {
+  name: 'papers',
   bpm: 72,
   tracks: [
     {
@@ -504,7 +504,7 @@ const eulerSong: Song = {
 const songs: Record<string, Song> = {
   home: homeSong,
   work: workSong,
-  blog: blogSong,
+  papers: papersSong,
   books: booksSong,
   music: musicSong,
   movies: moviesSong,
@@ -520,8 +520,7 @@ const pathSongMap: [RegExp, string][] = [
   [/^\/$/, 'home'],
   [/^\/work/, 'work'],
   [/^\/projects/, 'work'],
-  [/^\/blog/, 'blog'],
-  [/^\/papers/, 'blog'],
+  [/^\/papers/, 'papers'],
   [/^\/books/, 'books'],
   [/^\/music/, 'music'],
   [/^\/movies/, 'movies'],

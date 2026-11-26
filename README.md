@@ -7,7 +7,6 @@ A modern, privacy-focused personal website built with Astro and Tailwind CSS, fe
 ## Features
 
 ### Core Features
-- 📝 **Blog** with markdown support and tagging
 - 📄 **Papers/Publications** section for research work
 - 💼 **Projects** showcase with 143 Project Euler solutions
 - 👨‍💻 **Work Experience** page with resume
@@ -130,7 +129,7 @@ An integration is **enabled** when its toggle in `site.config.ts` is on **and** 
 
 ### 3. Replace the owner's content
 
-These are the original owner's, not configuration: blog posts (`src/content/blog/`), projects (`src/content/projects/`, `src/pages/projects/`), papers (`src/content/papers/`), Project Euler solutions (`src/content/eulerProblems/`), pets (`src/pages/pets.astro`, `public/images/pets/`), the home page bio/experience/education (`src/pages/index.astro`; name, avatar and links there come from config), `public/resume.pdf`, `public/publickey.asc` + `src/pages/pgp.astro`, `public/.well-known/security.txt` and `keybase.txt`, the OG-image avatar `src/assets/og/avatar.png`, and the ambient-audio songs. Remove a nav entry for content you delete in `src/layouts/BaseLayout.astro`.
+These are the original owner's, not configuration: projects (`src/content/projects/`, `src/pages/projects/`), papers (`src/content/papers/`), Project Euler solutions (`src/content/eulerProblems/`), pets (`src/pages/pets.astro`, `public/images/pets/`), the home page bio/experience/education (`src/pages/index.astro`; name, avatar and links there come from config), `public/resume.pdf`, `public/publickey.asc` + `src/pages/pgp.astro`, `public/.well-known/security.txt` and `keybase.txt`, the OG-image avatar `src/assets/og/avatar.png`, and the ambient-audio songs. Remove a nav entry for content you delete in `src/layouts/BaseLayout.astro`.
 
 ### 4. Google Cloud + Firebase (only if you want the automated daily builds)
 
@@ -544,7 +543,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   │   ├── MusicCarousel.tsx
 │   │   └── ...
 │   ├── content/                # Markdown content
-│   │   ├── blog/              # Blog posts
 │   │   ├── papers/            # Research papers
 │   │   ├── projects/          # Project showcases
 │   │   ├── eulerProblems/     # Project Euler solutions
@@ -565,7 +563,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   ├── pages/                  # Routes
 │   │   ├── index.astro        # Home
 │   │   ├── robots.txt.ts      # robots.txt (sitemap URLs from site.config.ts)
-│   │   ├── blog/
 │   │   ├── projects/
 │   │   └── ...
 │   ├── styles/
@@ -629,7 +626,6 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 
 Create markdown files in the appropriate directory:
 
-- **Blog posts**: `src/content/blog/post-title.md`
 - **Projects**: `src/content/projects/project-name.md`
 - **Papers**: `src/content/papers/paper-name.md`
 
@@ -814,7 +810,7 @@ This is a personal website, but feel free to:
 
 ## License
 
-This project is open source and available for personal use. Please replace all personal content (resume, PGP key, blog posts, etc.) with your own.
+This project is open source and available for personal use. Please replace all personal content (resume, PGP key, projects, etc.) with your own.
 
 ## Built With
 

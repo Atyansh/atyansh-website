@@ -54,6 +54,8 @@ The heart of the site is the activity tracking system. It pulls data from 10 ext
 
 **Nintendo Switch** was the trickiest gaming platform. Nintendo's walled garden means no official API exists. The solution was integrating with Exophase, which tracks Nintendo gameplay through their achievement system.
 
+*Update (November 2026):* Exophase started serving a Cloudflare challenge to Cloud Build, so the Switch data stopped updating. The site now reads the play history straight from Nintendo, the same data the Nintendo Switch Online app shows, with a Nintendo Account sign-in that lasts about two years. That also brought richer stats: days played, first played, Switch 2 games, and recent play days.
+
 **IGDB** (Internet Game Database) serves as the source of truth for game metadata and cover art across all platforms. This turned out to be one of the most iterative integrations. Matching game names from different platforms to IGDB entries required:
 
 - Steam App ID lookups via IGDB's external_games API for exact matching

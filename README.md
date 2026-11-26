@@ -576,6 +576,7 @@ Tests use [Vitest](https://vitest.dev/) and cover caching and last-known-good fa
 │   │   ├── concurrency.ts     # pLimit concurrency helper
 │   │   ├── retry.ts           # Retry logic with backoff
 │   │   ├── steam.ts           # Steam API integration
+│   │   ├── nintendo.ts        # Nintendo Switch play history (Nintendo Account)
 │   │   ├── spotify.ts         # Spotify API integration
 │   │   ├── tmdb.ts            # TMDB TV integration
 │   │   ├── kaya.ts            # Kaya climbing API
